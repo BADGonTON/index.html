@@ -37,6 +37,100 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  Tezlik chegarasi (rate limit)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Marketapp bir vaqtda ko'p so'rovni ko'tarmaydi — 120 ta kolleksiyani
+// parallel so'raganda 429 (Too Many Requests) qaytaradi. Shu sabab BARCHA
+// katalog so'rovlari shu yagona navbatdan o'tadi:
+//
+//   • ikkita so'rov orasida kamida `minInterval` ms tanaffus
+//   • 429 kelganda tanaffus IKKI BARAVAR oshadi (maksimumgacha) va
+//     `Retry-After` sarlavhasi hurmat qilinadi
+//   • ketma-ket muvaffaqiyatlardan keyin tanaffus asta-sekin qaytadi
+//
+// Ya'ni tizim Marketapp'ning haqiqiy chegarasini o'zi topib oladi.
+
+const RATE = {
+  floorMs: 0,          // config'dan ishga tushishda o'rnatiladi
+  currentMs: 0,
+  ceilingMs: 8_000,
+  nextAllowedAt: 0,
+  chainTail: Promise.resolve(),
+  consecutiveOk: 0,
+  lastLimitedAt: 0,
+};
+
+function ensureRateInit(): void {
+  if (RATE.floorMs === 0) {
+    RATE.floorMs = Math.max(100, config.marketMinIntervalMs);
+    RATE.currentMs = RATE.floorMs;
+  }
+}
+
+/** Navbatga qo'yadi: bir vaqtda faqat BITTA katalog so'rovi ketadi. */
+function schedule<T>(fn: () => Promise<T>): Promise<T> {
+  ensureRateInit();
+  const result = RATE.chainTail.then(async () => {
+    const wait = RATE.nextAllowedAt - Date.now();
+    if (wait > 0) await sleep(wait);
+    try {
+      return await fn();
+    } finally {
+      RATE.nextAllowedAt = Date.now() + RATE.currentMs;
+    }
+  });
+  // Navbat xato tufayli uzilib qolmasligi kerak.
+  RATE.chainTail = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
+function onRateLimited(retryAfterSec: number | null): void {
+  ensureRateInit();
+  RATE.consecutiveOk = 0;
+  RATE.lastLimitedAt = Date.now();
+  // ×2 emas, ×1.5: ikki baravar oshirish bir necha 429 dan keyin tanaffusni
+  // soniyalarga olib chiqadi va katalog to'lishi juda sekinlashib ketadi.
+  RATE.currentMs = Math.min(RATE.ceilingMs, Math.max(RATE.floorMs + 50, Math.round(RATE.currentMs * 1.5)));
+  const pause = retryAfterSec ? retryAfterSec * 1000 : RATE.currentMs;
+  RATE.nextAllowedAt = Math.max(RATE.nextAllowedAt, Date.now() + pause);
+  console.warn(
+    `⏳ Marketapp 429 — tanaffus ${RATE.currentMs} ms ga oshirildi` +
+      (retryAfterSec ? `, ${retryAfterSec}s kutamiz` : "")
+  );
+}
+
+function onRequestOk(): void {
+  ensureRateInit();
+  RATE.consecutiveOk++;
+  // 5 ta ketma-ket muvaffaqiyatdan keyin tezlashamiz. Sekin tiklanish
+  // bitta vaqtinchalik 429 tufayli katalogni soatlab to'ldirishga olib keladi.
+  if (RATE.consecutiveOk >= 5 && RATE.currentMs > RATE.floorMs) {
+    RATE.currentMs = Math.max(RATE.floorMs, Math.round(RATE.currentMs * 0.7));
+    RATE.consecutiveOk = 0;
+  }
+}
+
+/** Diagnostika uchun (admin paneli / healthz). */
+export function rateLimitState(): { intervalMs: number; limitedRecently: boolean } {
+  ensureRateInit();
+  return {
+    intervalMs: RATE.currentMs,
+    limitedRecently: Date.now() - RATE.lastLimitedAt < 60_000,
+  };
+}
+
+function retryAfterOf(err: any): number | null {
+  const raw = err?.response?.headers?.["retry-after"];
+  if (!raw) return null;
+  const n = parseInt(String(raw), 10);
+  return Number.isNaN(n) ? null : Math.min(n, 120);
+}
+
 function describeError(method: string, path: string, err: any): string {
   const status = err?.response?.status;
   const body = err?.response?.data;
@@ -59,10 +153,12 @@ async function request<T>(
         method === "get"
           ? await client().get<T>(path, { params: options.params })
           : await client().post<T>(path, options.body ?? {});
+      onRequestOk();
       return res.data;
     } catch (err: any) {
       lastErr = err;
       const status = err?.response?.status;
+      if (status === 429) onRateLimited(retryAfterOf(err));
       const retriable = status === undefined || status >= 500 || status === 429;
       if (!retriable || attempt === retries) break;
       await sleep(400 * 2 ** attempt);
@@ -134,18 +230,27 @@ export interface RawRentGift {
   [k: string]: unknown;
 }
 
+/**
+ * Katalog so'rovlari — navbat orqali (yuqoridagi rate limiter).
+ * Bu chaqiruvlar FAQAT fon ishchisidan keladi; foydalanuvchi so'rovi
+ * hech qachon bu yerda kutmaydi.
+ */
 export async function listCollections(): Promise<RawCollection[]> {
-  const data = await request<RawCollection[] | { items?: RawCollection[] }>(
-    "get",
-    "/v1/collections/gifts/"
+  const data = await schedule(() =>
+    request<RawCollection[] | { items?: RawCollection[] }>("get", "/v1/collections/gifts/", {
+      retries: 3,
+    })
   );
   return Array.isArray(data) ? data : data.items ?? [];
 }
 
 export async function listGiftsForCollection(collectionAddress: string): Promise<RawRentGift[]> {
-  const data = await request<{ items?: RawRentGift[] }>("get", "/v1/rent/gifts/", {
-    params: { collection_address: collectionAddress },
-  });
+  const data = await schedule(() =>
+    request<{ items?: RawRentGift[] }>("get", "/v1/rent/gifts/", {
+      params: { collection_address: collectionAddress },
+      retries: 1,
+    })
+  );
   return data.items ?? [];
 }
 

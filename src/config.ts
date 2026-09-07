@@ -124,14 +124,24 @@ export const config = {
 
   // ---------- Gift Arenda ----------
   /**
-   * Marketapp katalogi shu davrda bir marta yangilanadi (soniya).
-   * Mini App katalogni HECH QACHON to'g'ridan-to'g'ri Marketapp'dan olmaydi —
-   * faqat shu keshdan o'qiydi, shuning uchun ochilish tezligi
-   * Marketapp'ning tezligiga bog'liq emas.
+   * Katalog AYLANMA tarzda yangilanadi: har siklda faqat bir nechta
+   * kolleksiya. 120 ta kolleksiyani har safar to'liq so'rash Marketapp'dan
+   * 429 (Too Many Requests) oladi — shuning uchun yuk vaqt bo'ylab tarqatiladi.
    */
-  marketRefreshSec: optionalInt("MARKET_REFRESH_SEC", 90),
-  /** Kesh shu muddatdan eski bo'lsa "eskirgan" deb belgilanadi (lekin baribir ko'rsatiladi). */
-  marketStaleSec: optionalInt("MARKET_STALE_SEC", 900),
+  marketCycleSec: optionalInt("MARKET_CYCLE_SEC", 60),
+  /** Bitta siklda nechta kolleksiya yangilanadi. */
+  marketBatch: optionalInt("MARKET_BATCH", 12),
+  /**
+   * Marketapp'ga ikkita so'rov orasidagi eng kam vaqt (ms).
+   * 429 kelsa bu qiymat avtomatik oshadi, keyin asta-sekin qaytadi.
+   */
+  marketMinIntervalMs: optionalInt("MARKET_MIN_INTERVAL_MS", 1200),
+  /** Kolleksiyalar RO'YXATI shu davrda bir marta qayta o'qiladi (soniya). */
+  marketCollectionsRefreshSec: optionalInt("MARKET_COLLECTIONS_REFRESH_SEC", 900),
+  /** Kolleksiya ma'lumoti shu muddatdan eski bo'lsa "eskirgan" hisoblanadi. */
+  marketStaleSec: optionalInt("MARKET_STALE_SEC", 3600),
+  /** Mini App bitta so'rovda nechta gift oladi. */
+  marketPageSize: optionalInt("MARKET_PAGE_SIZE", 60),
   profileLinkVideoUrl: optional("PROFILE_LINK_VIDEO_URL", ""),
 
   // ---------- Mini App API himoyasi ----------

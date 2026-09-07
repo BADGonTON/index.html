@@ -108,22 +108,28 @@ miniapp/                  Mini App (build kerak emas — sof HTML/CSS/JS)
 Eski Gift-bot Mini App **har ochilganda** Marketapp'ga `1 + N` ta so'rov yuborardi
 (N = kolleksiyalar soni). 20 ta kolleksiyada bu 5–15 soniyalik "oq ekran" degani edi.
 
-Endi:
+Haqiqiy hajm: **~120 kolleksiya, ~8 000 gift**. Yechim:
 
-1. **Fon ishchisi** har `MARKET_REFRESH_SEC` (default 90 s) da butun katalogni
-   bir marta yig'ib, xotira va bazaga yozadi.
-2. Mini App **bitta** so'rov qiladi — `/api/bootstrap` — va u xotiradan javob beradi.
-3. Katalog klientda `localStorage` da keshlanadi; ikkinchi ochilishda ekran
-   **darhol** to'ladi, server esa faqat "o'zgardimi?" (etag) savoliga javob beradi.
-4. Slayder tortilganda narx **klientda** hisoblanadi — server so'ralmaydi.
-   (Server to'lov paytida narxni baribir qayta hisoblaydi — xavfsizlik uchun.)
-5. TON tranzaksiyasi (15–60 s) HTTP so'rovni bloklamaydi — navbatga qo'yiladi,
-   foydalanuvchi natijani botdan xabar sifatida oladi.
+1. **Aylanma fon yangilash.** Har `MARKET_CYCLE_SEC` (default 60 s) da faqat
+   `MARKET_BATCH` (default 12) ta eng eski kolleksiya yangilanadi — to'liq
+   aylanish ~10 daqiqa. So'rovlar **ketma-ket**, orasida tanaffus bilan.
+2. **Moslashuvchan tezlik.** 429 kelsa tanaffus oshadi va `Retry-After`
+   hurmat qilinadi; barqarorlashgach o'zi qaytadi. Ya'ni tizim Marketapp'ning
+   haqiqiy chegarasini o'zi topib oladi.
+3. **Har bir kolleksiya mustaqil saqlanadi** (`market_collections`). Bittasi
+   yiqilsa — u faqat eski holatida qoladi, boshqalarga ta'sir qilmaydi va
+   ishlaydigan ma'lumot hech qachon bo'shga almashmaydi.
+4. **Bootstrap yengil.** Ochilishda giftlar yuborilmaydi — faqat foydalanuvchi,
+   balans, ijaralar va kolleksiyalar ro'yxati (~13 KB). 8 000 giftni bitta
+   javobda yuborish ~2 MB bo'lardi.
+5. **Giftlar sahifalab keladi** — `/api/gifts` dan 60 tadan (~14 KB). Qidiruv,
+   saralash va kolleksiya filtri ham serverda, xotiradagi indeks ustidan.
+6. **Narx klientda hisoblanadi** — slayder tortilganda so'rov ketmaydi.
+   (Server to'lovda narxni baribir qayta hisoblaydi — xavfsizlik uchun.)
+7. **TON tranzaksiyasi** (15–60 s) HTTP so'rovni bloklamaydi — navbatga
+   qo'yiladi, natija botdan xabar sifatida keladi.
 
-Natija: ochilish **soniyalar** o'rniga **millisekundlar**.
-
-Marketapp yiqilsa — oxirgi ishlaydigan kesh ko'rsatiladi (ogohlantirish bilan),
-Mini App bo'sh qolmaydi.
+Marketapp butunlay yiqilsa ham katalog joyida qoladi — Mini App ishlashda davom etadi.
 
 ---
 

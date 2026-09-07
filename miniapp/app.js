@@ -1,16 +1,18 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Gift Arenda — Mini App klienti
 
-   Tezlik bo'yicha asosiy qarorlar:
-     1. Butun ma'lumot BITTA so'rovda keladi (`/api/bootstrap`).
-     2. Katalog `localStorage` da keshlanadi. Ikkinchi ochilishda ekran
-        DARHOL to'ladi, server esa faqat "o'zgardimi?" degan savolga javob
-        beradi (etag) — o'zgarmagan bo'lsa katalog qayta yuborilmaydi.
-     3. Narx hisob-kitobi KLIENTDA — slayder tortilganda server so'ralmaydi.
-        (Server to'lov paytida narxni baribir qayta hisoblaydi — bu xavfsizlik
-        uchun; klientdagi hisob faqat ko'rsatish uchun.)
-     4. Grid bo'lak-bo'lak chiziladi (60 tadan), shuning uchun minglab gift
-        bo'lsa ham interfeys hech qachon qotib qolmaydi.
+   Katalogda ~8 000 gift va ~120 kolleksiya bor. Shuning uchun:
+
+     • Ochilishda giftlar YUKLANMAYDI. `/api/bootstrap` faqat foydalanuvchi,
+       balans, ijaralar va kolleksiyalar ro'yxatini beradi (bir necha KB).
+     • Giftlar `/api/gifts` dan 60 tadan keladi; pastga tushganda keyingi
+       sahifa so'raladi.
+     • Qidiruv, saralash va kolleksiya filtri ham SERVERDA bajariladi —
+       8 000 elementni klientga tashib, u yerda filtrlash mobil qurilmada
+       ham sekin, ham ortiqcha trafik.
+     • Narx hisob-kitobi (kun × kunlik + xizmat haqi) klientda — slayder
+       tortilganda so'rov ketmaydi. Server to'lovda narxni baribir qayta
+       hisoblaydi, ya'ni klientdagi hisob faqat ko'rsatish uchun.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 'use strict';
@@ -19,31 +21,38 @@ const tg = window.Telegram?.WebApp;
 
 // ───────────────────────────── Holat ─────────────────────────────
 
-const CACHE_KEY = 'ga:catalog:v2';
-const CHUNK = 60;
-
 const state = {
   user: null,
   balance: 0,
   pricing: { ton_rate_uzs: 20000, service_fee_uzs: 2000 },
-  settings: {},
-  catalog: { etag: '', collections: [], gifts: [], stale: false },
+  settings: { page_size: 60 },
+  collections: [],
   rentals: [],
 
-  collection: null,      // null = barchasi
-  sort: 'asc',           // 'asc' | 'desc'
+  catalog: { version: '', ready: false, loading: false, total_gifts: 0 },
+
+  // Market ro'yxati (serverdan sahifalab keladi)
+  feed: {
+    items: [],
+    offset: 0,
+    total: 0,
+    hasMore: true,
+    busy: false,
+    version: '',
+  },
+
+  collection: null,   // null = barchasi
+  sort: 'asc',
   search: '',
 
-  gift: null,            // detalda ochilgan gift
+  gift: null,
   days: 1,
 
-  rental: null,          // ulash/uzaytirish uchun tanlangan ijara
+  rental: null,
   extendDays: 1,
 
   screen: 'market',
   history: [],
-  rendered: 0,
-  filtered: [],
 };
 
 // ───────────────────────────── Yordamchilar ─────────────────────────────
@@ -118,27 +127,6 @@ async function api(path, options = {}) {
   return data;
 }
 
-// ───────────────────────────── Kesh ─────────────────────────────
-
-function loadCachedCatalog() {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.gifts?.length ? parsed : null;
-  } catch { return null; }
-}
-
-function saveCachedCatalog(catalog) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      etag: catalog.etag,
-      collections: catalog.collections,
-      gifts: catalog.gifts,
-    }));
-  } catch { /* kvota to'lgan bo'lishi mumkin — muhim emas */ }
-}
-
 // ───────────────────────────── Navigatsiya ─────────────────────────────
 
 const TABS = ['market', 'mine', 'balance'];
@@ -157,7 +145,7 @@ function showScreen(name, { push = true } = {}) {
     t.classList.toggle('is-active', t.dataset.tab === name);
   });
 
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  window.scrollTo({ top: 0 });
   syncBackButton();
 
   if (name === 'mine') renderMine();
@@ -165,9 +153,8 @@ function showScreen(name, { push = true } = {}) {
 }
 
 function goBack() {
-  const previous = state.history.pop();
-  const target = previous || 'market';
-  state.screen = '';                 // showScreen ning "bir xil ekran" tekshiruvini chetlab o'tamiz
+  const target = state.history.pop() || 'market';
+  state.screen = '';
   showScreen(target, { push: false });
 }
 
@@ -180,13 +167,10 @@ function syncBackButton() {
 // ───────────────────────────── Rasm ─────────────────────────────
 
 /**
- * Rasm yuklanishini nazorat qiladi: yuklanmasa emoji fallback qoladi,
- * yuklansa yumshoq paydo bo'ladi. `onerror` atributi HTML ichida
- * yozilmaydi (CSP va xavfsizlik uchun).
+ * Rasm yuklanmasa emoji fallback qoladi, yuklansa yumshoq paydo bo'ladi.
+ * Konteynerdagi boshqa elementlar (masalan "3–30 kun" belgisi) o'chmaydi.
  */
 function mountImage(container, url, fallbackEmoji = '🎁') {
-  // DIQQAT: `innerHTML` ishlatilmaydi — konteynerda allaqachon boshqa
-  // elementlar bo'lishi mumkin (masalan "3-30 kun" belgisi), ular o'chmasligi kerak.
   container.querySelectorAll('.fallback, img').forEach((n) => n.remove());
 
   const fallback = document.createElement('span');
@@ -209,48 +193,113 @@ function mountImage(container, url, fallbackEmoji = '🎁') {
   container.appendChild(img);
 }
 
-// ───────────────────────────── Market ─────────────────────────────
+// ───────────────────────────── Narx (klient tomonda) ─────────────────────────────
 
-function applyFilters() {
-  const term = state.search.trim().toLowerCase();
+const NANO = 1e9;
 
-  state.filtered = state.catalog.gifts.filter((g) => {
-    if (state.collection && g.collection_address !== state.collection) return false;
-    if (term && !g.nft_name.toLowerCase().includes(term)) return false;
-    return true;
-  });
-
-  state.filtered.sort((a, b) => {
-    const pa = perDayUzs(a.price_per_day_nano);
-    const pb = perDayUzs(b.price_per_day_nano);
-    return state.sort === 'asc' ? pa - pb : pb - pa;
-  });
-
-  state.rendered = 0;
-  const grid = $('market-grid');
-  grid.innerHTML = '';
-
-  if (state.filtered.length === 0) {
-    grid.innerHTML = `
-      <div class="empty">
-        <div class="empty-ico">🔍</div>
-        <b>Gift topilmadi</b>
-        <span>${term ? 'Qidiruv shartini o\'zgartiring' : 'Boshqa kolleksiyani tanlab ko\'ring'}</span>
-      </div>`;
-    return;
-  }
-
-  renderNextChunk();
+/** Server bilan BIR XIL formula (src/services/pricing.ts). */
+function perDayUzs(nano) {
+  return Math.ceil((Number(nano) / NANO) * state.pricing.ton_rate_uzs);
+}
+function affordableDays(nano) {
+  const perDay = perDayUzs(nano);
+  if (perDay <= 0) return 0;
+  const rest = state.balance - state.pricing.service_fee_uzs;
+  return rest <= 0 ? 0 : Math.floor(rest / perDay);
 }
 
-function renderNextChunk() {
-  const grid = $('market-grid');
-  const slice = state.filtered.slice(state.rendered, state.rendered + CHUNK);
-  if (slice.length === 0) return;
+// ───────────────────────────── Market: sahifalab yuklash ─────────────────────────────
 
+function resetFeed() {
+  state.feed = { items: [], offset: 0, total: 0, hasMore: true, busy: false, version: '' };
+  $('market-grid').innerHTML = '';
+}
+
+function renderSkeleton(count = 8) {
+  $('market-grid').innerHTML = Array.from({ length: count }, () => `
+    <article class="tile is-skeleton">
+      <div class="tile-media"></div>
+      <div class="tile-body"><div class="sk"></div><div class="sk w60"></div></div>
+    </article>`).join('');
+}
+
+function renderEmpty(message, hint) {
+  $('market-grid').innerHTML = `
+    <div class="empty">
+      <div class="empty-ico">${state.catalog.loading ? '⏳' : '🔍'}</div>
+      <b>${escapeHtml(message)}</b>
+      <span>${escapeHtml(hint)}</span>
+    </div>`;
+}
+
+/**
+ * Keyingi sahifani so'raydi.
+ * `reset` — filtr/qidiruv/saralash o'zgarganda ro'yxat noldan boshlanadi.
+ */
+async function loadGifts({ reset = false } = {}) {
+  if (state.feed.busy) return;
+  if (!reset && !state.feed.hasMore) return;
+
+  if (reset) {
+    resetFeed();
+    renderSkeleton();
+  }
+
+  state.feed.busy = true;
+
+  const params = new URLSearchParams({
+    offset: String(state.feed.offset),
+    limit: String(state.settings.page_size || 60),
+    sort: state.sort,
+  });
+  if (state.collection) params.set('collection', state.collection);
+  if (state.search) params.set('q', state.search);
+
+  try {
+    const page = await api(`/gifts?${params.toString()}`);
+
+    // Katalog fon rejimida yangilanib turadi. Versiya o'zgargan bo'lsa,
+    // sahifalash surilib ketmasligi uchun ro'yxatni qaytadan boshlaymiz.
+    if (state.feed.version && page.version !== state.feed.version && !reset) {
+      state.feed.busy = false;
+      return loadGifts({ reset: true });
+    }
+    state.feed.version = page.version;
+
+    if (reset) $('market-grid').innerHTML = '';
+
+    state.feed.items.push(...page.items);
+    state.feed.offset += page.items.length;
+    state.feed.total = page.total;
+    state.feed.hasMore = page.has_more;
+
+    if (state.feed.items.length === 0) {
+      renderEmpty(
+        state.catalog.loading ? 'Katalog yuklanmoqda' : 'Gift topilmadi',
+        state.catalog.loading
+          ? 'Bir necha daqiqadan keyin qayta oching'
+          : (state.search ? 'Qidiruv shartini o\'zgartiring' : 'Boshqa kolleksiyani tanlang')
+      );
+    } else {
+      appendTiles(page.items);
+      updateCounter();
+    }
+  } catch (err) {
+    if (state.feed.items.length === 0) {
+      renderEmpty('Yuklab bo\'lmadi', err.message);
+    } else {
+      toast(err.message, 'error');
+    }
+  } finally {
+    state.feed.busy = false;
+  }
+}
+
+function appendTiles(items) {
+  const grid = $('market-grid');
   const frag = document.createDocumentFragment();
 
-  for (const gift of slice) {
+  for (const gift of items) {
     const tile = document.createElement('article');
     tile.className = 'tile';
     tile.innerHTML = `
@@ -260,7 +309,7 @@ function renderNextChunk() {
       <div class="tile-body">
         <div class="tile-name">${escapeHtml(gift.nft_name)}</div>
         <div class="tile-col">${escapeHtml(gift.collection_name)}</div>
-        <div class="tile-price">${fmtNum(perDayUzs(gift.price_per_day_nano))} <span>so'm/kun</span></div>
+        <div class="tile-price">${fmtNum(gift.price_per_day_uzs)} <span>so'm/kun</span></div>
       </div>`;
 
     mountImage(el('.tile-media', tile), gift.image_url);
@@ -269,34 +318,18 @@ function renderNextChunk() {
   }
 
   grid.appendChild(frag);
-  state.rendered += slice.length;
 }
 
-function renderSkeleton(count = 8) {
-  const grid = $('market-grid');
-  grid.innerHTML = Array.from({ length: count }, () => `
-    <article class="tile is-skeleton">
-      <div class="tile-media"></div>
-      <div class="tile-body"><div class="sk"></div><div class="sk w60"></div></div>
-    </article>`).join('');
-}
-
-// ───────────────────────────── Narx (klient tomonda) ─────────────────────────────
-
-const NANO = 1e9;
-
-/** Server bilan BIR XIL formula (src/services/pricing.ts). */
-function perDayUzs(nano) {
-  return Math.ceil((Number(nano) / NANO) * state.pricing.ton_rate_uzs);
-}
-function totalUzs(nano, days) {
-  return perDayUzs(nano) * days + state.pricing.service_fee_uzs;
-}
-function affordableDays(nano) {
-  const perDay = perDayUzs(nano);
-  if (perDay <= 0) return 0;
-  const rest = state.balance - state.pricing.service_fee_uzs;
-  return rest <= 0 ? 0 : Math.floor(rest / perDay);
+function updateCounter() {
+  const note = $('stale-note');
+  if (state.catalog.loading) {
+    note.hidden = false;
+    note.textContent =
+      `Katalog hali to'lmoqda — hozircha ${fmtNum(state.feed.total)} ta gift mavjud. ` +
+      `Bir necha daqiqada to'liq bo'ladi.`;
+  } else {
+    note.hidden = true;
+  }
 }
 
 // ───────────────────────────── Detal ekrani ─────────────────────────────
@@ -307,7 +340,7 @@ function openDetail(gift) {
 
   $('detail-collection').textContent = gift.collection_name || 'NFT GIFT';
   $('detail-name').textContent = gift.nft_name;
-  $('detail-perday').textContent = fmtNum(perDayUzs(gift.price_per_day_nano));
+  $('detail-perday').textContent = fmtNum(gift.price_per_day_uzs);
   mountImage($('detail-img'), gift.image_url);
 
   const slider = $('days-slider');
@@ -320,7 +353,6 @@ function openDetail(gift) {
 
   buildQuickDays($('quick-days'), gift.min_days, gift.max_days, (d) => {
     slider.value = d;
-    state.days = d;
     updateDetail();
   });
 
@@ -331,10 +363,10 @@ function openDetail(gift) {
 
 /** Tez tanlash tugmalari — slayderni aniq tortish shart bo'lmasin. */
 function buildQuickDays(container, min, max, onPick) {
-  const candidates = [min, 7, 14, 30, 60, 90].filter((d, i, arr) =>
-    d >= min && d <= max && arr.indexOf(d) === i
-  );
-  if (candidates[candidates.length - 1] !== max) candidates.push(max);
+  const candidates = [];
+  for (const d of [min, 7, 14, 30, 60, 90, max]) {
+    if (d >= min && d <= max && !candidates.includes(d)) candidates.push(d);
+  }
 
   container.innerHTML = '';
   for (const d of candidates.slice(0, 5)) {
@@ -361,7 +393,7 @@ function updateDetail() {
   const days = Number($('days-slider').value);
   state.days = days;
 
-  const base  = perDayUzs(gift.price_per_day_nano) * days;
+  const base  = gift.price_per_day_uzs * days;
   const fee   = state.pricing.service_fee_uzs;
   const total = base + fee;
 
@@ -472,7 +504,6 @@ function renderMine() {
 
     mountImage(el('.mine-img', card), rental.image_url);
 
-    // Muddat chizig'i (faqat faol ijaralarda)
     if (rental.status === 'linked' && rental.total_days > 0 && rental.left_days !== null) {
       const percent = Math.max(2, Math.min(100, (rental.left_days / rental.total_days) * 100));
       const bar = document.createElement('div');
@@ -488,9 +519,7 @@ function renderMine() {
       card.appendChild(errBox);
     }
 
-    // ─── Tugmalar ───
-    // MUHIM: faol ijarada HAR IKKALA tugma turadi — "Profilga ulash" ham,
-    // "Uzaytirish" ham (avval faqat bittasi ko'rinardi).
+    // Faol ijarada HAR IKKALA tugma turadi: "Profilga ulash" va "Uzaytirish".
     const actions = document.createElement('div');
     actions.className = 'mine-actions';
 
@@ -599,8 +628,9 @@ async function submitLink() {
     haptic('success');
     toast('Ulandi! Fragment profilida «Display on Telegram» ni yoqing.', 'success');
     await refreshRentals();
-    showScreen('mine', { push: false });
     state.history = [];
+    state.screen = '';
+    showScreen('mine', { push: false });
   } catch (err) {
     haptic('error');
     hint.className = 'hint is-error';
@@ -681,8 +711,9 @@ async function submitExtend() {
     toast('Uzaytirish navbatga qo\'yildi — tez orada tasdiqlanadi.', 'success');
 
     await refreshRentals();
-    showScreen('mine', { push: false });
     state.history = [];
+    state.screen = '';
+    showScreen('mine', { push: false });
   } catch (err) {
     haptic('error');
     toast(err.message, 'error');
@@ -716,20 +747,19 @@ function openCollectionSheet() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'sheet-item' + (state.collection === address ? ' is-active' : '');
-    btn.innerHTML = `<span>${escapeHtml(label)}</span><em>${count}</em>`;
+    btn.innerHTML = `<span>${escapeHtml(label)}</span><em>${fmtNum(count)}</em>`;
     btn.addEventListener('click', () => {
       state.collection = address;
       $('collection-label').textContent = address ? label : 'Barcha kolleksiyalar';
       closeCollectionSheet();
-      applyFilters();
+      loadGifts({ reset: true });
       haptic('light');
     });
     return btn;
   };
 
-  list.appendChild(makeItem('Barcha kolleksiyalar', state.catalog.gifts.length, null));
-  for (const col of state.catalog.collections) {
-    if (col.gift_count === 0) continue;
+  list.appendChild(makeItem('Barcha kolleksiyalar', state.catalog.total_gifts, null));
+  for (const col of state.collections) {
     list.appendChild(makeItem(col.name, col.gift_count, col.address));
   }
 
@@ -749,25 +779,28 @@ function bindEvents() {
 
   $('balance-pill').addEventListener('click', () => showScreen('balance'));
 
-  // Qidiruv — yozish paytida qotib qolmasligi uchun kechiktirib qo'llanadi
+  // Qidiruv serverga ketadi — yozish paytida har harfda emas, tanaffusdan keyin.
   let searchTimer = null;
   $('search-input').addEventListener('input', (e) => {
     const value = e.target.value;
     $('search-clear').hidden = value === '';
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => { state.search = value; applyFilters(); }, 180);
+    searchTimer = setTimeout(() => {
+      state.search = value.trim();
+      loadGifts({ reset: true });
+    }, 320);
   });
   $('search-clear').addEventListener('click', () => {
     $('search-input').value = '';
     $('search-clear').hidden = true;
     state.search = '';
-    applyFilters();
+    loadGifts({ reset: true });
   });
 
   $('sort-btn').addEventListener('click', () => {
     state.sort = state.sort === 'asc' ? 'desc' : 'asc';
     $('sort-label').textContent = state.sort === 'asc' ? 'Arzon' : 'Qimmat';
-    applyFilters();
+    loadGifts({ reset: true });
     haptic('light');
   });
 
@@ -797,18 +830,15 @@ function bindEvents() {
     setTimeout(() => tg?.close?.(), 1400);
   });
 
-  // Grid: pastga tushganda keyingi bo'lakni chizamiz
-  const sentinel = $('grid-sentinel');
+  // Pastga tushganda keyingi sahifani so'raymiz
   if ('IntersectionObserver' in window) {
     new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && state.screen === 'market') renderNextChunk();
-    }, { rootMargin: '400px' }).observe(sentinel);
+      if (entries[0].isIntersecting && state.screen === 'market') loadGifts();
+    }, { rootMargin: '600px' }).observe($('grid-sentinel'));
   }
 
-  // Telegram orqaga tugmasi
   tg?.BackButton?.onClick(goBack);
 
-  // Ilova qayta faollashganda ma'lumotni yangilaymiz
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) refreshRentals();
   });
@@ -816,24 +846,20 @@ function bindEvents() {
 
 // ───────────────────────────── Ishga tushirish ─────────────────────────────
 
-function applyBootstrap(data, { fromCache = false } = {}) {
+function applyBootstrap(data) {
   state.user = data.user;
   state.balance = data.balance_uzs;
   state.pricing = data.pricing;
   state.settings = data.settings;
   state.rentals = data.rentals || [];
+  state.collections = data.catalog.collections || [];
+  state.catalog = {
+    version: data.catalog.version,
+    ready: data.catalog.ready,
+    loading: data.catalog.loading,
+    total_gifts: data.catalog.total_gifts,
+  };
 
-  if (!data.catalog.unchanged) {
-    state.catalog = {
-      etag: data.catalog.etag,
-      collections: data.catalog.collections,
-      gifts: data.catalog.gifts,
-      stale: data.catalog.stale,
-    };
-    saveCachedCatalog(state.catalog);
-  }
-
-  // Profil
   const name = data.user.first_name || data.user.username || 'Foydalanuvchi';
   $('user-name').textContent = name;
   const avatar = $('avatar');
@@ -843,60 +869,36 @@ function applyBootstrap(data, { fromCache = false } = {}) {
     avatar.textContent = name.slice(0, 1).toUpperCase();
   }
 
-  const support = $('support-link');
-  if (state.settings.support_url) support.href = state.settings.support_url;
-
-  $('stale-note').hidden = !state.catalog.stale;
+  if (state.settings.support_url) $('support-link').href = state.settings.support_url;
 
   renderBalancePill();
   renderBalance();
-  applyFilters();
   updateMineBadge();
 
-  if (!fromCache && state.rentals.some((r) => r.status === 'paying')) startPaymentWatcher();
+  if (state.rentals.some((r) => r.status === 'paying')) startPaymentWatcher();
 }
 
 async function init() {
-  // Telegram muhitini sozlaymiz
   if (tg) {
     tg.ready();
     tg.expand();
     tg.setHeaderColor?.('secondary_bg_color');
-    tg.enableClosingConfirmation?.();
     tg.disableVerticalSwipes?.();
   }
 
   bindEvents();
+  renderSkeleton();
 
-  // 1-qadam: keshdagi katalogni DARHOL ko'rsatamiz (ekran bo'sh turmaydi)
-  const cached = loadCachedCatalog();
-  if (cached) {
-    state.catalog = { ...cached, stale: false };
-    applyFilters();
-  } else {
-    renderSkeleton();
-  }
-
-  // 2-qadam: yagona so'rov bilan hamma narsani olamiz
   try {
-    const query = state.catalog.etag ? `?catalog_etag=${encodeURIComponent(state.catalog.etag)}` : '';
-    const data = await api(`/bootstrap${query}`);
+    const data = await api('/bootstrap');
     applyBootstrap(data);
+    await loadGifts({ reset: true });
   } catch (err) {
-    if (!cached) {
-      $('market-grid').innerHTML = `
-        <div class="empty">
-          <div class="empty-ico">📡</div>
-          <b>Yuklab bo'lmadi</b>
-          <span>${escapeHtml(err.message)}</span>
-        </div>`;
-    } else {
-      toast('Yangilab bo\'lmadi — keshdagi ma\'lumot ko\'rsatilmoqda');
-    }
+    renderEmpty('Yuklab bo\'lmadi', err.message);
   } finally {
     $('app').hidden = false;
     $('splash').classList.add('is-done');
-    setTimeout(() => $('splash').remove(), 400);
+    setTimeout(() => $('splash')?.remove(), 400);
   }
 }
 

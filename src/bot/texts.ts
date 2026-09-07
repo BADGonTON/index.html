@@ -679,5 +679,7 @@ export const ADMIN_RENT_STATS = `🖼 <b>Arenda statistikasi</b>
 🧾 Xizmat haqi: <b>{fee}</b> so'm
 
 📚 Katalogda: <b>{gifts}</b> gift / <b>{collections}</b> kolleksiya
-🕒 Katalog yangilangan: <b>{age}</b> soniya oldin`;
+⏳ Yuklanmoqda: <b>{loading}</b> · ⚠️ Xato: <b>{failing}</b>
+🕒 Eng eski ma'lumot: <b>{age}</b> soniya oldin
+🚦 Marketapp tanaffusi: <b>{interval}</b> ms{limited}`;
 

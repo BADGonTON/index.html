@@ -43,7 +43,7 @@ import {
   setTonRateUzs,
   setServiceFeeUzs,
 } from "../../services/pricing";
-import { getCatalog } from "../../services/catalog";
+import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
 
 /** Broadcast: Telegram soniyasiga ~30 xabarga ruxsat beradi. 25/s xavfsiz tezlik. */
@@ -150,7 +150,7 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
   bot.callbackQuery(
     "admin_rent_stats",
     adminOnly(async (ctx) => {
-      const catalog = getCatalog();
+      const catalog = catalogStats();
       const [{ rows }, queue] = await Promise.all([
         pool.query<{ status: string; count: number }>(
           `SELECT status, COUNT(*)::int AS count FROM rentals
@@ -168,9 +168,13 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
           queue,
           rate: getTonRateUzs().toLocaleString("ru-RU"),
           fee: getServiceFeeUzs().toLocaleString("ru-RU"),
-          gifts: catalog.gifts.length,
-          collections: catalog.collections.length,
-          age: catalog.fetched_at ? Math.floor(Date.now() / 1000) - catalog.fetched_at : "—",
+          gifts: catalog.gifts,
+          collections: catalog.collections,
+          loading: catalog.pending,
+          failing: catalog.failing,
+          age: catalog.oldest_age_sec,
+          interval: catalog.rate_interval_ms,
+          limited: catalog.rate_limited ? " (hozir cheklangan)" : "",
         }),
         adminBackKb()
       );

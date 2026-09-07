@@ -1,7 +1,14 @@
 import { Router } from "express";
 import { config } from "../config";
 import { requireTelegramAuth, rateLimit } from "./auth";
-import { getCatalog, findGift } from "../services/catalog";
+import {
+  listCatalogCollections,
+  queryGifts,
+  findGift,
+  catalogStats,
+  catalogVersion,
+  giftImageUrl,
+} from "../services/catalog";
 import {
   getTonRateUzs,
   getServiceFeeUzs,
@@ -41,18 +48,18 @@ export function createApiRouter(): Router {
   api.use(requireTelegramAuth, rateLimit);
 
   // ---------------------------------------------------------------------
-  //  Boshlang'ich yuklash — Mini App'ning YAGONA so'rovi
+  //  Boshlang'ich yuklash
+  //
+  //  DIQQAT: bu yerda GIFTLAR YUBORILMAYDI. Katalogda ~8 000 gift bor,
+  //  ularning hammasi ~2 MB JSON bo'ladi va mobil internetda ilovaning
+  //  ochilishini sekinlashtiradi. Bunda faqat kolleksiyalar ro'yxati
+  //  (~120 qator, bir necha KB) keladi, giftlar esa /gifts dan
+  //  sahifalab olinadi.
   // ---------------------------------------------------------------------
   api.get("/bootstrap", async (req, res) => {
     const tgUser = req.tgUser!;
     const user = await getOrCreateUser(tgUser.id, tgUser.username ?? null);
-    const catalog = getCatalog();
-
-    // Klient oxirgi ko'rgan katalog versiyasini yuboradi. O'zgarmagan bo'lsa —
-    // katalogni qayta yubormaymiz (bir necha yuz KB trafik tejaladi va
-    // takroriy ochilishlar bir zumda bo'ladi).
-    const clientEtag = String(req.query.catalog_etag ?? "");
-    const catalogUnchanged = clientEtag !== "" && clientEtag === catalog.etag;
+    const stats = catalogStats();
 
     res.json({
       user: {
@@ -69,18 +76,47 @@ export function createApiRouter(): Router {
       settings: {
         profile_link_video_url: config.profileLinkVideoUrl || null,
         support_url: config.supportBot,
+        page_size: config.marketPageSize,
       },
-      catalog: catalogUnchanged
-        ? { unchanged: true, etag: catalog.etag }
-        : {
-            unchanged: false,
-            etag: catalog.etag,
-            stale: catalog.stale,
-            fetched_at: catalog.fetched_at,
-            collections: catalog.collections,
-            gifts: catalog.gifts,
-          },
+      catalog: {
+        version: catalogVersion(),
+        ready: stats.ready,
+        // Hali to'lib ulgurmagan bo'lsa, Mini App buni foydalanuvchiga aytadi.
+        loading: stats.pending > 0,
+        total_gifts: stats.gifts,
+        collections: listCatalogCollections(),
+      },
       rentals: (await listUserRentals(user.user_id)).map((r) => serializeRental(r, user.balance)),
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  //  Giftlar — sahifalab (filtr va saralash ham serverda)
+  // ---------------------------------------------------------------------
+  api.get("/gifts", (req, res) => {
+    const page = queryGifts({
+      collection: req.query.collection ? String(req.query.collection) : null,
+      search: req.query.q ? String(req.query.q) : "",
+      sort: req.query.sort === "desc" ? "desc" : "asc",
+      offset: Number(req.query.offset) || 0,
+      limit: Number(req.query.limit) || config.marketPageSize,
+    });
+
+    res.json({
+      version: page.version,
+      total: page.total,
+      offset: page.offset,
+      has_more: page.has_more,
+      items: page.items.map((g) => ({
+        nft_address: g.nft_address,
+        nft_name: g.nft_name,
+        collection_name: g.collection_name,
+        price_per_day_nano: g.price_per_day_nano,
+        price_per_day_uzs: pricePerDayUzs(g.price_per_day_nano),
+        min_days: g.min_days,
+        max_days: g.max_days,
+        image_url: giftImageUrl(g.nft_name),
+      })),
     });
   });
 
@@ -275,11 +311,7 @@ function serializeRental(r: RentalRow, balanceUzs: number) {
     nft_address: r.nft_address,
     nft_name: r.nft_name,
     collection_name: r.collection_name,
-    image_url: `https://nft.fragment.com/gift/${r.nft_name
-      .trim()
-      .replace(/\s*#\s*/g, "-")
-      .replace(/[\s_]+/g, "")
-      .toLowerCase()}.medium.jpg`,
+    image_url: giftImageUrl(r.nft_name),
     status: r.status,
     tx_error: r.tx_error,
     total_days: secToDays(r.duration_sec),

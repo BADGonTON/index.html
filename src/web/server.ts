@@ -7,7 +7,7 @@ import { config } from "../config";
 import { MyContext } from "../bot/session";
 import { createApiRouter } from "./routes";
 import { pingDatabase } from "../db/pool";
-import { getCatalog } from "../services/catalog";
+import { catalogStats } from "../services/catalog";
 
 /**
  * Bitta Express serveri uchta vazifani bajaradi:
@@ -49,16 +49,10 @@ export function createServer(bot: Bot<MyContext>): Express {
   app.get("/healthz", async (_req, res) => {
     try {
       await pingDatabase();
-      const catalog = getCatalog();
       res.json({
         ok: true,
         uptime_sec: Math.floor(process.uptime()),
-        catalog: {
-          gifts: catalog.gifts.length,
-          collections: catalog.collections.length,
-          age_sec: catalog.fetched_at ? Math.floor(Date.now() / 1000) - catalog.fetched_at : null,
-          stale: catalog.stale,
-        },
+        catalog: catalogStats(),
       });
     } catch (err) {
       res.status(503).json({ ok: false, error: (err as Error).message });
