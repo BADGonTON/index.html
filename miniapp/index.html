@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#07080c" />
+<title>Gift Arenda — HozirOL</title>
+<link rel="preconnect" href="https://nft.fragment.com" crossorigin />
+<link rel="dns-prefetch" href="https://nft.fragment.com" />
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="styles.css?v=2" />
+</head>
+<body>
+
+<!-- ══════════════ Yuklanish ekrani ══════════════ -->
+<div id="splash" class="splash">
+  <div class="splash-logo">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 2L2 8.5 12 22 22 8.5 12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M12 2v20M2 8.5h20" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
+    </svg>
+  </div>
+  <div class="splash-title">Gift Arenda</div>
+  <div class="splash-bar"><i></i></div>
+</div>
+
+<!-- ══════════════ Ilova ══════════════ -->
+<div id="app" hidden>
+
+  <!-- ─── Yuqori panel ─── -->
+  <header class="topbar">
+    <div class="topbar-user">
+      <div class="avatar" id="avatar"></div>
+      <div class="topbar-meta">
+        <span class="topbar-hello" id="hello">Salom</span>
+        <span class="topbar-name" id="user-name">—</span>
+      </div>
+    </div>
+    <button class="balance-pill" id="balance-pill" type="button">
+      <span class="balance-value" id="balance-value">0</span>
+      <span class="balance-unit">so'm</span>
+    </button>
+  </header>
+
+  <!-- ═══════════ EKRAN: Market ═══════════ -->
+  <section class="screen is-active" data-screen="market">
+    <div class="hero">
+      <h1>Gift Arenda</h1>
+      <p>TON NFT sovg'alarni ijaraga oling va profilingizda ko'rsating</p>
+    </div>
+
+    <div class="toolbar">
+      <button class="chip chip-wide" id="collection-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" class="ico"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/></svg>
+        <span id="collection-label">Barcha kolleksiyalar</span>
+        <svg viewBox="0 0 24 24" fill="none" class="ico chev"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="chip" id="sort-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M7 20V4m0 16l-3.5-3.5M7 20l3.5-3.5M17 4v16m0-16l-3.5 3.5M17 4l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="sort-label">Arzon</span>
+      </button>
+    </div>
+
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <input type="search" id="search-input" placeholder="Gift nomi bo'yicha qidirish" autocomplete="off" enterkeyhint="search" />
+      <button class="search-clear" id="search-clear" type="button" hidden aria-label="Tozalash">✕</button>
+    </div>
+
+    <div class="stale-note" id="stale-note" hidden>
+      Katalog vaqtincha yangilanmadi — narxlar biroz eskirgan bo'lishi mumkin.
+    </div>
+
+    <div class="grid" id="market-grid"></div>
+    <div class="grid-sentinel" id="grid-sentinel"></div>
+  </section>
+
+  <!-- ═══════════ EKRAN: Gift detali ═══════════ -->
+  <section class="screen" data-screen="detail">
+    <div class="detail-hero">
+      <div class="detail-img" id="detail-img"></div>
+      <div class="detail-head">
+        <span class="tag" id="detail-collection">—</span>
+        <h2 id="detail-name">—</h2>
+        <div class="detail-rate"><b id="detail-perday">0</b> so'm <span>/ kun</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-row">
+        <span class="card-label">Ijara muddati</span>
+        <span class="card-value"><b id="days-value">1</b> kun</span>
+      </div>
+      <input type="range" class="slider" id="days-slider" min="1" max="30" value="1" />
+      <div class="slider-legend">
+        <span id="days-min">1 kun</span>
+        <span id="days-max">30 kun</span>
+      </div>
+      <div class="quick-days" id="quick-days"></div>
+    </div>
+
+    <div class="card">
+      <div class="sum-row"><span>Ijara narxi</span><span id="sum-base">0 so'm</span></div>
+      <div class="sum-row"><span>Xizmat haqi</span><span id="sum-fee">0 so'm</span></div>
+      <div class="sum-row sum-total"><span>Jami</span><span id="sum-total">0 so'm</span></div>
+      <div class="hint" id="detail-hint"></div>
+    </div>
+
+    <div class="sticky-action">
+      <button class="btn btn-primary" id="pay-btn" type="button">To'lov qilish</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ EKRAN: Mening giftlarim ═══════════ -->
+  <section class="screen" data-screen="mine">
+    <div class="hero">
+      <h1>Mening giftlarim</h1>
+      <p>Ijaraga olingan sovg'alaringiz</p>
+    </div>
+    <div id="mine-list" class="mine-list"></div>
+  </section>
+
+  <!-- ═══════════ EKRAN: Profilga ulash ═══════════ -->
+  <section class="screen" data-screen="link">
+    <div class="hero">
+      <h1>Profilga ulash</h1>
+      <p id="link-subtitle">Giftni Telegram profilingizda ko'rsating</p>
+    </div>
+
+    <div class="card steps">
+      <div class="step"><i>1</i><span><b>fragment.com</b> saytiga kiring va <b>TonConnect</b> orqali hamyoningizni ulang</span></div>
+      <div class="step"><i>2</i><span>Chiqqan <code>tc://</code> havolasini nusxalang</span></div>
+      <div class="step"><i>3</i><span>Havolani pastdagi maydonga joylashtiring va <b>Ulash</b> tugmasini bosing</span></div>
+      <div class="step"><i>4</i><span>Fragment profilida <b>My Assets → Gifts → Display on Telegram</b> ni yoqing</span></div>
+    </div>
+
+    <a class="btn btn-ghost" id="video-btn" target="_blank" rel="noopener" hidden>
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.7"/><path d="M10 8.4v7.2l6-3.6-6-3.6Z" fill="currentColor"/></svg>
+      Video qo'llanma
+    </a>
+
+    <div class="card">
+      <label class="field-label" for="tc-input">TonConnect havolasi</label>
+      <div class="field">
+        <input type="text" id="tc-input" placeholder="tc://connect?v=2&id=…" autocomplete="off" spellcheck="false" />
+        <button class="field-btn" id="tc-paste" type="button">Qo'yish</button>
+      </div>
+      <div class="hint" id="link-hint"></div>
+    </div>
+
+    <div class="sticky-action">
+      <button class="btn btn-primary" id="link-btn" type="button">Ulash</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ EKRAN: Uzaytirish ═══════════ -->
+  <section class="screen" data-screen="extend">
+    <div class="detail-hero">
+      <div class="detail-img" id="extend-img"></div>
+      <div class="detail-head">
+        <span class="tag">Uzaytirish</span>
+        <h2 id="extend-name">—</h2>
+        <div class="detail-rate"><b id="extend-perday">0</b> so'm <span>/ kun</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-row">
+        <span class="card-label">Qo'shimcha muddat</span>
+        <span class="card-value"><b id="extend-days-value">1</b> kun</span>
+      </div>
+      <input type="range" class="slider" id="extend-slider" min="1" max="30" value="1" />
+      <div class="slider-legend"><span>1 kun</span><span id="extend-max">30 kun</span></div>
+      <div class="quick-days" id="extend-quick"></div>
+    </div>
+
+    <div class="card">
+      <div class="sum-row sum-total"><span>Jami</span><span id="extend-total">0 so'm</span></div>
+      <div class="hint" id="extend-hint"></div>
+    </div>
+
+    <div class="sticky-action">
+      <button class="btn btn-primary" id="extend-btn" type="button">Uzaytirish</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ EKRAN: Balans ═══════════ -->
+  <section class="screen" data-screen="balance">
+    <div class="hero">
+      <h1>Balans</h1>
+      <p>Barcha xizmatlar uchun yagona hisob</p>
+    </div>
+
+    <div class="balance-card">
+      <div class="balance-card-label">Joriy balans</div>
+      <div class="balance-card-sum"><span id="balance-big">0</span> <i>so'm</i></div>
+      <div class="balance-card-glow"></div>
+    </div>
+
+    <button class="btn btn-primary" id="topup-btn" type="button">Balansni to'ldirish</button>
+
+    <div class="card info">
+      Balansni botdagi <b>«💰 Balans → 💳 To'lov»</b> bo'limi orqali to'ldirasiz.
+      Bu balans <b>Stars</b>, <b>Premium</b>, <b>Gift</b> va <b>Gift Arenda</b> uchun umumiy.
+    </div>
+
+    <a class="card link-card" id="support-link" target="_blank" rel="noopener">
+      <span>Yordam kerakmi?</span>
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </section>
+
+  <!-- ─── Pastki tab bar ─── -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab is-active" data-tab="market" type="button">
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M4 8l1.6-4h12.8L20 8M4 8v11a1 1 0 001 1h14a1 1 0 001-1V8M4 8h16M9.5 12a2.5 2.5 0 005 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Market</span>
+    </button>
+    <button class="tab" data-tab="mine" type="button">
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><rect x="3" y="9" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3 9V8a2 2 0 012-2h14a2 2 0 012 2v1M12 6v14M12 6c-1.3 0-2.3-.9-2.3-2S10.7 2 12 2s2.3.9 2.3 2S13.3 6 12 6Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Giftlarim</span>
+      <i class="tab-badge" id="mine-badge" hidden></i>
+    </button>
+    <button class="tab" data-tab="balance" type="button">
+      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M12 2L2 8.5 12 22 22 8.5 12 2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <span>Balans</span>
+    </button>
+  </nav>
+
+  <!-- ─── Kolleksiya tanlash (bottom sheet) ─── -->
+  <div class="sheet-overlay" id="collection-sheet">
+    <div class="sheet">
+      <div class="sheet-grab"></div>
+      <h3>Kolleksiya</h3>
+      <div class="sheet-list" id="collection-list"></div>
+    </div>
+  </div>
+
+  <!-- ─── Toast ─── -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script src="app.js?v=2"></script>
+</body>
+</html>

@@ -1,0 +1,903 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Gift Arenda — Mini App klienti
+
+   Tezlik bo'yicha asosiy qarorlar:
+     1. Butun ma'lumot BITTA so'rovda keladi (`/api/bootstrap`).
+     2. Katalog `localStorage` da keshlanadi. Ikkinchi ochilishda ekran
+        DARHOL to'ladi, server esa faqat "o'zgardimi?" degan savolga javob
+        beradi (etag) — o'zgarmagan bo'lsa katalog qayta yuborilmaydi.
+     3. Narx hisob-kitobi KLIENTDA — slayder tortilganda server so'ralmaydi.
+        (Server to'lov paytida narxni baribir qayta hisoblaydi — bu xavfsizlik
+        uchun; klientdagi hisob faqat ko'rsatish uchun.)
+     4. Grid bo'lak-bo'lak chiziladi (60 tadan), shuning uchun minglab gift
+        bo'lsa ham interfeys hech qachon qotib qolmaydi.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+'use strict';
+
+const tg = window.Telegram?.WebApp;
+
+// ───────────────────────────── Holat ─────────────────────────────
+
+const CACHE_KEY = 'ga:catalog:v2';
+const CHUNK = 60;
+
+const state = {
+  user: null,
+  balance: 0,
+  pricing: { ton_rate_uzs: 20000, service_fee_uzs: 2000 },
+  settings: {},
+  catalog: { etag: '', collections: [], gifts: [], stale: false },
+  rentals: [],
+
+  collection: null,      // null = barchasi
+  sort: 'asc',           // 'asc' | 'desc'
+  search: '',
+
+  gift: null,            // detalda ochilgan gift
+  days: 1,
+
+  rental: null,          // ulash/uzaytirish uchun tanlangan ijara
+  extendDays: 1,
+
+  screen: 'market',
+  history: [],
+  rendered: 0,
+  filtered: [],
+};
+
+// ───────────────────────────── Yordamchilar ─────────────────────────────
+
+const $  = (id) => document.getElementById(id);
+const el = (sel, root = document) => root.querySelector(sel);
+
+function fmtNum(n) {
+  return Math.round(Number(n) || 0).toLocaleString('ru-RU');
+}
+function fmtSom(n) {
+  return fmtNum(n) + " so'm";
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+function haptic(type = 'light') {
+  try {
+    if (type === 'success' || type === 'error' || type === 'warning') {
+      tg?.HapticFeedback?.notificationOccurred(type);
+    } else {
+      tg?.HapticFeedback?.impactOccurred(type);
+    }
+  } catch { /* qo'llab-quvvatlanmasa — muhim emas */ }
+}
+
+let toastTimer = null;
+function toast(message, kind = '') {
+  const node = $('toast');
+  node.textContent = message;
+  node.className = 'toast is-open' + (kind ? ` is-${kind}` : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { node.className = 'toast'; }, 3200);
+}
+
+function setBusy(button, busy, label) {
+  if (busy) {
+    button.dataset.label = button.textContent;
+    button.innerHTML = '<span class="spin"></span>' + (label ? ` ${label}` : '');
+    button.disabled = true;
+  } else {
+    button.textContent = button.dataset.label || button.textContent;
+    button.disabled = false;
+  }
+}
+
+// ───────────────────────────── API ─────────────────────────────
+
+const initData = tg?.initData || '';
+
+async function api(path, options = {}) {
+  const res = await fetch(`/api${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `tma ${initData}`,
+      ...(options.headers || {}),
+    },
+  });
+
+  let data = {};
+  try { data = await res.json(); } catch { /* bo'sh javob */ }
+
+  if (!res.ok) {
+    const err = new Error(data.error || `Xatolik (${res.status})`);
+    err.status = res.status;
+    err.payload = data;
+    throw err;
+  }
+  return data;
+}
+
+// ───────────────────────────── Kesh ─────────────────────────────
+
+function loadCachedCatalog() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.gifts?.length ? parsed : null;
+  } catch { return null; }
+}
+
+function saveCachedCatalog(catalog) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      etag: catalog.etag,
+      collections: catalog.collections,
+      gifts: catalog.gifts,
+    }));
+  } catch { /* kvota to'lgan bo'lishi mumkin — muhim emas */ }
+}
+
+// ───────────────────────────── Navigatsiya ─────────────────────────────
+
+const TABS = ['market', 'mine', 'balance'];
+
+function showScreen(name, { push = true } = {}) {
+  if (state.screen === name) return;
+  if (push && !TABS.includes(name)) state.history.push(state.screen);
+  if (TABS.includes(name)) state.history = [];
+
+  state.screen = name;
+
+  document.querySelectorAll('.screen').forEach((s) => {
+    s.classList.toggle('is-active', s.dataset.screen === name);
+  });
+  document.querySelectorAll('.tab').forEach((t) => {
+    t.classList.toggle('is-active', t.dataset.tab === name);
+  });
+
+  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  syncBackButton();
+
+  if (name === 'mine') renderMine();
+  if (name === 'balance') renderBalance();
+}
+
+function goBack() {
+  const previous = state.history.pop();
+  const target = previous || 'market';
+  state.screen = '';                 // showScreen ning "bir xil ekran" tekshiruvini chetlab o'tamiz
+  showScreen(target, { push: false });
+}
+
+function syncBackButton() {
+  if (!tg?.BackButton) return;
+  if (TABS.includes(state.screen)) tg.BackButton.hide();
+  else tg.BackButton.show();
+}
+
+// ───────────────────────────── Rasm ─────────────────────────────
+
+/**
+ * Rasm yuklanishini nazorat qiladi: yuklanmasa emoji fallback qoladi,
+ * yuklansa yumshoq paydo bo'ladi. `onerror` atributi HTML ichida
+ * yozilmaydi (CSP va xavfsizlik uchun).
+ */
+function mountImage(container, url, fallbackEmoji = '🎁') {
+  // DIQQAT: `innerHTML` ishlatilmaydi — konteynerda allaqachon boshqa
+  // elementlar bo'lishi mumkin (masalan "3-30 kun" belgisi), ular o'chmasligi kerak.
+  container.querySelectorAll('.fallback, img').forEach((n) => n.remove());
+
+  const fallback = document.createElement('span');
+  fallback.className = 'fallback';
+  fallback.textContent = fallbackEmoji;
+  container.appendChild(fallback);
+
+  if (!url) return;
+
+  const img = new Image();
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.alt = '';
+  img.addEventListener('load', () => {
+    img.classList.add('is-loaded');
+    fallback.remove();
+  }, { once: true });
+  img.addEventListener('error', () => img.remove(), { once: true });
+  img.src = url;
+  container.appendChild(img);
+}
+
+// ───────────────────────────── Market ─────────────────────────────
+
+function applyFilters() {
+  const term = state.search.trim().toLowerCase();
+
+  state.filtered = state.catalog.gifts.filter((g) => {
+    if (state.collection && g.collection_address !== state.collection) return false;
+    if (term && !g.nft_name.toLowerCase().includes(term)) return false;
+    return true;
+  });
+
+  state.filtered.sort((a, b) => {
+    const pa = perDayUzs(a.price_per_day_nano);
+    const pb = perDayUzs(b.price_per_day_nano);
+    return state.sort === 'asc' ? pa - pb : pb - pa;
+  });
+
+  state.rendered = 0;
+  const grid = $('market-grid');
+  grid.innerHTML = '';
+
+  if (state.filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="empty">
+        <div class="empty-ico">🔍</div>
+        <b>Gift topilmadi</b>
+        <span>${term ? 'Qidiruv shartini o\'zgartiring' : 'Boshqa kolleksiyani tanlab ko\'ring'}</span>
+      </div>`;
+    return;
+  }
+
+  renderNextChunk();
+}
+
+function renderNextChunk() {
+  const grid = $('market-grid');
+  const slice = state.filtered.slice(state.rendered, state.rendered + CHUNK);
+  if (slice.length === 0) return;
+
+  const frag = document.createDocumentFragment();
+
+  for (const gift of slice) {
+    const tile = document.createElement('article');
+    tile.className = 'tile';
+    tile.innerHTML = `
+      <div class="tile-media">
+        <span class="tile-days">${gift.min_days}–${gift.max_days} kun</span>
+      </div>
+      <div class="tile-body">
+        <div class="tile-name">${escapeHtml(gift.nft_name)}</div>
+        <div class="tile-col">${escapeHtml(gift.collection_name)}</div>
+        <div class="tile-price">${fmtNum(perDayUzs(gift.price_per_day_nano))} <span>so'm/kun</span></div>
+      </div>`;
+
+    mountImage(el('.tile-media', tile), gift.image_url);
+    tile.addEventListener('click', () => openDetail(gift));
+    frag.appendChild(tile);
+  }
+
+  grid.appendChild(frag);
+  state.rendered += slice.length;
+}
+
+function renderSkeleton(count = 8) {
+  const grid = $('market-grid');
+  grid.innerHTML = Array.from({ length: count }, () => `
+    <article class="tile is-skeleton">
+      <div class="tile-media"></div>
+      <div class="tile-body"><div class="sk"></div><div class="sk w60"></div></div>
+    </article>`).join('');
+}
+
+// ───────────────────────────── Narx (klient tomonda) ─────────────────────────────
+
+const NANO = 1e9;
+
+/** Server bilan BIR XIL formula (src/services/pricing.ts). */
+function perDayUzs(nano) {
+  return Math.ceil((Number(nano) / NANO) * state.pricing.ton_rate_uzs);
+}
+function totalUzs(nano, days) {
+  return perDayUzs(nano) * days + state.pricing.service_fee_uzs;
+}
+function affordableDays(nano) {
+  const perDay = perDayUzs(nano);
+  if (perDay <= 0) return 0;
+  const rest = state.balance - state.pricing.service_fee_uzs;
+  return rest <= 0 ? 0 : Math.floor(rest / perDay);
+}
+
+// ───────────────────────────── Detal ekrani ─────────────────────────────
+
+function openDetail(gift) {
+  state.gift = gift;
+  state.days = gift.min_days;
+
+  $('detail-collection').textContent = gift.collection_name || 'NFT GIFT';
+  $('detail-name').textContent = gift.nft_name;
+  $('detail-perday').textContent = fmtNum(perDayUzs(gift.price_per_day_nano));
+  mountImage($('detail-img'), gift.image_url);
+
+  const slider = $('days-slider');
+  slider.min = gift.min_days;
+  slider.max = gift.max_days;
+  slider.value = gift.min_days;
+
+  $('days-min').textContent = `${gift.min_days} kun`;
+  $('days-max').textContent = `${gift.max_days} kun`;
+
+  buildQuickDays($('quick-days'), gift.min_days, gift.max_days, (d) => {
+    slider.value = d;
+    state.days = d;
+    updateDetail();
+  });
+
+  updateDetail();
+  showScreen('detail');
+  haptic('light');
+}
+
+/** Tez tanlash tugmalari — slayderni aniq tortish shart bo'lmasin. */
+function buildQuickDays(container, min, max, onPick) {
+  const candidates = [min, 7, 14, 30, 60, 90].filter((d, i, arr) =>
+    d >= min && d <= max && arr.indexOf(d) === i
+  );
+  if (candidates[candidates.length - 1] !== max) candidates.push(max);
+
+  container.innerHTML = '';
+  for (const d of candidates.slice(0, 5)) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'quick-day';
+    btn.dataset.days = String(d);
+    btn.textContent = `${d} kun`;
+    btn.addEventListener('click', () => { onPick(d); haptic('light'); });
+    container.appendChild(btn);
+  }
+}
+
+function syncQuickDays(container, days) {
+  container.querySelectorAll('.quick-day').forEach((b) => {
+    b.classList.toggle('is-active', Number(b.dataset.days) === days);
+  });
+}
+
+function updateDetail() {
+  const gift = state.gift;
+  if (!gift) return;
+
+  const days = Number($('days-slider').value);
+  state.days = days;
+
+  const base  = perDayUzs(gift.price_per_day_nano) * days;
+  const fee   = state.pricing.service_fee_uzs;
+  const total = base + fee;
+
+  $('days-value').textContent = days;
+  $('sum-base').textContent   = fmtSom(base);
+  $('sum-fee').textContent    = fmtSom(fee);
+  $('sum-total').textContent  = fmtSom(total);
+
+  syncQuickDays($('quick-days'), days);
+
+  const hint = $('detail-hint');
+  const canAfford = affordableDays(gift.price_per_day_nano);
+  const payBtn = $('pay-btn');
+
+  if (state.balance < total) {
+    hint.className = 'hint is-warn';
+    hint.textContent = canAfford > 0
+      ? `Balansingiz ${canAfford} kunga yetadi. ${fmtSom(total - state.balance)} yetishmayapti.`
+      : `Balans yetarli emas — ${fmtSom(total - state.balance)} yetishmayapti.`;
+    payBtn.textContent = 'Balans yetarli emas';
+    payBtn.disabled = true;
+  } else {
+    hint.className = 'hint';
+    hint.textContent = `To'lovdan keyin balans: ${fmtSom(state.balance - total)}`;
+    payBtn.textContent = `${fmtSom(total)} — To'lash`;
+    payBtn.disabled = false;
+  }
+}
+
+async function payRent() {
+  const gift = state.gift;
+  if (!gift) return;
+
+  const btn = $('pay-btn');
+  setBusy(btn, true, 'To\'lanmoqda…');
+
+  try {
+    const result = await api('/rentals', {
+      method: 'POST',
+      body: JSON.stringify({ nft_address: gift.nft_address, days: state.days }),
+    });
+
+    state.balance = result.balance_uzs;
+    renderBalancePill();
+    haptic('success');
+    toast("To'lov qabul qilindi! Tasdiqlash 1-2 daqiqa davom etadi.", 'success');
+
+    await refreshRentals();
+    showScreen('mine');
+    startPaymentWatcher();
+  } catch (err) {
+    haptic('error');
+    if (err.status === 402) {
+      state.balance = err.payload?.balance_uzs ?? state.balance;
+      renderBalancePill();
+      updateDetail();
+    }
+    toast(err.message, 'error');
+  } finally {
+    setBusy(btn, false);
+    updateDetail();
+  }
+}
+
+// ───────────────────────────── Mening giftlarim ─────────────────────────────
+
+const STATUS_META = {
+  paying:       { cls: 'is-paying',  label: 'To\'lov tasdiqlanmoqda…' },
+  pending_link: { cls: 'is-pending', label: 'Profilga ulash kutilmoqda' },
+  linked:       { cls: 'is-active',  label: 'Faol' },
+  failed:       { cls: 'is-failed',  label: 'Amalga oshmadi' },
+  expired:      { cls: 'is-failed',  label: 'Muddati tugagan' },
+};
+
+function renderMine() {
+  const list = $('mine-list');
+
+  if (state.rentals.length === 0) {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-ico">🎁</div>
+        <b>Hozircha gift yo'q</b>
+        <span>Market bo'limidan birinchi giftingizni ijaraga oling</span>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = '';
+
+  for (const rental of state.rentals) {
+    const meta = STATUS_META[rental.status] || STATUS_META.pending_link;
+
+    const card = document.createElement('article');
+    card.className = 'mine-card';
+    card.innerHTML = `
+      <div class="mine-top">
+        <div class="mine-img"></div>
+        <div class="mine-info">
+          <div class="mine-name">${escapeHtml(rental.nft_name)}</div>
+          <div class="mine-col">${escapeHtml(rental.collection_name || '')}</div>
+          <div class="status ${meta.cls}"><i></i>${
+            rental.status === 'linked' && rental.left_days !== null
+              ? `Faol — ${rental.left_days} kun qoldi`
+              : meta.label
+          }</div>
+        </div>
+      </div>`;
+
+    mountImage(el('.mine-img', card), rental.image_url);
+
+    // Muddat chizig'i (faqat faol ijaralarda)
+    if (rental.status === 'linked' && rental.total_days > 0 && rental.left_days !== null) {
+      const percent = Math.max(2, Math.min(100, (rental.left_days / rental.total_days) * 100));
+      const bar = document.createElement('div');
+      bar.className = 'mine-progress';
+      bar.innerHTML = `<i style="width:${percent}%"></i>`;
+      card.appendChild(bar);
+    }
+
+    if (rental.status === 'failed' && rental.tx_error) {
+      const errBox = document.createElement('div');
+      errBox.className = 'mine-error';
+      errBox.textContent = rental.tx_error;
+      card.appendChild(errBox);
+    }
+
+    // ─── Tugmalar ───
+    // MUHIM: faol ijarada HAR IKKALA tugma turadi — "Profilga ulash" ham,
+    // "Uzaytirish" ham (avval faqat bittasi ko'rinardi).
+    const actions = document.createElement('div');
+    actions.className = 'mine-actions';
+
+    if (rental.status === 'pending_link' || rental.status === 'linked') {
+      const linkBtn = document.createElement('button');
+      linkBtn.type = 'button';
+      linkBtn.className = rental.status === 'pending_link' ? 'btn btn-primary' : 'btn btn-ghost';
+      linkBtn.textContent = rental.is_linked ? 'Profilni qayta ulash' : 'Profilga ulash';
+      linkBtn.addEventListener('click', () => openLink(rental));
+      actions.appendChild(linkBtn);
+
+      const extendBtn = document.createElement('button');
+      extendBtn.type = 'button';
+      extendBtn.className = rental.status === 'linked' ? 'btn btn-primary' : 'btn btn-ghost';
+      extendBtn.textContent = 'Uzaytirish';
+      extendBtn.addEventListener('click', () => openExtend(rental));
+      actions.appendChild(extendBtn);
+    }
+
+    if (actions.children.length > 0) card.appendChild(actions);
+    list.appendChild(card);
+  }
+}
+
+async function refreshRentals() {
+  try {
+    const data = await api('/rentals');
+    state.rentals = data.rentals;
+    state.balance = data.balance_uzs;
+    renderBalancePill();
+    if (state.screen === 'mine') renderMine();
+    updateMineBadge();
+  } catch { /* jim — keyingi urinishda yangilanadi */ }
+}
+
+function updateMineBadge() {
+  const waiting = state.rentals.some((r) => r.status === 'pending_link' || r.status === 'paying');
+  $('mine-badge').hidden = !waiting;
+}
+
+/**
+ * To'lov tasdiqlanishini kuzatadi. Blokcheyn 15-60 soniya oladi, shuning
+ * uchun holat o'zgarguncha bir necha marta tekshiramiz, keyin to'xtaymiz
+ * (foydalanuvchi baribir botdan xabar oladi).
+ */
+let watcherTimer = null;
+function startPaymentWatcher() {
+  clearInterval(watcherTimer);
+  let ticks = 0;
+
+  watcherTimer = setInterval(async () => {
+    ticks++;
+    await refreshRentals();
+
+    const stillPaying = state.rentals.some((r) => r.status === 'paying');
+    if (!stillPaying || ticks >= 20) {
+      clearInterval(watcherTimer);
+      watcherTimer = null;
+    }
+  }, 6000);
+}
+
+// ───────────────────────────── Profilga ulash ─────────────────────────────
+
+function openLink(rental) {
+  state.rental = rental;
+  $('link-subtitle').textContent = rental.nft_name;
+  $('tc-input').value = '';
+  $('link-hint').className = 'hint';
+  $('link-hint').textContent = '';
+
+  const video = $('video-btn');
+  if (state.settings.profile_link_video_url) {
+    video.href = state.settings.profile_link_video_url;
+    video.hidden = false;
+  } else {
+    video.hidden = true;
+  }
+
+  showScreen('link');
+  haptic('light');
+}
+
+async function submitLink() {
+  const url = $('tc-input').value.trim();
+  const hint = $('link-hint');
+
+  if (!/^(tc:\/\/|https:\/\/)/.test(url)) {
+    hint.className = 'hint is-error';
+    hint.textContent = "tc:// yoki https:// bilan boshlanuvchi havola kiriting";
+    haptic('error');
+    return;
+  }
+
+  const btn = $('link-btn');
+  setBusy(btn, true, 'Ulanmoqda…');
+  hint.className = 'hint';
+  hint.textContent = '';
+
+  try {
+    await api(`/rentals/${state.rental.id}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ tonconnect_url: url }),
+    });
+
+    haptic('success');
+    toast('Ulandi! Fragment profilida «Display on Telegram» ni yoqing.', 'success');
+    await refreshRentals();
+    showScreen('mine', { push: false });
+    state.history = [];
+  } catch (err) {
+    haptic('error');
+    hint.className = 'hint is-error';
+    hint.textContent = err.message;
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+// ───────────────────────────── Uzaytirish ─────────────────────────────
+
+function openExtend(rental) {
+  state.rental = rental;
+  state.extendDays = 1;
+
+  $('extend-name').textContent = rental.nft_name;
+  $('extend-perday').textContent = fmtNum(rental.price_per_day_uzs);
+  mountImage($('extend-img'), rental.image_url);
+
+  const maxDays = Math.max(1, Math.min(365, rental.extend_affordable_days || 1));
+  const slider = $('extend-slider');
+  slider.min = 1;
+  slider.max = maxDays;
+  slider.value = 1;
+  $('extend-max').textContent = `${maxDays} kun`;
+
+  buildQuickDays($('extend-quick'), 1, maxDays, (d) => {
+    slider.value = d;
+    updateExtend();
+  });
+
+  updateExtend();
+  showScreen('extend');
+  haptic('light');
+}
+
+function updateExtend() {
+  const rental = state.rental;
+  if (!rental) return;
+
+  const days = Number($('extend-slider').value);
+  state.extendDays = days;
+
+  const total = rental.price_per_day_uzs * days;   // uzaytirishda xizmat haqi yo'q
+  $('extend-days-value').textContent = days;
+  $('extend-total').textContent = fmtSom(total);
+  syncQuickDays($('extend-quick'), days);
+
+  const hint = $('extend-hint');
+  const btn = $('extend-btn');
+
+  if (state.balance < total) {
+    hint.className = 'hint is-warn';
+    hint.textContent = `Balans yetarli emas — ${fmtSom(total - state.balance)} yetishmayapti.`;
+    btn.textContent = 'Balans yetarli emas';
+    btn.disabled = true;
+  } else {
+    hint.className = 'hint';
+    hint.textContent = `To'lovdan keyin balans: ${fmtSom(state.balance - total)}`;
+    btn.textContent = `${fmtSom(total)} — Uzaytirish`;
+    btn.disabled = false;
+  }
+}
+
+async function submitExtend() {
+  const btn = $('extend-btn');
+  setBusy(btn, true, 'Uzaytirilmoqda…');
+
+  try {
+    const result = await api(`/rentals/${state.rental.id}/extend`, {
+      method: 'POST',
+      body: JSON.stringify({ days: state.extendDays }),
+    });
+
+    state.balance = result.balance_uzs;
+    renderBalancePill();
+    haptic('success');
+    toast('Uzaytirish navbatga qo\'yildi — tez orada tasdiqlanadi.', 'success');
+
+    await refreshRentals();
+    showScreen('mine', { push: false });
+    state.history = [];
+  } catch (err) {
+    haptic('error');
+    toast(err.message, 'error');
+    if (err.status === 402) {
+      state.balance = err.payload?.balance_uzs ?? state.balance;
+      renderBalancePill();
+      updateExtend();
+    }
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+// ───────────────────────────── Balans ─────────────────────────────
+
+function renderBalancePill() {
+  $('balance-value').textContent = fmtNum(state.balance);
+}
+
+function renderBalance() {
+  $('balance-big').textContent = fmtNum(state.balance);
+}
+
+// ───────────────────────────── Kolleksiya tanlash ─────────────────────────────
+
+function openCollectionSheet() {
+  const list = $('collection-list');
+  list.innerHTML = '';
+
+  const makeItem = (label, count, address) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sheet-item' + (state.collection === address ? ' is-active' : '');
+    btn.innerHTML = `<span>${escapeHtml(label)}</span><em>${count}</em>`;
+    btn.addEventListener('click', () => {
+      state.collection = address;
+      $('collection-label').textContent = address ? label : 'Barcha kolleksiyalar';
+      closeCollectionSheet();
+      applyFilters();
+      haptic('light');
+    });
+    return btn;
+  };
+
+  list.appendChild(makeItem('Barcha kolleksiyalar', state.catalog.gifts.length, null));
+  for (const col of state.catalog.collections) {
+    if (col.gift_count === 0) continue;
+    list.appendChild(makeItem(col.name, col.gift_count, col.address));
+  }
+
+  $('collection-sheet').classList.add('is-open');
+}
+
+function closeCollectionSheet() {
+  $('collection-sheet').classList.remove('is-open');
+}
+
+// ───────────────────────────── Hodisalar ─────────────────────────────
+
+function bindEvents() {
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => { showScreen(tab.dataset.tab); haptic('light'); });
+  });
+
+  $('balance-pill').addEventListener('click', () => showScreen('balance'));
+
+  // Qidiruv — yozish paytida qotib qolmasligi uchun kechiktirib qo'llanadi
+  let searchTimer = null;
+  $('search-input').addEventListener('input', (e) => {
+    const value = e.target.value;
+    $('search-clear').hidden = value === '';
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { state.search = value; applyFilters(); }, 180);
+  });
+  $('search-clear').addEventListener('click', () => {
+    $('search-input').value = '';
+    $('search-clear').hidden = true;
+    state.search = '';
+    applyFilters();
+  });
+
+  $('sort-btn').addEventListener('click', () => {
+    state.sort = state.sort === 'asc' ? 'desc' : 'asc';
+    $('sort-label').textContent = state.sort === 'asc' ? 'Arzon' : 'Qimmat';
+    applyFilters();
+    haptic('light');
+  });
+
+  $('collection-btn').addEventListener('click', openCollectionSheet);
+  $('collection-sheet').addEventListener('click', (e) => {
+    if (e.target === $('collection-sheet')) closeCollectionSheet();
+  });
+
+  $('days-slider').addEventListener('input', updateDetail);
+  $('extend-slider').addEventListener('input', updateExtend);
+
+  $('pay-btn').addEventListener('click', payRent);
+  $('link-btn').addEventListener('click', submitLink);
+  $('extend-btn').addEventListener('click', submitExtend);
+
+  $('tc-paste').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) { $('tc-input').value = text.trim(); haptic('light'); }
+    } catch {
+      toast('Buferdan o\'qib bo\'lmadi — havolani qo\'lda joylashtiring');
+    }
+  });
+
+  $('topup-btn').addEventListener('click', () => {
+    toast('Botdagi «💰 Balans → 💳 To\'lov» bo\'limiga o\'ting');
+    setTimeout(() => tg?.close?.(), 1400);
+  });
+
+  // Grid: pastga tushganda keyingi bo'lakni chizamiz
+  const sentinel = $('grid-sentinel');
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && state.screen === 'market') renderNextChunk();
+    }, { rootMargin: '400px' }).observe(sentinel);
+  }
+
+  // Telegram orqaga tugmasi
+  tg?.BackButton?.onClick(goBack);
+
+  // Ilova qayta faollashganda ma'lumotni yangilaymiz
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshRentals();
+  });
+}
+
+// ───────────────────────────── Ishga tushirish ─────────────────────────────
+
+function applyBootstrap(data, { fromCache = false } = {}) {
+  state.user = data.user;
+  state.balance = data.balance_uzs;
+  state.pricing = data.pricing;
+  state.settings = data.settings;
+  state.rentals = data.rentals || [];
+
+  if (!data.catalog.unchanged) {
+    state.catalog = {
+      etag: data.catalog.etag,
+      collections: data.catalog.collections,
+      gifts: data.catalog.gifts,
+      stale: data.catalog.stale,
+    };
+    saveCachedCatalog(state.catalog);
+  }
+
+  // Profil
+  const name = data.user.first_name || data.user.username || 'Foydalanuvchi';
+  $('user-name').textContent = name;
+  const avatar = $('avatar');
+  if (data.user.photo_url) {
+    avatar.style.backgroundImage = `url("${data.user.photo_url}")`;
+  } else {
+    avatar.textContent = name.slice(0, 1).toUpperCase();
+  }
+
+  const support = $('support-link');
+  if (state.settings.support_url) support.href = state.settings.support_url;
+
+  $('stale-note').hidden = !state.catalog.stale;
+
+  renderBalancePill();
+  renderBalance();
+  applyFilters();
+  updateMineBadge();
+
+  if (!fromCache && state.rentals.some((r) => r.status === 'paying')) startPaymentWatcher();
+}
+
+async function init() {
+  // Telegram muhitini sozlaymiz
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor?.('secondary_bg_color');
+    tg.enableClosingConfirmation?.();
+    tg.disableVerticalSwipes?.();
+  }
+
+  bindEvents();
+
+  // 1-qadam: keshdagi katalogni DARHOL ko'rsatamiz (ekran bo'sh turmaydi)
+  const cached = loadCachedCatalog();
+  if (cached) {
+    state.catalog = { ...cached, stale: false };
+    applyFilters();
+  } else {
+    renderSkeleton();
+  }
+
+  // 2-qadam: yagona so'rov bilan hamma narsani olamiz
+  try {
+    const query = state.catalog.etag ? `?catalog_etag=${encodeURIComponent(state.catalog.etag)}` : '';
+    const data = await api(`/bootstrap${query}`);
+    applyBootstrap(data);
+  } catch (err) {
+    if (!cached) {
+      $('market-grid').innerHTML = `
+        <div class="empty">
+          <div class="empty-ico">📡</div>
+          <b>Yuklab bo'lmadi</b>
+          <span>${escapeHtml(err.message)}</span>
+        </div>`;
+    } else {
+      toast('Yangilab bo\'lmadi — keshdagi ma\'lumot ko\'rsatilmoqda');
+    }
+  } finally {
+    $('app').hidden = false;
+    $('splash').classList.add('is-done');
+    setTimeout(() => $('splash').remove(), 400);
+  }
+}
+
+init();

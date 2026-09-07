@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hozirol
+          POSTGRES_PASSWORD: hozirol
+          POSTGRES_DB: hozirol_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: TypeScript tekshiruvi
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Migratsiyalar toza bazada qo'llanadimi
+        env:
+          BOT_TOKEN: "1:CI_PLACEHOLDER"
+          ADMIN_IDS: "1"
+          MARKETAPP_API_TOKEN: ci
+          TON_MNEMONIC: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+          DATABASE_URL: postgresql://hozirol:hozirol@localhost:5432/hozirol_ci
+          BOT_MODE: polling
+        run: node dist/db/migrate.js
