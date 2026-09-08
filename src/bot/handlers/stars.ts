@@ -7,6 +7,7 @@ import { getStarPrice } from "../../services/starPrice";
 import {
   fmt,
   STARS_MENU,
+  STARS_SECTION,
   STARS_INVALID_QUANTITY,
   STARS_LIMIT_ERROR,
   STARS_ENTER_USERNAME,
@@ -19,7 +20,7 @@ import {
   ERROR_INSUFFICIENT_TON,
   ERROR_UNKNOWN,
 } from "../texts";
-import { backKb, successKb } from "../keyboards";
+import { backKb, successKb, starsMenuKb, needBalanceKb } from "../keyboards";
 import { getBalance, tryDeductBalance, refundBalance } from "../../db/repo/users";
 import { addPendingTx, getQueueSize } from "../../db/repo/transactions";
 import { checkStarsRecipient, getStarsPriceTon, buyStars } from "../../services/marketapp";
@@ -30,7 +31,14 @@ import { now } from "../../util/time";
 const USERNAME_RE = /^@?([A-Za-z0-9_]{5,32})$/;
 
 export function registerStarsHandlers(bot: Bot<MyContext>): void {
+  // "Stars" — bo'lim menyusi: Stars olish / Premium olish
   bot.callbackQuery("stars", async (ctx) => {
+    await renderMenu(ctx, STARS_SECTION, starsMenuKb());
+    await ctx.answerCallbackQuery();
+  });
+
+  // "Stars olish" — miqdor so'raladi
+  bot.callbackQuery("stars_buy", async (ctx) => {
     await renderMenu(
       ctx,
       fmt(STARS_MENU, {
@@ -38,7 +46,7 @@ export function registerStarsHandlers(bot: Bot<MyContext>): void {
         min_stars: config.starMin,
         max_stars: config.starMax,
       }),
-      backKb("back_to_main")
+      backKb("stars")
     );
     ctx.session.step = STEP.STARS_QTY;
     ctx.session.data = {};
@@ -49,7 +57,7 @@ export function registerStarsHandlers(bot: Bot<MyContext>): void {
 export async function handleStarsQtyText(ctx: MyContext): Promise<void> {
   const text = (ctx.message?.text ?? "").trim();
   if (!/^\d+$/.test(text)) {
-    await sendTracked(ctx, STARS_INVALID_QUANTITY, backKb("back_to_main"));
+    await sendTracked(ctx, STARS_INVALID_QUANTITY, backKb("stars"));
     return;
   }
 
@@ -58,7 +66,7 @@ export async function handleStarsQtyText(ctx: MyContext): Promise<void> {
     await sendTracked(
       ctx,
       fmt(STARS_LIMIT_ERROR, { min_stars: config.starMin, max_stars: config.starMax }),
-      backKb("back_to_main")
+      backKb("stars")
     );
     return;
   }
@@ -69,7 +77,7 @@ export async function handleStarsQtyText(ctx: MyContext): Promise<void> {
   await sendTracked(
     ctx,
     fmt(STARS_ENTER_USERNAME, { quantity: qty, price, total: uzs }),
-    backKb("back_to_main")
+    backKb("stars")
   );
   ctx.session.step = STEP.STARS_USERNAME;
 }
@@ -83,7 +91,7 @@ export async function handleStarsUsernameText(_bot: Bot<MyContext>, ctx: MyConte
 
   const match = (ctx.message?.text ?? "").trim().match(USERNAME_RE);
   if (!match) {
-    await sendTracked(ctx, STARS_USERNAME_FORMAT_ERROR, backKb("back_to_main"));
+    await sendTracked(ctx, STARS_USERNAME_FORMAT_ERROR, backKb("stars"));
     return;
   }
   const username = match[1];
@@ -92,7 +100,7 @@ export async function handleStarsUsernameText(_bot: Bot<MyContext>, ctx: MyConte
   await sendTracked(ctx, STARS_CHECKING_RECIPIENT);
   const recipientInfo = await checkStarsRecipient(username);
   if (!recipientInfo) {
-    await sendTracked(ctx, fmt(STARS_RECIPIENT_NOT_FOUND, { username }), backKb("back_to_main"));
+    await sendTracked(ctx, fmt(STARS_RECIPIENT_NOT_FOUND, { username }), backKb("stars"));
     ctx.session.step = undefined;
     return;
   }
@@ -104,7 +112,7 @@ export async function handleStarsUsernameText(_bot: Bot<MyContext>, ctx: MyConte
     await sendTracked(
       ctx,
       fmt(STARS_INSUFFICIENT_BALANCE, { required: uzs, balance }),
-      backKb("back_to_main")
+      backKb("stars")
     );
     ctx.session.step = undefined;
     return;

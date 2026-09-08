@@ -175,3 +175,28 @@ export async function getUserIdsAfter(afterId: number, limit: number): Promise<n
   );
   return rows.map((r) => r.user_id);
 }
+
+// ---------------------------------------------------------------------------
+//  Ommaviy oferta
+// ---------------------------------------------------------------------------
+
+/**
+ * Rozilikni yozadi.
+ *
+ * `WHERE offer_accepted_at IS NULL` — takroriy bosishda BIRINCHI rozilik
+ * vaqti saqlanib qoladi, ustiga yozilmaydi.
+ */
+export async function acceptOffer(userId: number): Promise<void> {
+  await pool.query(
+    "UPDATE users SET offer_accepted_at = $2 WHERE user_id = $1 AND offer_accepted_at IS NULL",
+    [userId, nowSec()]
+  );
+}
+
+export async function hasAcceptedOffer(userId: number): Promise<boolean> {
+  const { rows } = await pool.query<{ ok: boolean }>(
+    "SELECT offer_accepted_at IS NOT NULL AS ok FROM users WHERE user_id = $1",
+    [userId]
+  );
+  return rows[0]?.ok ?? false;
+}

@@ -61,6 +61,35 @@ export function fmt(template: string, values: Record<string, string | number> = 
 
 // --- ASOSIY MATNLAR ---
 
+/**
+ * OFERTA — botdan birinchi marta foydalanilganda.
+ *
+ * Telegram Stars va akkaunt savdosida foydalanuvchining roziligi bo'lishi
+ * kerak; bo'lmasa bot cheklanishi mumkin. Shuning uchun rozilik bermaguncha
+ * bot boshqa hech qanday bo'limni ochmaydi.
+ */
+export const OFFER_MESSAGE = `🎉 Assalomu alaykum <b>{name}</b>
+
+<b>HozirOL</b> botidan foydalanish uchun ommaviy ofertani o'qib rozilik bering
+
+📚 Yuqoridagi <b>Ommaviy oferta</b> tugmasi hujjatni ochadi
+✅ O'qib chiqqach pastdagi <b>Roziman</b> tugmasini bosing
+
+<blockquote>Rozilik berish orqali siz oferta shartlarini qabul qilasiz</blockquote>`;
+
+/** Rozilik berilmagan holda boshqa tugma bosilsa. */
+export const OFFER_REQUIRED = `❗️ Avval ommaviy ofertaga rozilik bering
+
+/start buyrug'ini yuboring`;
+
+/** Stars bo'limi (Stars olish / Premium olish). */
+export const STARS_SECTION = `⭐ <b>Stars va Premium</b>
+
+⭐ <b>Stars olish</b> — istalgan Telegram hisobiga Stars yuborish
+👑 <b>Premium olish</b> — 3, 6 yoki 12 oylik obuna
+
+Kerakli xizmatni tanlang 👇`;
+
 export const MAIN_MENU_TITLE =
   `${e(I.ROBOT, "🤖")} HozirOLbot orqali ${e(I.STAR, "⭐️")}Stars evaziga ${e(I.GIFT, "🎁")} Gift xarid qiling`;
 
@@ -113,10 +142,14 @@ ${e(I.BAN, "⛔")} 1 soatga to'lov imkoniyati yopildi
 
 Iltimos, keyinroq urinib ko'ring`;
 
-export const PAYMENT_FOUND = `${e(I.CHECK, "✅")} <b>To'lov aniqlandi</b>
+/**
+ * To'lov kanalida summa topilganda yuboriladi — NAMUNA RASM bilan birga
+ * (PAYMENT_RECEIPT_SAMPLE_PHOTO), shuning uchun matn qisqa: rasm o'zi
+ * chekni qanday yuborishni ko'rsatib turadi.
+ */
+export const PAYMENT_FOUND = `🎯 <b>To'lov aniqlandi</b>
 
-${e(I.PHOTO, "📸")} Iltimos, to'lov chekini rasm sifatida yuboring
-Admin tasdiqlashi bilan balansingiz to'ldiriladi`;
+📸 Iltimos, to'lov chekini rasmdagi kabi chat bilan yuboring`;
 
 export const PAYMENT_CONFIRMED = `${e(I.PARTY, "🎉")} <b>To'lov tasdiqlandi</b>
 
@@ -568,32 +601,46 @@ ${e(I.CLOCK, "🕒")} {datetime}`;
 
 
 export const BTN = {
-  GIFTS: "🎁 Gift olish",
+  // Yozuvdagi emoji tugmaga PREMIUM IKONKA bo'lib chiqadi (src/bot/emoji.ts),
+  // matnda esa qolmaydi — shuning uchun bu yerda odatdagidek yozaverasiz.
   STARS: "⭐ Stars",
-  PREMIUM: "👑 Premium",
+  STARS_BUY: "⭐ Stars olish",
+  PREMIUM_BUY: "👑 Premium olish",
+  GIFTS: "🎁 Gift olish",
   BALANCE: "💰 Balans",
+  TG_PROFILE: "📱 Profil olish",
   SUPPORT: "🆘 Support",
+
   PAY: "💳 To'lov",
   REFERRAL: "👥 Referal",
   CANCEL: "❌ Bekor qilish",
-  BACK: "🔙 Orqaga",
-  MENU: "🏠 Menyu",
+  BACK: "🔙 Orqaga qaytish",
+  MENU: "🏠 Bosh menyu",
   PREV: "◀️ Orqaga",
-  NEXT: "Keyingi ▶️",
+  NEXT: "▶️ Keyingi",
+
+  OFFER_READ: "📚 Ommaviy oferta",
+  OFFER_ACCEPT: "✅ Roziman",
+
   ADMIN_ADD: "➕ Balans qo'shish",
   ADMIN_SUB: "➖ Balans ayirish",
   ADMIN_BAN: "⛔ Ban / Unban",
   ADMIN_PRICE: "💵 Narxni o'zgartirish",
   ADMIN_BROADCAST: "📢 Hammaga xabar",
+  ADMIN_GIFT_ADD: "➕ Gift qo'shish",
+  ADMIN_GIFT_LIST: "📋 Gift ro'yxati",
+  ADMIN_TG_ADD: "➕ Akkount qo'shish",
+  ADMIN_TG_STATS: "📊 Akkountlar",
   BROADCAST_CONFIRM: "✅ Yuborish",
   BROADCAST_CANCEL: "❌ Bekor qilish",
-  TG_PROFILE: "📱 Telegram profil",
-  TG_BUY: "💳 Sotib olish",
+
+  TG_BUY: "🛒 Sotib olish",
   TG_GET_CODE: "🔑 Kod olish",
   TG_RECHECK: "🔄 Qayta tekshirish",
 
   // --- Gift Arenda (Mini App) ---
   RENT: "🖼 Gift Arenda",
+  OPEN_APP: "🖼 Ilovani ochish",
   MY_GIFTS: "🎒 Mening giftlarim",
   ADMIN_TON_RATE: "💱 TON kursi",
   ADMIN_SERVICE_FEE: "🧾 Xizmat haqi",

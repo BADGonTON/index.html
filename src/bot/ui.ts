@@ -1,11 +1,26 @@
 import { InlineKeyboard } from "grammy";
 import { MyContext } from "./session";
+import { premiumize } from "./emoji";
+import { config } from "../config";
 
 /**
- * Botning butun interfeysi shu funksiyalar orqali chiqadi:
- *   • tugma bosilganda — xabar JOYIDA tahrirlanadi (tez va chiroyli)
- *   • matn yozilganda — eski bot xabari o'chib, yangisi yuboriladi
- * Shu tufayli chat "chirik" eski menyular bilan to'lib ketmaydi.
+ * Botning butun interfeysi shu funksiyalar orqali chiqadi.
+ *
+ * IKKI QOIDA:
+ *
+ * 1) EMOJI. Matn yuborilishidan oldin `premiumize()` dan o'tadi, ya'ni
+ *    har bir oddiy emoji premium emojiga aylanadi. Matn yozganda bu haqda
+ *    o'ylash shart emas.
+ *
+ * 2) TAHRIRLASH. Chatda eski menyular to'planib qolmasligi kerak, lekin
+ *    "o'chirib, yangisini yuborish" — bu IKKI so'rov va sezilarli kechikish.
+ *    Shuning uchun har doim avval TAHRIRLASH sinaladi:
+ *
+ *      • tugma bosilganda  → o'sha xabar joyida tahrirlanadi (1 so'rov)
+ *      • matn yozilganda   → oxirgi bot xabari tahrirlanadi (1 so'rov)
+ *      • faqat iloji bo'lmasa → yangi xabar yuboriladi
+ *
+ *    Foydalanuvchi tomondan bu bir zumda bo'ladi va chat toza qoladi.
  */
 
 const SEND_OPTIONS = {
@@ -13,24 +28,90 @@ const SEND_OPTIONS = {
   link_preview_options: { is_disabled: true },
 };
 
+function prepare(text: string): string {
+  return config.premiumEmoji ? premiumize(text) : text;
+}
+
+/**
+ * Menyuni ko'rsatadi — imkon boricha MAVJUD xabarni tahrirlab.
+ *
+ * Qaytadi: xabar tahrirlandimi (true) yoki yangisi yuborildimi (false).
+ */
 export async function renderMenu(
   ctx: MyContext,
   text: string,
   keyboard?: InlineKeyboard
 ): Promise<void> {
-  if (ctx.callbackQuery) {
+  const body = prepare(text);
+
+  // 1) Tugma bosilgan bo'lsa — aynan o'sha xabarni tahrirlaymiz.
+  if (ctx.callbackQuery?.message) {
     try {
-      await ctx.editMessageText(text, { ...SEND_OPTIONS, reply_markup: keyboard });
+      await ctx.editMessageText(body, { ...SEND_OPTIONS, reply_markup: keyboard });
+      ctx.session.lastBotMessageId = ctx.callbackQuery.message.message_id;
       return;
-    } catch {
-      // Matn bir xil yoki xabar juda eski bo'lsa tahrirlab bo'lmaydi —
-      // pastda yangi xabar yuboramiz.
+    } catch (err) {
+      // "message is not modified" — matn ham, tugmalar ham o'zgarmagan.
+      // Bu xato emas: foydalanuvchi shunchaki o'sha tugmani qayta bosgan.
+      if (isNotModified(err)) return;
+      // Boshqa holatlarda (xabar juda eski, o'chirilgan) pastda yangisini
+      // yuboramiz.
     }
   }
 
-  await deleteLastBotMessage(ctx);
-  const sent = await ctx.reply(text, { ...SEND_OPTIONS, reply_markup: keyboard });
+  // 2) Matn yozilgan bo'lsa — oxirgi bot xabarini tahrirlaymiz.
+  await editTrackedOrSend(ctx, body, keyboard);
+}
+
+/**
+ * Yangi holatni ko'rsatadi (odatda foydalanuvchi matn yozgandan keyin).
+ *
+ * `renderMenu` bilan bir xil ishlaydi — nom faqat o'qishga qulaylik uchun
+ * saqlangan.
+ */
+export async function sendTracked(
+  ctx: MyContext,
+  text: string,
+  keyboard?: InlineKeyboard
+): Promise<void> {
+  await editTrackedOrSend(ctx, prepare(text), keyboard);
+}
+
+/**
+ * Oxirgi bot xabarini tahrirlaydi; bo'lmasa yangisini yuboradi.
+ *
+ * Tahrirlash MUVAFFAQIYATSIZ bo'lishi mumkin: xabar 48 soatdan eski,
+ * o'chirilgan, yoki rasmli xabar (matnga aylantirib bo'lmaydi). Shunda
+ * eskisini o'chirib, yangisini yuboramiz.
+ */
+async function editTrackedOrSend(
+  ctx: MyContext,
+  body: string,
+  keyboard?: InlineKeyboard
+): Promise<void> {
+  const lastId = ctx.session.lastBotMessageId;
+
+  if (lastId && ctx.chat) {
+    try {
+      await ctx.api.editMessageText(ctx.chat.id, lastId, body, {
+        ...SEND_OPTIONS,
+        reply_markup: keyboard,
+      });
+      return;
+    } catch (err) {
+      if (isNotModified(err)) return;
+      // Tahrirlab bo'lmadi — eskisini olib tashlaymiz.
+      await deleteLastBotMessage(ctx);
+    }
+  }
+
+  const sent = await ctx.reply(body, { ...SEND_OPTIONS, reply_markup: keyboard });
   ctx.session.lastBotMessageId = sent.message_id;
+}
+
+/** Telegram "hech narsa o'zgarmadi" desa — bu xato emas. */
+function isNotModified(err: unknown): boolean {
+  return /message is not modified/i.test((err as Error)?.message ?? "");
 }
 
 export async function deleteLastBotMessage(ctx: MyContext): Promise<void> {
@@ -44,12 +125,17 @@ export async function deleteLastBotMessage(ctx: MyContext): Promise<void> {
   }
 }
 
-export async function sendTracked(
-  ctx: MyContext,
-  text: string,
-  keyboard?: InlineKeyboard
-): Promise<void> {
-  await deleteLastBotMessage(ctx);
-  const sent = await ctx.reply(text, { ...SEND_OPTIONS, reply_markup: keyboard });
-  ctx.session.lastBotMessageId = sent.message_id;
+/**
+ * Foydalanuvchi yozgan xabarni o'chiradi.
+ *
+ * Summa, username, kod kabi qiymatlar kiritilgandan keyin chaqiriladi:
+ * chatda faqat BITTA — botning tahrirlanadigan xabari qoladi.
+ */
+export async function deleteUserMessage(ctx: MyContext): Promise<void> {
+  if (!ctx.chat || !ctx.message) return;
+  try {
+    await ctx.api.deleteMessage(ctx.chat.id, ctx.message.message_id);
+  } catch {
+    // Botda o'chirish huquqi bo'lmasligi mumkin — muhim emas.
+  }
 }

@@ -5,6 +5,8 @@ export interface UserRow {
   referrer_id: number | null;
   ref_earned: number;
   banned_until: number;
+  /** Ommaviy ofertaga rozilik vaqti (null — hali rozilik bermagan). */
+  offer_accepted_at: number | null;
   created_at: number;
 }
 

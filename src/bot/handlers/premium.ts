@@ -30,7 +30,7 @@ const USERNAME_RE = /^@?([A-Za-z0-9_]{5,32})$/;
 
 export function registerPremiumHandlers(bot: Bot<MyContext>): void {
   bot.callbackQuery("premium", async (ctx) => {
-    await renderMenu(ctx, PREMIUM_MENU, backKb("back_to_main"));
+    await renderMenu(ctx, PREMIUM_MENU, backKb("stars"));
     ctx.session.step = STEP.PREMIUM_USERNAME;
     ctx.session.data = {};
     await ctx.answerCallbackQuery();
@@ -40,7 +40,7 @@ export function registerPremiumHandlers(bot: Bot<MyContext>): void {
 export async function handlePremiumUsernameText(ctx: MyContext): Promise<void> {
   const match = (ctx.message?.text ?? "").trim().match(USERNAME_RE);
   if (!match) {
-    await sendTracked(ctx, PREMIUM_USERNAME_FORMAT_ERROR, backKb("back_to_main"));
+    await sendTracked(ctx, PREMIUM_USERNAME_FORMAT_ERROR, backKb("stars"));
     return;
   }
   const username = match[1];
@@ -49,7 +49,7 @@ export async function handlePremiumUsernameText(ctx: MyContext): Promise<void> {
     ctx,
     `✅ Qabul qilindi: <b>@${username}</b>\n\n📅 Necha oylik Premium xarid qilmoqchisiz?\n` +
       `Faqat raqam yozing: <b>3, 6, 12</b>`,
-    backKb("back_to_main")
+    backKb("stars")
   );
   ctx.session.step = STEP.PREMIUM_MONTHS;
 }
@@ -58,7 +58,7 @@ export async function handlePremiumMonthsText(_bot: Bot<MyContext>, ctx: MyConte
   const text = (ctx.message?.text ?? "").trim();
   const months = parseInt(text, 10);
   if (!ALLOWED_MONTHS.includes(months)) {
-    await sendTracked(ctx, PREMIUM_INVALID_MONTHS, backKb("back_to_main"));
+    await sendTracked(ctx, PREMIUM_INVALID_MONTHS, backKb("stars"));
     return;
   }
 
@@ -77,7 +77,7 @@ export async function handlePremiumMonthsText(_bot: Bot<MyContext>, ctx: MyConte
     await sendTracked(
       ctx,
       fmt(PREMIUM_INSUFFICIENT_BALANCE, { required: uzs, balance }),
-      backKb("back_to_main")
+      backKb("stars")
     );
     ctx.session.step = undefined;
     return;

@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { MyContext } from "../session";
 import { STEP } from "../steps";
 import { isAdmin } from "../../config";
+import { deleteUserMessage } from "../ui";
 
 import { handlePayAmountText } from "./payment";
 import { handleStarsQtyText, handleStarsUsernameText } from "./stars";
@@ -75,6 +76,11 @@ export function registerTextRouter(bot: Bot<MyContext>): void {
     }
 
     const handler = ROUTES[step];
-    if (handler) await handler(bot, ctx);
+    if (!handler) return;
+
+    // Foydalanuvchi yozgan qiymat (summa, username, kod) chatda qolmasin —
+    // shunda ekranda faqat BITTA, tahrirlanadigan bot xabari turadi.
+    // O'chirish bilan javob berish PARALLEL ketadi: kutish yo'q.
+    await Promise.all([deleteUserMessage(ctx), handler(bot, ctx)]);
   });
 }

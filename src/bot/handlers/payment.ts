@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { MyContext } from "../session";
 import { renderMenu, sendTracked } from "../ui";
+import { premiumize } from "../emoji";
 import { config } from "../../config";
 import { STEP } from "../steps";
 import {
@@ -28,7 +29,7 @@ import {
   getBanRemaining,
   getUser,
 } from "../../db/repo/users";
-import { notifyUser } from "../../services/logger";
+import { notifyUser, notifyUserPhoto } from "../../services/logger";
 import { now } from "../../util/time";
 
 export function registerPaymentHandlers(bot: Bot<MyContext>): void {
@@ -71,13 +72,10 @@ export function registerPaymentHandlers(bot: Bot<MyContext>): void {
     const payment = await markPaymentFound(summa, postLink);
     if (!payment) return;
 
+    // Namuna rasm bo'lsa — "chekni MANA SHUNDAY yuboring" deb rasm bilan
+    // ko'rsatamiz; bo'lmasa oddiy xabar ketadi.
     if (config.paymentReceiptSamplePhoto) {
-      await ctx.api
-        .sendPhoto(payment.user_id, config.paymentReceiptSamplePhoto, {
-          caption: PAYMENT_FOUND,
-          parse_mode: "HTML",
-        })
-        .catch(() => {});
+      await notifyUserPhoto(payment.user_id, config.paymentReceiptSamplePhoto, PAYMENT_FOUND);
     } else {
       await notifyUser(payment.user_id, PAYMENT_FOUND);
     }
@@ -110,12 +108,12 @@ export function registerPaymentHandlers(bot: Bot<MyContext>): void {
       const bestPhoto = ctx.message.photo[ctx.message.photo.length - 1];
       await ctx.api
         .sendPhoto(config.adminChannelId, bestPhoto.file_id, {
-          caption: fmt(LOG_PAYMENT_CONFIRMED, {
+          caption: premiumize(fmt(LOG_PAYMENT_CONFIRMED, {
             user_id: payment.user_id,
             amount: payment.amount,
             post_link: payment.post_link ?? "",
             datetime: now(),
-          }),
+          })),
           parse_mode: "HTML",
         })
         .catch(() => {});

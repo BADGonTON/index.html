@@ -6,6 +6,7 @@ import { MyContext, initialSession } from "./session";
 import { createPgSessionStorage } from "../db/repo/sessions";
 import { bindLogger } from "../services/logger";
 
+import { offerGate, registerOfferHandlers } from "./handlers/offer";
 import { registerStartHandlers } from "./handlers/start";
 import { registerAdminHandlers } from "./handlers/admin";
 import { registerAdminAccountsHandlers } from "./handlers/adminAccounts";
@@ -39,8 +40,14 @@ export function createBot(): Bot<MyContext> {
 
   bindLogger(bot.api);
 
+  // OFERTA DARVOZASI. Rozilik berilmaguncha /start va "Roziman" tugmasidan
+  // boshqa hech narsa ishlamaydi — Telegram Stars va akkaunt savdosi uchun
+  // bu talab. Barcha ushlovchilardan OLDIN turishi shart.
+  bot.use(offerGate());
+
   // Tartib muhim: aniq buyruq/callback ushlovchilar oldin,
   // umumiy matn marshrutizatori ENG OXIRIDA.
+  registerOfferHandlers(bot);
   registerStartHandlers(bot);
   registerAdminHandlers(bot);
   registerAdminAccountsHandlers(bot);

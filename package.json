@@ -14,8 +14,9 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "import:sqlite": "tsx scripts/import-sqlite.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx test/initdata.test.ts && tsx test/bundles.test.ts && tsx test/catalog.test.ts && tsx test/tma-e2e.test.ts && tsx test/render.test.ts"
+    "test": "tsx test/initdata.test.ts && tsx test/emoji.test.ts && tsx test/bot.test.ts && tsx test/bundles.test.ts && tsx test/catalog.test.ts && tsx test/tma-e2e.test.ts && tsx test/render.test.ts"
   },
   "dependencies": {
     "@grammyjs/runner": "^2.0.3",

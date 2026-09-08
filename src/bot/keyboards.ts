@@ -1,65 +1,120 @@
 import { InlineKeyboard } from "grammy";
 import { BTN } from "./texts";
+import { splitButtonLabel } from "./emoji";
 import { config, miniAppUrl } from "../config";
 import { GiftRow } from "../db/repo/gifts";
-import { NAV_ICON_PREV, NAV_ICON_NEXT } from "./constants";
 
 /**
- * BARCHA TUGMALAR SHU YERDA.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  BARCHA TUGMALAR SHU YERDA
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * Telegram Bot API tugmalarga rang berishga ruxsat beradi:
- *   .primary() — ko'k, .success() — yashil, .danger() — qizil
- * `.icon(customEmojiId)` esa tugma oldiga Premium custom-emoji qo'yadi.
- * Shu ikkisi botni "premium" ko'rinishga keltiradi.
+ * Tugma MATNIDA `<tg-emoji>` teglari ishlamaydi — Telegram ularni oddiy
+ * matn sifatida ko'rsatadi. Shuning uchun premium emoji tugmaga alohida
+ * `icon_custom_emoji_id` maydoni orqali qo'yiladi.
+ *
+ * Buni qo'lda yozib o'tirmaslik uchun `add()` yordamchisi tugma yozuvidagi
+ * emojini o'zi ajratib oladi:
+ *
+ *     add(kb, "🎁 Gift olish", "gifts")
+ *       → matn: "Gift olish"   ikonka: premium 🎁
+ *
+ * Ranglar: `.success()` yashil, `.primary()` ko'k, `.danger()` qizil.
  */
+
+/** Tugma qo'shadi: yozuvdagi emoji avtomatik premium ikonkaga aylanadi. */
+function add(kb: InlineKeyboard, label: string, data: string): InlineKeyboard {
+  const { text, icon } = splitButtonLabel(label);
+  return kb.text({ text, icon_custom_emoji_id: icon }, data);
+}
+
+/** Havola tugmasi (ikonkasi bilan). */
+function addUrl(kb: InlineKeyboard, label: string, url: string): InlineKeyboard {
+  const { text, icon } = splitButtonLabel(label);
+  return kb.url({ text, icon_custom_emoji_id: icon }, url);
+}
 
 /** Mini App tugmasi (faqat PUBLIC_URL sozlangan bo'lsa ko'rinadi). */
 function addMiniApp(kb: InlineKeyboard, label: string): InlineKeyboard {
-  if (config.publicUrl) kb.webApp(label, miniAppUrl()).primary();
+  if (!config.publicUrl) return kb;
+  const { text, icon } = splitButtonLabel(label);
+  return kb.webApp({ text, icon_custom_emoji_id: icon }, miniAppUrl()).success();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  OFERTA (birinchi /start)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Ofertaga rozilik ekrani.
+ *
+ * Yuqorida — hujjatni ochadigan havola tugmasi, pastda YASHIL "Roziman".
+ * Rozilik berilmaguncha bot boshqa hech narsa qilmaydi.
+ */
+export function offerKb(): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  if (config.offerUrl) addUrl(kb, BTN.OFFER_READ, config.offerUrl).primary().row();
+  add(kb, BTN.OFFER_ACCEPT, "offer_accept").success();
   return kb;
 }
 
-// --- Asosiy menyu: ataylab kam tugma (progressive disclosure) ---
+// ═══════════════════════════════════════════════════════════════════════════
+//  ASOSIY MENYU
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function startKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
+
+  add(kb, BTN.STARS, "stars").success();
+  add(kb, BTN.GIFTS, "page_0").success().row();
+
   addMiniApp(kb, BTN.RENT).row();
-  kb.text(BTN.GIFTS, "page_0").primary().row();
-  kb.text(BTN.STARS, "stars").success().text(BTN.PREMIUM, "premium").primary().row();
-  kb.text(BTN.TG_PROFILE, "tg_profile").primary().row();
-  kb.text(BTN.BALANCE, "balance").primary().url(BTN.SUPPORT, config.supportBot);
+
+  add(kb, BTN.BALANCE, "balance").success();
+  add(kb, BTN.TG_PROFILE, "tg_profile").success().row();
+
+  addUrl(kb, BTN.SUPPORT, config.supportBot).primary();
+  return kb;
+}
+
+/** Stars bo'limi: Stars olish / Premium olish. */
+export function starsMenuKb(): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  add(kb, BTN.STARS_BUY, "stars_buy").success();
+  add(kb, BTN.PREMIUM_BUY, "premium").success().row();
+  add(kb, BTN.BACK, "back_to_main").primary();
   return kb;
 }
 
 export function rentKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
-  addMiniApp(kb, "🖼 Ilovani ochish").row();
-  kb.text(BTN.BACK, "back_to_main");
+  addMiniApp(kb, BTN.OPEN_APP).row();
+  add(kb, BTN.BACK, "back_to_main").primary();
   return kb;
 }
 
 export function balanceKb(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(BTN.PAY, "pay")
-    .success()
-    .text(BTN.REFERRAL, "ref")
-    .primary()
-    .row()
-    .text(BTN.BACK, "back_to_main");
+  const kb = new InlineKeyboard();
+  add(kb, BTN.PAY, "pay").success();
+  add(kb, BTN.REFERRAL, "ref").success().row();
+  add(kb, BTN.BACK, "back_to_main").primary();
+  return kb;
 }
 
 export function cancelKb(unique: number): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.CANCEL, `cancel:${unique}`).danger();
+  return add(new InlineKeyboard(), BTN.CANCEL, `cancel:${unique}`).danger();
 }
 
 export function backKb(target = "back_to_main"): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.BACK, target);
+  return add(new InlineKeyboard(), BTN.BACK, target).primary();
 }
 
 export function successKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
   addMiniApp(kb, BTN.RENT).row();
-  kb.text(BTN.STARS, "stars").success().text(BTN.PREMIUM, "premium").primary().row();
-  kb.text(BTN.BACK, "back_to_main");
+  add(kb, BTN.STARS, "stars").success();
+  add(kb, BTN.GIFTS, "page_0").success().row();
+  add(kb, BTN.MENU, "back_to_main").primary();
   return kb;
 }
 
@@ -67,58 +122,54 @@ export function successKb(): InlineKeyboard {
 export function rentDoneKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
   addMiniApp(kb, BTN.MY_GIFTS).row();
-  kb.text(BTN.BACK, "back_to_main");
+  add(kb, BTN.MENU, "back_to_main").primary();
   return kb;
 }
 
-// --- ADMIN PANEL ---
+/** Balans yetmaganda — to'g'ridan-to'g'ri to'lovga o'tish. */
+export function needBalanceKb(back = "back_to_main"): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  add(kb, BTN.PAY, "pay").success().row();
+  add(kb, BTN.BACK, back).primary();
+  return kb;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ADMIN PANEL
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function adminKb(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(BTN.ADMIN_ADD, "admin_add")
-    .success()
-    .text(BTN.ADMIN_SUB, "admin_sub")
-    .danger()
-    .row()
-    .text(BTN.ADMIN_BAN, "admin_ban")
-    .danger()
-    .text(BTN.ADMIN_PRICE, "admin_price")
-    .primary()
-    .row()
-    .text(BTN.ADMIN_TON_RATE, "admin_ton_rate")
-    .primary()
-    .text(BTN.ADMIN_SERVICE_FEE, "admin_service_fee")
-    .primary()
-    .row()
-    .text("🎁 Gift qo'shish", "admin_gift_add")
-    .success()
-    .text("📋 Gift ro'yxati", "admin_gift_list")
-    .primary()
-    .row()
-    .text("📱 Akkount qo'shish", "admin_tg_add")
-    .success()
-    .text("📊 Akkountlar", "admin_tg_stats")
-    .primary()
-    .row()
-    .text(BTN.ADMIN_RENT_STATS, "admin_rent_stats")
-    .primary()
-    .row()
-    .text(BTN.ADMIN_BROADCAST, "admin_broadcast")
-    .primary();
+  const kb = new InlineKeyboard();
+  add(kb, BTN.ADMIN_ADD, "admin_add").success();
+  add(kb, BTN.ADMIN_SUB, "admin_sub").danger().row();
+  add(kb, BTN.ADMIN_BAN, "admin_ban").danger();
+  add(kb, BTN.ADMIN_PRICE, "admin_price").primary().row();
+  add(kb, BTN.ADMIN_TON_RATE, "admin_ton_rate").primary();
+  add(kb, BTN.ADMIN_SERVICE_FEE, "admin_service_fee").primary().row();
+  add(kb, BTN.ADMIN_GIFT_ADD, "admin_gift_add").success();
+  add(kb, BTN.ADMIN_GIFT_LIST, "admin_gift_list").primary().row();
+  add(kb, BTN.ADMIN_TG_ADD, "admin_tg_add").success();
+  add(kb, BTN.ADMIN_TG_STATS, "admin_tg_stats").primary().row();
+  add(kb, BTN.ADMIN_RENT_STATS, "admin_rent_stats").primary().row();
+  add(kb, BTN.ADMIN_BROADCAST, "admin_broadcast").primary();
+  return kb;
 }
 
 export function broadcastConfirmKb(): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(BTN.BROADCAST_CONFIRM, "broadcast_send")
-    .success()
-    .text(BTN.BROADCAST_CANCEL, "broadcast_cancel")
-    .danger();
+  const kb = new InlineKeyboard();
+  add(kb, BTN.BROADCAST_CONFIRM, "broadcast_send").success();
+  add(kb, BTN.BROADCAST_CANCEL, "broadcast_cancel").danger();
+  return kb;
 }
 
 export function adminBackKb(): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.BACK, "admin_panel");
+  return add(new InlineKeyboard(), BTN.BACK, "admin_panel").primary();
 }
 
-// --- GIFT KATALOGI (Stars bilan sotib olinadigan sovg'alar) ---
+// ═══════════════════════════════════════════════════════════════════════════
+//  GIFT KATALOGI (Stars bilan sotib olinadigan sovg'alar)
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function giftsPageKb(
   gifts: GiftRow[],
   page: number,
@@ -127,56 +178,68 @@ export function giftsPageKb(
 ): InlineKeyboard {
   const kb = new InlineKeyboard();
 
+  // Har bir gift: premium ikonka + "N ⭐️" yozuvi. Giftning o'z premium
+  // emojisi bo'lsa (premium_id) o'sha, bo'lmasa umumiy gift ikonkasi.
+  const fallbackIcon = splitButtonLabel(BTN.GIFTS).icon;
+
   gifts.forEach((gift, i) => {
-    const label = gift.premium_id ? ` ${gift.star_count} ⭐️` : `${gift.emoji} ${gift.star_count} ⭐️`;
     kb.text(
-      { text: label, icon_custom_emoji_id: gift.premium_id ?? undefined },
+      {
+        text: `${gift.star_count} ⭐️`,
+        icon_custom_emoji_id: gift.premium_id ?? fallbackIcon,
+      },
       `buy_${gift.id}_${gift.star_count}`
-    );
+    ).success();
     if (i % 2 === 1) kb.row();
   });
   if (gifts.length % 2 !== 0) kb.row();
 
-  if (hasPrev) {
-    kb.text({ text: BTN.PREV, icon_custom_emoji_id: NAV_ICON_PREV }, `page_${page - 1}`).success();
-  } else {
-    kb.text({ text: BTN.MENU, icon_custom_emoji_id: NAV_ICON_PREV }, "back_to_main").success();
-  }
-  if (hasNext) {
-    kb.text({ text: BTN.NEXT, icon_custom_emoji_id: NAV_ICON_NEXT }, `page_${page + 1}`).success();
-  }
+  // Pastki qator: orqaga / menyu / keyingi
+  if (hasPrev) add(kb, BTN.PREV, `page_${page - 1}`).primary();
+  else add(kb, BTN.MENU, "back_to_main").primary();
+
+  if (hasNext) add(kb, BTN.NEXT, `page_${page + 1}`).primary();
   return kb;
 }
 
 export function giftAdminListKb(gifts: GiftRow[]): InlineKeyboard {
   const kb = new InlineKeyboard();
+  const trashIcon = splitButtonLabel("🗑").icon;
+
   for (const g of gifts) {
     kb.text(
       {
-        text: `🗑 ${g.star_count}⭐️ — ${g.id.slice(0, 6)}…`,
-        icon_custom_emoji_id: g.premium_id ?? undefined,
+        text: `${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…`,
+        icon_custom_emoji_id: g.premium_id ?? trashIcon,
       },
       `admin_gift_del_${g.id}`
-    ).danger();
-    kb.row();
+    )
+      .danger()
+      .row();
   }
-  kb.text(BTN.BACK, "admin_panel");
+  add(kb, BTN.BACK, "admin_panel").primary();
   return kb;
 }
 
-// --- TELEGRAM PROFIL ---
+// ═══════════════════════════════════════════════════════════════════════════
+//  TELEGRAM PROFIL
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function tgProfileBuyKb(): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.TG_BUY, "tg_buy").success().row().text(BTN.BACK, "back_to_main");
+  const kb = new InlineKeyboard();
+  add(kb, BTN.TG_BUY, "tg_buy").success().row();
+  add(kb, BTN.BACK, "back_to_main").primary();
+  return kb;
 }
 
 export function tgProfileNoneKb(): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.BACK, "back_to_main");
+  return add(new InlineKeyboard(), BTN.BACK, "back_to_main").primary();
 }
 
 export function tgProfileGetCodeKb(accountId: number): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.TG_GET_CODE, `tg_code_${accountId}`).primary();
+  return add(new InlineKeyboard(), BTN.TG_GET_CODE, `tg_code_${accountId}`).success();
 }
 
 export function tgProfileRetryCodeKb(accountId: number): InlineKeyboard {
-  return new InlineKeyboard().text(BTN.TG_RECHECK, `tg_code_${accountId}`).primary();
+  return add(new InlineKeyboard(), BTN.TG_RECHECK, `tg_code_${accountId}`).primary();
 }

@@ -112,6 +112,23 @@ export const config = {
   tgApiId: optionalInt("TG_API_ID", 0),
   tgApiHash: optional("TG_API_HASH", ""),
 
+  /**
+   * Premium (custom) emoji ishlatilsinmi.
+   *
+   * Custom emoji yubora olish uchun bot Fragment'da qo'shimcha username
+   * sotib olgan bo'lishi kerak — bu Telegram cheklovi. Agar bot bunday
+   * bo'lmasa, Telegram xabarni RAD ETADI; shunda buni `false` qiling va
+   * matnlar oddiy emoji bilan chiqadi.
+   */
+  premiumEmoji: optionalBool("PREMIUM_EMOJI", true),
+
+  /**
+   * Ommaviy oferta havolasi. Bot birinchi ishlatilganda foydalanuvchi
+   * shu hujjatni o'qib rozilik bildiradi — Telegram Stars va profil
+   * savdosida bu talab qilinadi.
+   */
+  offerUrl: optional("OFFER_URL", ""),
+
   // ---------- To'lov ----------
   cardOwner: optional("CARD_OWNER", ""),
   cardNumber: optional("CARD_NUMBER", ""),

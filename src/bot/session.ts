@@ -16,6 +16,13 @@ export interface SessionData {
   step?: string;
   /** bosqichlar davomidagi vaqtinchalik ma'lumot */
   data: Record<string, any>;
+  /**
+   * Ofertaga rozilik berilganmi.
+   *
+   * Bazada ham saqlanadi, lekin bu yerda nusxasi turadi — shunda har bir
+   * xabar uchun qayta so'rov qilinmaydi.
+   */
+  offerOk?: boolean;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;
