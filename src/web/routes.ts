@@ -6,14 +6,27 @@ import {
   queryGifts,
   findGift,
   verifyGiftAvailable,
+  verifyGiftsAvailable,
   removeGift,
   catalogStats,
   catalogVersion,
   giftImageUrl,
 } from "../services/catalog";
 import {
+  queryBundles,
+  findBundle,
+  bundleStats,
+  serializeBundle,
+  KIND_LABEL,
+  BundleKind,
+} from "../services/bundles";
+import {
   getTonRateUzs,
   getServiceFeeUzs,
+  bundleQuote,
+  BUNDLE_MIN_DAYS,
+  BUNDLE_SIZES,
+  BUNDLE_MARKUP_PCT,
   totalCostUzs,
   extendCostUzs,
   pricePerDayUzs,
@@ -26,6 +39,9 @@ import {
   createRental,
   getRental,
   lockRentalForPayment,
+  lockRentalsForPayment,
+  setRentalsStatus,
+  setRentalPaidAmount,
   listUserRentals,
   markRentalLinked,
   enqueueRentJob,
@@ -84,6 +100,12 @@ export function createApiRouter(): Router {
         // t.me/<bot>?start=pay deeplinkini yasaydi.
         bot_username: botUsername(),
       },
+      bundle: {
+        min_days: BUNDLE_MIN_DAYS,
+        sizes: [...BUNDLE_SIZES],
+        markup_pct: BUNDLE_MARKUP_PCT,
+        total: bundleStats().total,
+      },
       catalog: {
         version: catalogVersion(),
         ready: stats.ready,
@@ -123,6 +145,175 @@ export function createApiRouter(): Router {
         max_days: g.max_days,
         image_url: giftImageUrl(g.nft_name),
       })),
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  //  To'plamlar (kolleksiyalar) — 3/6/9/12 ta bir mavzudagi gift
+  //
+  //  Bu ro'yxat XOTIRADA, katalog indeksidan yig'iladi: Marketapp'ga
+  //  qo'shimcha so'rov ketmaydi, javob millisekundlarda qaytadi.
+  // ---------------------------------------------------------------------
+  api.get("/bundles", (req, res) => {
+    const kindParam = String(req.query.kind ?? "");
+    const kind: BundleKind | null =
+      kindParam === "backdrop" || kindParam === "model" || kindParam === "symbol" ? kindParam : null;
+
+    const page = queryBundles({
+      kind,
+      collection: req.query.collection ? String(req.query.collection) : null,
+      offset: Number(req.query.offset) || 0,
+      limit: Number(req.query.limit) || 20,
+    });
+
+    res.json({
+      version: page.version,
+      total: page.total,
+      offset: page.offset,
+      has_more: page.has_more,
+      items: page.items.map((b) => serializeBundle(b)),
+    });
+  });
+
+  api.get("/bundles/:id", (req, res) => {
+    const bundle = findBundle(String(req.params.id));
+    if (!bundle) {
+      res.status(404).json({ error: "Bu to'plam endi mavjud emas. Ro'yxatni yangilang.", gone: true });
+      return;
+    }
+    res.json({ bundle: serializeBundle(bundle, { withGifts: true }) });
+  });
+
+  // ---------------------------------------------------------------------
+  //  To'plamni ijaraga olish — BITTA to'lov, N ta ijara
+  //
+  //  Narx server tomonda hisoblanadi: har bir giftning `days` kunlik ijarasi
+  //  + har bir gift uchun xizmat haqi, ustiga 10% to'plam ustamasi.
+  //  Klient yuborgan summa mutlaqo e'tiborga olinmaydi.
+  // ---------------------------------------------------------------------
+  api.post("/bundles/:id/rent", async (req, res) => {
+    const tgUser = req.tgUser!;
+    const bundle = findBundle(String(req.params.id));
+    if (!bundle) {
+      res.status(404).json({ error: "Bu to'plam endi mavjud emas. Ro'yxatni yangilang.", gone: true });
+      return;
+    }
+
+    const size = Math.floor(Number(req.body?.size));
+    const days = Math.floor(Number(req.body?.days));
+
+    if (!BUNDLE_SIZES.includes(size as (typeof BUNDLE_SIZES)[number]) || !bundle.sizes.includes(size)) {
+      res.status(400).json({ error: `Bu to'plamda ${bundle.sizes.join(", ")} ta gift olish mumkin` });
+      return;
+    }
+    if (!Number.isFinite(days) || days < BUNDLE_MIN_DAYS || days > bundle.max_days) {
+      res.status(400).json({
+        error: `Muddat ${BUNDLE_MIN_DAYS} dan ${bundle.max_days} kungacha bo'lishi kerak`,
+      });
+      return;
+    }
+
+    // To'plamdagi giftlar bitta kolleksiyadan, shuning uchun BITTA so'rov
+    // hammasini tekshiradi — Marketapp'ga yuk 12 barobar oshmaydi.
+    const wanted = bundle.gifts.slice(0, size);
+    const check = await verifyGiftsAvailable(wanted.map((g) => g.nft_address));
+    const alive = new Set(check.available);
+    const gifts = wanted.filter((g) => alive.has(g.nft_address));
+
+    if (gifts.length < size) {
+      // Bo'sh giftlar yetmadi — to'plamni QISMAN sotmaymiz, pul ham yechilmaydi.
+      res.status(409).json({
+        error:
+          `Bu to'plamdan ${gifts.length} ta gift qoldi — kimdir hozirgina ijaraga oldi. ` +
+          `Ro'yxatni yangilang yoki kichikroq to'plam tanlang.`,
+        gone: true,
+        available: gifts.length,
+      });
+      return;
+    }
+
+    const quote = bundleQuote(gifts.map((g) => g.price_per_day_nano), days);
+    const label = `${KIND_LABEL[bundle.kind]} · ${bundle.value}`;
+
+    await getOrCreateUser(tgUser.id, tgUser.username ?? null);
+
+    // Avval barcha ijaralar 'draft' bo'lib yaratiladi, keyin BIR MARTA pul
+    // yechiladi. Shu tartibda pul yechilgan, lekin ijara yaratilmagan holat
+    // bo'lmaydi; yaratishda xato chiqsa esa hali pulga tegilmagan bo'ladi.
+    const rentals = [];
+    try {
+      for (const gift of gifts) {
+        rentals.push(
+          await createRental({
+            userId: tgUser.id,
+            nftAddress: gift.nft_address,
+            nftName: gift.nft_name,
+            collectionName: gift.collection_name,
+            collectionAddress: gift.collection_address,
+            durationSec: daysToSec(days),
+            pricePerDayNano: gift.price_per_day_nano,
+            // Ustama va xizmat haqi to'plam bo'ylab teng taqsimlanadi —
+            // yig'indi HAR DOIM quote.total_uzs ga teng bo'lishi uchun
+            // oxirgi giftga qoldiq beriladi.
+            paidUzs: 0,
+            bundleId: bundle.id,
+            bundleLabel: label,
+          })
+        );
+      }
+    } catch (err) {
+      await setRentalsStatus(rentals.map((r) => r.id), "failed", "To'plam yaratilmadi");
+      throw err;
+    }
+
+    const ids = rentals.map((r) => r.id);
+
+    // 'draft' -> 'paying'. Ikki marta to'lashdan himoya: agar bir nechtasi
+    // allaqachon bloklangan bo'lsa, hech narsa yechmaymiz.
+    const lockedCount = await lockRentalsForPayment(ids, tgUser.id);
+    if (lockedCount !== ids.length) {
+      await setRentalsStatus(ids, "failed", "To'plam qayta ishga tushdi");
+      res.status(409).json({ error: "Bu to'plam allaqachon to'lanmoqda" });
+      return;
+    }
+
+    const remaining = await tryDeductBalance(tgUser.id, quote.total_uzs, "rent", `bundle:${bundle.id}`);
+    if (remaining === null) {
+      await setRentalsStatus(ids, "failed", "Balans yetarli emas");
+      res.status(402).json({
+        error: "Balans yetarli emas",
+        required_uzs: quote.total_uzs,
+        balance_uzs: await getBalance(tgUser.id),
+      });
+      return;
+    }
+
+    // Yechilgan summani ijaralar bo'ylab taqsimlaymiz (hisobot uchun) va
+    // har bir gift uchun alohida blokcheyn ishini navbatga qo'yamiz.
+    const share = Math.floor(quote.total_uzs / ids.length);
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const paid = i === ids.length - 1 ? quote.total_uzs - share * (ids.length - 1) : share;
+        await setRentalPaidAmount(ids[i], paid);
+        await enqueueRentJob(ids[i], "pay", { days, cost_uzs: paid });
+        removeGift(gifts[i].nft_address);
+      }
+    } catch (err) {
+      // Navbatga qo'yib bo'lmadi — pulni DARHOL qaytaramiz.
+      await refundBalance(tgUser.id, quote.total_uzs, `bundle:${bundle.id}`);
+      await setRentalsStatus(ids, "failed", "Navbatga qo'yib bo'lmadi");
+      throw err;
+    }
+
+    res.json({
+      ok: true,
+      bundle_id: bundle.id,
+      rental_ids: ids,
+      count: ids.length,
+      days,
+      cost_uzs: quote.total_uzs,
+      balance_uzs: remaining,
+      status: "paying",
     });
   });
 
@@ -343,6 +534,8 @@ function serializeRental(r: RentalRow, balanceUzs: number) {
     price_per_day_uzs: pricePerDayUzs(r.price_per_day_nano),
     price_per_day_nano: r.price_per_day_nano,
     paid_uzs: r.paid_uzs,
+    bundle_id: r.bundle_id,
+    bundle_label: r.bundle_label,
     extend_affordable_days: daysAffordableExtend(r.price_per_day_nano, balanceUzs),
     is_linked: r.status === "linked",
   };

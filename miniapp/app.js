@@ -48,6 +48,13 @@ const state = {
   gift: null,
   days: 1,
 
+  // To'plamlar (3/6/9/12 ta bir mavzudagi gift)
+  bundleCfg: { min_days: 7, sizes: [3, 6, 9, 12], markup_pct: 10, total: 0 },
+  bundles: { items: [], offset: 0, total: 0, hasMore: true, busy: false, kind: '', version: '' },
+  bundle: null,
+  bundleSize: 3,
+  bundleDays: 7,
+
   rental: null,
   extendDays: 1,
 
@@ -195,7 +202,7 @@ async function api(path, options = {}) {
 
 // ───────────────────────────── Navigatsiya ─────────────────────────────
 
-const TABS = ['market', 'mine', 'balance'];
+const TABS = ['market', 'bundles', 'mine', 'balance'];
 
 function showScreen(name, { push = true } = {}) {
   if (state.screen === name) return;
@@ -216,6 +223,9 @@ function showScreen(name, { push = true } = {}) {
 
   if (name === 'mine') renderMine();
   if (name === 'balance') renderBalance();
+  // To'plamlar ro'yxati faqat KERAK BO'LGANDA yuklanadi — ilova ochilishi
+  // shu sabab sekinlashmaydi.
+  if (name === 'bundles' && state.bundles.items.length === 0) loadBundles({ reset: true });
 }
 
 function goBack() {
@@ -605,6 +615,9 @@ function renderMine() {
         <div class="mine-info">
           <div class="mine-name">${escapeHtml(rental.nft_name)}</div>
           <div class="mine-col">${escapeHtml(rental.collection_name || '')}</div>
+          ${rental.bundle_label
+            ? `<span class="mine-bundle"><svg class="ico ico-sm"><use href="#i-tab-bundle-on"/></svg>${escapeHtml(rental.bundle_label)}</span>`
+            : ''}
           <div class="status ${meta.cls}"><i></i>${
             rental.status === 'linked' && rental.left_days !== null
               ? `Faol — ${rental.left_days} kun qoldi`
@@ -949,6 +962,328 @@ function closeVideoSheet() {
   if (v) v.pause();
 }
 
+// ───────────────────────────── To'plamlar ─────────────────────────────
+
+/**
+ * To'plam — bir xil fon / model / belgidagi 3, 6, 9 yoki 12 ta gift,
+ * bitta to'lovda, kamida 7 kunga.
+ *
+ * NARX faqat YAKUNIY ko'rsatiladi. Server har bir giftning narxini
+ * yubormaydi, faqat tanlangan o'lcham uchun KUNLIK YIG'INDINI beradi —
+ * shu bitta son bilan slayder jonli ishlaydi va formula server bilan
+ * bir xil bo'lib qoladi.
+ */
+
+function bundleTotalUzs(perDayUzs, size, days) {
+  const subtotal = perDayUzs * days + state.pricing.service_fee_uzs * size;
+  const markup = Math.ceil((subtotal * state.bundleCfg.markup_pct) / 100);
+  return subtotal + markup;
+}
+
+/** Tanlangan o'lchamning narx ma'lumoti. */
+function bundlePriceRow(bundle, size) {
+  return (bundle.prices || []).find((p) => p.size === size) || null;
+}
+
+function resetBundles() {
+  state.bundles = {
+    items: [], offset: 0, total: 0, hasMore: true, busy: false,
+    kind: state.bundles.kind, version: '',
+  };
+  $('bundle-list').innerHTML = '';
+}
+
+function renderBundleSkeleton(count = 4) {
+  $('bundle-list').innerHTML = Array.from({ length: count }, () => `
+    <div class="bcard is-skeleton">
+      <div class="bcard-mosaic"></div>
+      <div class="bcard-body"><span></span><span></span></div>
+    </div>`).join('');
+}
+
+async function loadBundles({ reset = false } = {}) {
+  if (state.bundles.busy) return;
+  if (!reset && !state.bundles.hasMore) return;
+
+  if (reset) {
+    resetBundles();
+    renderBundleSkeleton();
+  }
+  state.bundles.busy = true;
+
+  const params = new URLSearchParams({
+    offset: String(state.bundles.offset),
+    limit: '20',
+  });
+  if (state.bundles.kind) params.set('kind', state.bundles.kind);
+
+  try {
+    const page = await api(`/bundles?${params.toString()}`);
+
+    // Katalog yangilangan bo'lsa to'plamlar ham qayta yig'iladi —
+    // sahifalash surilib ketmasligi uchun boshidan boshlaymiz.
+    if (state.bundles.version && page.version !== state.bundles.version && !reset) {
+      state.bundles.busy = false;
+      return loadBundles({ reset: true });
+    }
+    state.bundles.version = page.version;
+
+    if (reset) $('bundle-list').innerHTML = '';
+
+    state.bundles.items.push(...page.items);
+    state.bundles.offset += page.items.length;
+    state.bundles.total = page.total;
+    state.bundles.hasMore = page.has_more;
+
+    if (state.bundles.items.length === 0) {
+      $('bundle-list').innerHTML = `
+        <div class="empty">
+          <svg class="ico ico-lg"><use href="#i-${state.catalog.loading ? 'refresh' : 'empty-search'}"/></svg>
+          <b>${state.catalog.loading ? 'Katalog yuklanmoqda' : 'To\'plam topilmadi'}</b>
+          <span>${state.catalog.loading
+            ? 'To\'plamlar katalog to\'lgach paydo bo\'ladi'
+            : 'Boshqa turni tanlab ko\'ring'}</span>
+        </div>`;
+    } else {
+      appendBundleCards(page.items);
+    }
+  } catch (err) {
+    if (state.bundles.items.length === 0) {
+      $('bundle-list').innerHTML = `
+        <div class="empty">
+          <svg class="ico ico-lg"><use href="#i-empty-net"/></svg>
+          <b>Yuklab bo'lmadi</b><span>${escapeHtml(err.message)}</span>
+        </div>`;
+    } else {
+      toast(err.message, 'error');
+    }
+  } finally {
+    state.bundles.busy = false;
+  }
+}
+
+function appendBundleCards(items) {
+  const list = $('bundle-list');
+  const frag = document.createDocumentFragment();
+  const pending = [];
+
+  for (const bundle of items) {
+    const first = bundle.prices[0];
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `bcard bcard-${bundle.kind}`;
+    card.innerHTML = `
+      <div class="bcard-mosaic">
+        ${bundle.preview.map(() => '<div class="bcard-cell"></div>').join('')}
+        <span class="bcard-count">${bundle.available} ta</span>
+      </div>
+      <div class="bcard-body">
+        <span class="bcard-kind">
+          <svg class="ico ico-sm"><use href="#i-${bundle.kind === 'backdrop' ? 'palette' : 'sparkle'}"/></svg>
+          ${escapeHtml(bundle.kind_label)}
+        </span>
+        <div class="bcard-name">${escapeHtml(bundle.value)}</div>
+        <div class="bcard-col">${escapeHtml(bundle.collection_name)}</div>
+        <div class="bcard-foot">
+          <span class="bcard-sizes">${bundle.sizes.join(' · ')} ta</span>
+          <span class="bcard-price">${fmtNum(first.total_uzs)} <i>so'mdan</i></span>
+        </div>
+      </div>
+      <svg class="ico ico-sm bcard-chev"><use href="#i-chevron-right"/></svg>`;
+
+    card.addEventListener('click', () => openBundle(bundle));
+    frag.appendChild(card);
+
+    const cells = card.querySelectorAll('.bcard-cell');
+    bundle.preview.forEach((p, i) => { if (cells[i]) pending.push([cells[i], p.image_url]); });
+  }
+
+  list.appendChild(frag);
+  for (const [cell, url] of pending) mountImage(cell, url);
+}
+
+// ───────────────────────────── To'plam detali ─────────────────────────────
+
+async function openBundle(summary) {
+  state.bundle = null;
+  state.bundleSize = summary.sizes[0];
+  state.bundleDays = summary.min_days;
+
+  $('bundle-kind').textContent = summary.kind_label;
+  $('bundle-name').textContent = summary.value;
+  $('bundle-collection').textContent = summary.collection_name;
+  $('bundle-grid').innerHTML = '';
+  $('bundle-total').textContent = '…';
+  $('bundle-note').textContent = '';
+  showScreen('bundle');
+
+  try {
+    const { bundle } = await api(`/bundles/${encodeURIComponent(summary.id)}`);
+    state.bundle = bundle;
+    state.bundleSize = bundle.sizes[0];
+    state.bundleDays = bundle.min_days;
+
+    buildSizeChips(bundle);
+    buildQuickDays($('bundle-quick-days'), bundle.min_days, bundle.max_days, (d) => {
+      state.bundleDays = d;
+      $('bundle-slider').value = String(d);
+      updateBundle();
+    });
+
+    const slider = $('bundle-slider');
+    slider.min = String(bundle.min_days);
+    slider.max = String(bundle.max_days);
+    slider.value = String(bundle.min_days);
+    $('bundle-days-min').textContent = `${bundle.min_days} kun`;
+    $('bundle-days-max').textContent = `${bundle.max_days} kun`;
+
+    renderBundleGrid();
+    updateBundle();
+  } catch (err) {
+    if (err.payload?.gone) {
+      toast('Bu to\'plam endi mavjud emas', 'error');
+      showScreen('bundles', { push: false });
+      loadBundles({ reset: true });
+      return;
+    }
+    toast(err.message, 'error');
+  }
+}
+
+function buildSizeChips(bundle) {
+  const box = $('bundle-sizes');
+  box.innerHTML = '';
+  for (const size of bundle.sizes) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'size-chip' + (size === state.bundleSize ? ' is-active' : '');
+    chip.dataset.size = String(size);
+    chip.textContent = `${size} ta`;
+    chip.addEventListener('click', () => {
+      state.bundleSize = size;
+      box.querySelectorAll('.size-chip').forEach((c) => {
+        c.classList.toggle('is-active', Number(c.dataset.size) === size);
+      });
+      renderBundleGrid();
+      updateBundle();
+      haptic('light');
+    });
+    box.appendChild(chip);
+  }
+}
+
+/** Giftlar to'ri: tanlangan `bundleSize` tasi yorqin, qolganlari xira. */
+function renderBundleGrid() {
+  const bundle = state.bundle;
+  if (!bundle) return;
+
+  const grid = $('bundle-grid');
+  grid.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  const pending = [];
+
+  bundle.gifts.forEach((gift, i) => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'bgift' + (i < state.bundleSize ? ' is-in' : '');
+    cell.title = gift.nft_name;
+    cell.innerHTML = '<span class="bgift-media"></span>';
+    cell.addEventListener('click', () => {
+      openTelegram(`https://t.me/nft/${giftSlug(gift.nft_name)}`);
+      haptic('light');
+    });
+    frag.appendChild(cell);
+    pending.push([el('.bgift-media', cell), gift.image_url]);
+  });
+
+  grid.appendChild(frag);
+  for (const [cell, url] of pending) mountImage(cell, url);
+}
+
+function updateBundle() {
+  const bundle = state.bundle;
+  if (!bundle) return;
+
+  const days = Math.max(bundle.min_days, Math.min(bundle.max_days, Number($('bundle-slider').value)));
+  state.bundleDays = days;
+  $('bundle-days-value').textContent = String(days);
+  $('bundle-size-value').textContent = String(state.bundleSize);
+  syncQuickDays($('bundle-quick-days'), days);
+
+  const row = bundlePriceRow(bundle, state.bundleSize);
+  if (!row) return;
+
+  const total = bundleTotalUzs(row.per_day_uzs, state.bundleSize, days);
+  $('bundle-total').textContent = fmtSom(total);
+  $('bundle-note').textContent =
+    `${state.bundleSize} ta gift · ${days} kun · har bir gift uchun ` +
+    `${fmtNum(state.pricing.service_fee_uzs)} so'm xizmat haqi · ` +
+    `${state.bundleCfg.markup_pct}% to'plam ustamasi`;
+
+  const enough = state.balance >= total;
+  const hint = $('bundle-hint');
+  hint.textContent = enough
+    ? ''
+    : `Balans yetarli emas — yana ${fmtSom(total - state.balance)} kerak.`;
+  hint.className = enough ? 'hint' : 'hint is-warn';
+
+  const btn = $('bundle-pay');
+  if (enough) {
+    btn.textContent = `To'plamni olish — ${fmtSom(total)}`;
+    btn.dataset.action = 'pay';
+  } else {
+    btn.textContent = 'Balansni to\'ldirish';
+    btn.dataset.action = 'topup';
+  }
+}
+
+async function payBundle() {
+  const btn = $('bundle-pay');
+  if (btn.dataset.action === 'topup') return openTopup();
+
+  const bundle = state.bundle;
+  if (!bundle) return;
+
+  const row = bundlePriceRow(bundle, state.bundleSize);
+  const total = row ? bundleTotalUzs(row.per_day_uzs, state.bundleSize, state.bundleDays) : 0;
+
+  setBusy(btn, true, 'To\'lov qilinmoqda…');
+  try {
+    const res = await api(`/bundles/${encodeURIComponent(bundle.id)}/rent`, {
+      method: 'POST',
+      body: JSON.stringify({ size: state.bundleSize, days: state.bundleDays }),
+    });
+
+    state.balance = res.balance_uzs;
+    renderBalancePill();
+    renderBalance();
+    haptic('success');
+    toast(`${res.count} ta gift olindi — ${fmtSom(res.cost_uzs)}`, 'ok');
+
+    await refreshRentals();
+    startPaymentWatcher();
+    showScreen('mine');
+  } catch (err) {
+    haptic('error');
+    if (err.payload?.gone) {
+      // To'plamdagi giftlar band bo'lib qolgan — ro'yxatni yangilaymiz.
+      toast(err.message, 'error');
+      showScreen('bundles', { push: false });
+      loadBundles({ reset: true });
+    } else if (err.status === 402) {
+      state.balance = err.payload?.balance_uzs ?? state.balance;
+      renderBalancePill();
+      updateBundle();
+      toast(`Balans yetarli emas — ${fmtSom(total)} kerak`, 'error');
+    } else {
+      toast(err.message, 'error');
+    }
+  } finally {
+    setBusy(btn, false);
+    updateBundle();
+  }
+}
+
 // ───────────────────────────── Balans ─────────────────────────────
 
 let lastBalance = null;
@@ -1058,6 +1393,20 @@ function bindEvents() {
   });
 
   $('topup-btn').addEventListener('click', openTopup);
+
+  $('bundle-promo').addEventListener('click', () => { showScreen('bundles'); haptic('light'); });
+  $('bundle-slider').addEventListener('input', updateBundle);
+  $('bundle-pay').addEventListener('click', payBundle);
+  $('bundle-kinds').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    state.bundles.kind = chip.dataset.kind || '';
+    $('bundle-kinds').querySelectorAll('.chip').forEach((c) => {
+      c.classList.toggle('is-active', c === chip);
+    });
+    loadBundles({ reset: true });
+    haptic('light');
+  });
   $('mine-refresh').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     btn.classList.add('is-busy');
@@ -1084,6 +1433,10 @@ function bindEvents() {
     new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting && state.screen === 'market') loadGifts();
     }, { rootMargin: '600px' }).observe($('grid-sentinel'));
+
+    new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && state.screen === 'bundles') loadBundles();
+    }, { rootMargin: '600px' }).observe($('bundle-sentinel'));
   }
 
   tg?.BackButton?.onClick(goBack);
@@ -1116,6 +1469,14 @@ function applyBootstrap(data) {
     avatar.style.backgroundImage = `url("${data.user.photo_url}")`;
   } else {
     avatar.textContent = name.slice(0, 1).toUpperCase();
+  }
+
+  if (data.bundle) {
+    state.bundleCfg = data.bundle;
+    state.bundleDays = data.bundle.min_days;
+    $('bundle-min-days').textContent = String(data.bundle.min_days);
+    // To'plam yo'q bo'lsa market ekranidagi reklama chizig'ini ko'rsatmaymiz.
+    $('bundle-promo').hidden = data.bundle.total === 0;
   }
 
   renderBalancePill();

@@ -291,6 +291,11 @@ export function queryGifts(q: GiftQuery): GiftPage {
 }
 
 /** To'lovdan oldin narx va muddatni tekshirish uchun. */
+/** Indeksdagi barcha giftlar (narx bo'yicha o'sish tartibida). */
+export function listGifts(): CatalogGift[] {
+  return index;
+}
+
 export function findGift(nftAddress: string): CatalogGift | null {
   return byNft.get(nftAddress) ?? null;
 }
@@ -337,6 +342,39 @@ export async function verifyGiftAvailable(
 
   if (!refreshed) return { available: true, checked: false };
   return { available: byNft.has(nftAddress), checked: true };
+}
+
+/**
+ * Bir nechta giftni BIRDANIGA tekshiradi (to'plam xaridi uchun).
+ *
+ * To'plamdagi giftlar bitta kolleksiyadan bo'lgani uchun bitta so'rov
+ * hammasini yangilaydi — Marketapp'ga yuk 12 barobar emas, bir barobar.
+ * Qaytadi: hali ham bo'sh giftlar ro'yxati va tekshiruv bajarilganmi.
+ */
+export async function verifyGiftsAvailable(
+  nftAddresses: string[],
+  timeoutMs = 8000
+): Promise<{ available: string[]; checked: boolean }> {
+  const targets = new Map<string, { address: string; name: string }>();
+  for (const addr of nftAddresses) {
+    const gift = byNft.get(addr);
+    if (gift) targets.set(gift.collection_address, {
+      address: gift.collection_address,
+      name: gift.collection_name,
+    });
+  }
+  if (targets.size === 0) return { available: [], checked: true };
+
+  const refreshed = await Promise.race([
+    Promise.all([...targets.values()].map((c) => refreshSingleCollection(c.address, c.name))).then(
+      () => true
+    ),
+    new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs)),
+  ]).catch(() => false);
+
+  // Tekshira olmasak — xaridni to'smaymiz (ish bajarilmasa, ishchi pulni qaytaradi).
+  if (!refreshed) return { available: [...nftAddresses], checked: false };
+  return { available: nftAddresses.filter((a) => byNft.has(a)), checked: true };
 }
 
 export function catalogStats(): CatalogStats {

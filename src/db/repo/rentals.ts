@@ -27,6 +27,10 @@ export interface RentalRow {
   tonconnect_url: string | null;
   tx_error: string | null;
   end_time: number | null;
+  /** To'plam xaridi bo'lsa — shu to'plamning belgisi (aks holda null). */
+  bundle_id: string | null;
+  /** Masalan "Bir xil fon · Cobalt Blue". */
+  bundle_label: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -44,13 +48,16 @@ export async function createRental(input: {
   durationSec: number;
   pricePerDayNano: string;
   paidUzs: number;
+  bundleId?: string | null;
+  bundleLabel?: string | null;
 }): Promise<RentalRow> {
   const ts = nowSec();
   const { rows } = await pool.query<RentalRow>(
     `INSERT INTO rentals
        (user_id, nft_address, nft_name, collection_name, collection_address,
-        duration_sec, price_per_day_nano, paid_uzs, status, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'draft',$9,$9)
+        duration_sec, price_per_day_nano, paid_uzs, status,
+        bundle_id, bundle_label, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'draft',$9,$10,$11,$11)
      RETURNING *`,
     [
       input.userId,
@@ -61,6 +68,8 @@ export async function createRental(input: {
       input.durationSec,
       input.pricePerDayNano,
       input.paidUzs,
+      input.bundleId ?? null,
+      input.bundleLabel ?? null,
       ts,
     ]
   );
@@ -86,6 +95,44 @@ export async function lockRentalForPayment(id: number, userId: number): Promise<
     [id, userId, nowSec()]
   );
   return rows[0] ?? null;
+}
+
+/**
+ * To'plamdagi barcha ijaralarni 'draft' dan 'paying' ga o'tkazadi.
+ *
+ * Bitta so'rovda va faqat 'draft' holatidagilar uchun — ikki marta to'lash
+ * himoyasi bitta gift xaridida qanday bo'lsa, to'plamda ham shunday.
+ * Qaytadi: haqiqatan bloklangan ijaralar soni.
+ */
+export async function lockRentalsForPayment(ids: number[], userId: number): Promise<number> {
+  if (ids.length === 0) return 0;
+  const { rowCount } = await pool.query(
+    `UPDATE rentals SET status = 'paying', updated_at = $3
+      WHERE id = ANY($1::bigint[]) AND user_id = $2 AND status = 'draft'`,
+    [ids, userId, nowSec()]
+  );
+  return rowCount ?? 0;
+}
+
+export async function setRentalsStatus(
+  ids: number[],
+  status: RentalStatus,
+  errorMsg?: string | null
+): Promise<void> {
+  if (ids.length === 0) return;
+  await pool.query(
+    "UPDATE rentals SET status = $2, tx_error = $3, updated_at = $4 WHERE id = ANY($1::bigint[])",
+    [ids, status, errorMsg ?? null, nowSec()]
+  );
+}
+
+/** To'plam xaridida yechilgan summa ijaralar bo'ylab taqsimlanadi. */
+export async function setRentalPaidAmount(id: number, paidUzs: number): Promise<void> {
+  await pool.query("UPDATE rentals SET paid_uzs = $2, updated_at = $3 WHERE id = $1", [
+    id,
+    paidUzs,
+    nowSec(),
+  ]);
 }
 
 export async function setRentalStatus(

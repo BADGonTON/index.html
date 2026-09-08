@@ -96,3 +96,55 @@ export function secToDays(sec: number | string): number {
 export function daysToSec(days: number): number {
   return Math.floor(days) * 86_400;
 }
+
+// ---------------------------------------------------------------------------
+//  Kolleksiya (to'plam) narxi
+// ---------------------------------------------------------------------------
+
+/** To'plam kamida shuncha kunga olinadi. */
+export const BUNDLE_MIN_DAYS = 7;
+/** Ruxsat etilgan to'plam o'lchamlari. */
+export const BUNDLE_SIZES = [3, 6, 9, 12] as const;
+/** To'plam uchun ustama (foizda). */
+export const BUNDLE_MARKUP_PCT = 10;
+
+export interface BundleQuote {
+  days: number;
+  count: number;
+  /** Barcha giftlarning `days` kunlik ijarasi. */
+  rent_uzs: number;
+  /** Har bir gift uchun bir martalik xizmat haqi × giftlar soni. */
+  fee_uzs: number;
+  /** Ustamagacha bo'lgan summa. */
+  subtotal_uzs: number;
+  /** BUNDLE_MARKUP_PCT foizli ustama. */
+  markup_uzs: number;
+  /** Foydalanuvchi ko'radigan YAGONA narx. */
+  total_uzs: number;
+}
+
+/**
+ * To'plam narxi.
+ *
+ * Misol: 6 ta gift, 7 kun, jami 100 000 so'm (ijara + xizmat haqi) —
+ * foydalanuvchiga 110 000 so'm ko'rsatiladi.
+ *
+ * Har bir gift alohida emas, faqat YAKUNIY summa ko'rsatiladi.
+ */
+export function bundleQuote(pricesNano: Array<string | number>, days: number): BundleQuote {
+  const count = pricesNano.length;
+  const rent = pricesNano.reduce<number>((sum, nano) => sum + baseCostUzs(nano, days), 0);
+  const fee = serviceFeeUzs * count;
+  const subtotal = rent + fee;
+  const markup = Math.ceil((subtotal * BUNDLE_MARKUP_PCT) / 100);
+
+  return {
+    days,
+    count,
+    rent_uzs: rent,
+    fee_uzs: fee,
+    subtotal_uzs: subtotal,
+    markup_uzs: markup,
+    total_uzs: subtotal + markup,
+  };
+}
