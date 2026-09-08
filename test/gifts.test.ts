@@ -60,7 +60,13 @@ const OLD_SEEDED = [
  * Bazada bor, lekin Telegram "mavjud" ro'yxatida YO'Q gift.
  * U baribir sotiladi va ro'yxatda ko'rinishi kerak.
  */
-const DB_ONLY = { id: "7777777777777777777", star_count: 500, emoji: "🐉", premium: "5451905784734574339" };
+const DB_ONLY = { id: "7777777777777777777", star_count: 30, emoji: "🐉" };
+
+/**
+ * Telegram o'z to'plamiga qo'shgan, LEKIN bizda yo'q gift.
+ * Bunday gift ro'yxatga TUSHMASLIGI kerak — nima sotilishini biz hal qilamiz.
+ */
+const TG_ONLY = { id: "9999999999999999999", star_count: 200, emoji: "🦄" };
 
 let updateId = 1;
 let messageId = 300;
@@ -157,13 +163,15 @@ async function main(): Promise<void> {
         ok: true,
         result: {
           gifts: [
-            ...SEEDED.map((s) => ({
+            ...SEEDED.slice(1).map((s) => ({
               id: s.id,
               sticker: { emoji: s.emoji },
               star_count: s.star_count,
             })),
-            // Telegram qo'shgan yangi sovg'a — bazada hali yo'q
-            { id: "9999999999999999999", sticker: { emoji: "🦄" }, star_count: 200 },
+            // Telegram qo'shgan sovg'a — bazada YO'Q, ro'yxatga tushmasligi kerak
+            { id: TG_ONLY.id, sticker: { emoji: TG_ONLY.emoji }, star_count: TG_ONLY.star_count },
+            // Bazadagi giftning narxi Telegram'da O'ZGARGAN — jonli narx olinishi kerak
+            { id: SEEDED[0].id, sticker: { emoji: SEEDED[0].emoji }, star_count: 75 },
           ],
         },
       } as any;
@@ -217,8 +225,9 @@ async function main(): Promise<void> {
   ok("bitta gift ikki marta chiqmadi", new Set(seen).size === seen.length,
      `${new Set(seen).size} noyob / ${seen.length} ko'rsatilgan`);
 
-  ok("Telegram'ning YANGI sovg'asi ham bor", seen.includes("9999999999999999999"),
-     "bazada yo'q gift ham ko'rsatilishi kerak");
+  ok("Telegram'ning bizda YO'Q sovg'asi ro'yxatga tushmadi",
+     !seen.includes(TG_ONLY.id),
+     `${TG_ONLY.emoji} ${TG_ONLY.star_count} ⭐ — biz sotmaymiz`);
 
   // ENG MUHIM: bazadagi gift Telegram ro'yxatida bo'lmasa ham sotiladi.
   ok("Telegram ro'yxatida YO'Q gift ham ko'rindi", seen.includes(DB_ONLY.id),
@@ -235,8 +244,13 @@ async function main(): Promise<void> {
      OLD_SEEDED.every((id) => seen.includes(id)),
      OLD_SEEDED.filter((id) => !seen.includes(id)).join(" ") || "hammasi");
 
-  ok("katalogda 24 ta gift (22 baza + 1 Telegram + 1 test)",
-     seen.length === 24, `${seen.length} ta`);
+  ok("katalogda faqat bazadagi giftlar", seen.length === dbGifts.length,
+     `${seen.length} ko'rsatilgan / ${dbGifts.length} bazada`);
+
+  // Narx Telegram'dan olinishi kerak: bazada 50 edi, Telegram 75 dedi.
+  const livePrice = labels.some((t) => t.includes("75 ⭐️"));
+  ok("narx Telegram'dagi jonli qiymatdan olindi", livePrice,
+     labels.find((t) => t.includes("75")) ?? "topilmadi");
 
   // Premium ID'si bor 11 tasi ikonka bilan, bazada yo'q gift esa o'z emojisi bilan
   // 22 ta bazadagi giftning hammasida premium emoji bor
@@ -244,7 +258,7 @@ async function main(): Promise<void> {
      withIcon === SEEDED.length + OLD_SEEDED.length,
      `${withIcon}/${SEEDED.length + OLD_SEEDED.length}`);
 
-  const unicorn = labels.find((t) => t.includes("🦄"));
+  const unicorn = labels.find((t) => t.includes(DB_ONLY.emoji));
   ok("premium ID'siz gift o'z emojisi bilan chiqdi", Boolean(unicorn), unicorn ?? "yo'q");
 
   ok("premium giftlarning yozuvida emoji yo'q",

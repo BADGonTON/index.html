@@ -43,43 +43,29 @@ async function getTelegramGifts(ctx: MyContext): Promise<GiftRow[]> {
 /**
  * Sotib olish mumkin bo'lgan sovg'alar ro'yxati.
  *
- * IKKALA MANBA ham qo'shiladi:
+ * KATALOGNI BAZA BELGILAYDI. Nima sotilishini biz hal qilamiz: gift bazada
+ * bo'lsa — sotiladi, bo'lmasa — yo'q.
  *
- *   • BAZA — biz o'zimiz kiritgan giftlar. Ular Telegram'ning "mavjud"
- *     ro'yxatida bo'lmasa ham sotib olinadi: `sendGift` gift ID bilan
- *     ishlaydi, ro'yxat bilan emas. Shuning uchun bazadagi gift HECH QACHON
- *     ro'yxatdan tushib qolmaydi.
+ * Telegram API'dan kelgan sovg'alar ro'yxatga QO'SHILMAYDI. Aks holda
+ * Telegram o'z to'plamiga yangi sovg'a qo'shganda (masalan 200 yoki 500
+ * Stars turadigan) u bizning ro'yxatimizda o'z-o'zidan paydo bo'lardi —
+ * biz sotmoqchi bo'lmagan, premium emojisi ham yo'q gift.
  *
- *   • TELEGRAM API — biz kiritmagan yangi sovg'alar ham ko'rinsin.
+ * Telegram API baribir kerak, lekin faqat BITTA narsa uchun — NARX.
+ * `sendGift` bot hisobidan aynan Telegram belgilagan miqdorni yechadi,
+ * shuning uchun bazadagi narx eskirgan bo'lsa, foydalanuvchi kam to'lab,
+ * farqni bot to'lab qolardi.
  *
- * Bir xil gift ikki manbada bo'lsa BITTA yozuvga birlashadi (kalit — gift ID),
- * shuning uchun ro'yxatda takror chiqmaydi.
- *
- * Nima qayerdan olinadi:
- *   ko'rinish (emoji, premium emoji, nom) — BAZADAN;
- *   narx — Telegram bilsa O'SHANDAN, aks holda bazadan.
- *
- * Narx nega Telegram'dan: `sendGift` bot hisobidan AYNAN Telegram
- * belgilagan miqdorni yechadi. Bazadagi narx eskirgan bo'lsa, foydalanuvchi
- * kam to'lab, farqni bot to'lab qolardi.
+ * Yangi gift qo'shish: admin panel → "➕ Gift qo'shish", yoki migratsiya
+ * fayli (src/db/migrations/009_gift_emoji.sql ga o'xshab).
  */
 function mergeGifts(dbGifts: GiftRow[], tgGifts: GiftRow[]): GiftRow[] {
-  const merged = new Map<string, GiftRow>();
+  const priceById = new Map(tgGifts.map((g) => [g.id, g.star_count]));
 
-  // Avval baza — ko'rinish shundan.
-  for (const g of dbGifts) merged.set(g.id, g);
-
-  for (const tg of tgGifts) {
-    const db = merged.get(tg.id);
-    if (!db) {
-      merged.set(tg.id, tg);
-      continue;
-    }
-    // Ikkalasida ham bor: bazaning ko'rinishi + Telegram'ning narxi.
-    merged.set(tg.id, { ...db, star_count: tg.star_count });
-  }
-
-  return [...merged.values()];
+  return dbGifts.map((db) => {
+    const livePrice = priceById.get(db.id);
+    return livePrice === undefined ? db : { ...db, star_count: livePrice };
+  });
 }
 
 async function buildGiftsPage(ctx: MyContext, page: number) {
