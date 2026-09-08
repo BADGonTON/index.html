@@ -246,17 +246,30 @@ function mountImage(container, url, fallbackEmoji = '🎁') {
 
   if (!url) return;
 
-  const img = new Image();
+  const img = document.createElement('img');
   img.loading = 'lazy';
   img.decoding = 'async';
   img.alt = '';
+  wireImage(img, fallback);
+
+  // MUHIM: avval DOM ga qo'shamiz, KEYIN src beramiz.
+  //
+  // `loading="lazy"` faqat element hujjatda bo'lgandagina ishlaydi. Avval
+  // `new Image()` ga src berib, keyin qo'shardik — natijada brauzer 60 ta
+  // rasmni BIRDANIGA yuklardi, ro'yxat esa sekin ochilardi. Endi ekranga
+  // yaqinlashganlari yuklanadi.
+  container.appendChild(img);
+  img.src = url;
+}
+
+/** Rasm yuklanganda yumshoq paydo bo'ladi, yuklanmasa emoji qoladi. */
+function wireImage(img, fallback) {
   img.addEventListener('load', () => {
     img.classList.add('is-loaded');
-    fallback.remove();
+    if (fallback) fallback.remove();
+    else img.parentElement?.querySelector('.fallback')?.remove();
   }, { once: true });
   img.addEventListener('error', () => img.remove(), { once: true });
-  img.src = url;
-  container.appendChild(img);
 }
 
 // ───────────────────────────── Narx (klient tomonda) ─────────────────────────────
@@ -334,6 +347,12 @@ async function loadGifts({ reset = false } = {}) {
 
     if (reset) $('market-grid').innerHTML = '';
 
+    // Birinchi sahifa arzondan boshlab keladi — bannerdagi "…so'm/kundan"
+    // raqami shundan olinadi.
+    if (reset && state.sort === 'asc' && !state.collection && !state.search && page.items[0]) {
+      $('stat-from').textContent = fmtNum(page.items[0].price_per_day_uzs);
+    }
+
     state.feed.items.push(...page.items);
     state.feed.offset += page.items.length;
     state.feed.total = page.total;
@@ -365,6 +384,7 @@ async function loadGifts({ reset = false } = {}) {
 function appendTiles(items) {
   const grid = $('market-grid');
   const frag = document.createDocumentFragment();
+  const pending = [];
 
   for (const gift of items) {
     const tile = document.createElement('article');
@@ -379,12 +399,22 @@ function appendTiles(items) {
         <div class="tile-price">${fmtNum(gift.price_per_day_uzs)} <span>so'm/kun</span></div>
       </div>`;
 
-    mountImage(el('.tile-media', tile), gift.image_url);
     tile.addEventListener('click', () => openDetail(gift));
     frag.appendChild(tile);
+    pending.push([tile, gift.image_url]);
   }
 
   grid.appendChild(frag);
+
+  // Rasmlar DOM ga qo'shilgandan KEYIN ulanadi — shundagina brauzerning
+  // o'z lazy-loading mexanizmi ishlaydi.
+  for (const [tile, url] of pending) mountImage(el('.tile-media', tile), url);
+}
+
+/** Bannerdagi jonli raqamlar. */
+function renderBannerStats() {
+  $('stat-gifts').textContent = fmtNum(state.catalog.total_gifts);
+  $('stat-collections').textContent = fmtNum(state.collections.length);
 }
 
 function updateCounter() {
@@ -479,19 +509,26 @@ function updateDetail() {
     hint.textContent = canAfford > 0
       ? `Balansingiz ${canAfford} kunga yetadi. ${fmtSom(total - state.balance)} yetishmayapti.`
       : `Balans yetarli emas — ${fmtSom(total - state.balance)} yetishmayapti.`;
-    payBtn.textContent = 'Balans yetarli emas';
-    payBtn.disabled = true;
+    // Boshi berk ko'chaga olib bormaymiz: tugma to'g'ridan-to'g'ri botdagi
+    // to'lov oynasiga olib o'tadi.
+    payBtn.textContent = `${fmtSom(total - state.balance)} to'ldirish`;
+    payBtn.disabled = false;
+    payBtn.dataset.action = 'topup';
   } else {
     hint.className = 'hint';
     hint.textContent = `To'lovdan keyin balans: ${fmtSom(state.balance - total)}`;
     payBtn.textContent = `${fmtSom(total)} — To'lash`;
     payBtn.disabled = false;
+    payBtn.dataset.action = 'pay';
   }
 }
 
 async function payRent() {
   const gift = state.gift;
   if (!gift) return;
+
+  // Balans yetmaganda tugma to'lov oynasini ochadi (xarid emas).
+  if ($('pay-btn').dataset.action === 'topup') return openTopup();
 
   const btn = $('pay-btn');
   setBusy(btn, true, 'To\'lanmoqda…');
@@ -517,6 +554,13 @@ async function payRent() {
       renderBalancePill();
       updateDetail();
     }
+    // Giftni kimdir bizdan oldin olgan bo'lsa — ro'yxatni yangilab,
+    // marketga qaytaramiz. Bo'lmagan giftga qarab turishning ma'nosi yo'q.
+    if (err.payload?.gone) {
+      showScreen('market', { push: false });
+      state.history = [];
+      await loadGifts({ reset: true });
+    }
     toast(err.message, 'error');
   } finally {
     setBusy(btn, false);
@@ -536,6 +580,7 @@ const STATUS_META = {
 
 function renderMine() {
   const list = $('mine-list');
+  renderMineStats();
 
   if (state.rentals.length === 0) {
     list.innerHTML = `
@@ -626,6 +671,29 @@ async function refreshRentals() {
 function updateMineBadge() {
   const waiting = state.rentals.some((r) => r.status === 'pending_link' || r.status === 'paying');
   $('mine-badge').hidden = !waiting;
+}
+
+/** Giftlarim sarlavhasidagi qisqa xulosa. */
+function renderMineStats() {
+  const active = state.rentals.filter((r) => r.status === 'linked');
+  const waiting = state.rentals.filter(
+    (r) => r.status === 'pending_link' || r.status === 'paying'
+  );
+
+  const box = $('mine-stats');
+  if (state.rentals.length === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+
+  $('mine-active').textContent = active.length;
+  $('mine-waiting').textContent = waiting.length;
+
+  const days = active
+    .map((r) => r.left_days)
+    .filter((d) => typeof d === 'number');
+  $('mine-soonest').textContent = days.length ? `${Math.min(...days)} kun` : '—';
 }
 
 /**
@@ -753,18 +821,21 @@ function updateExtend() {
   if (state.balance < total) {
     hint.className = 'hint is-warn';
     hint.textContent = `Balans yetarli emas — ${fmtSom(total - state.balance)} yetishmayapti.`;
-    btn.textContent = 'Balans yetarli emas';
-    btn.disabled = true;
+    btn.textContent = `${fmtSom(total - state.balance)} to'ldirish`;
+    btn.disabled = false;
+    btn.dataset.action = 'topup';
   } else {
     hint.className = 'hint';
     hint.textContent = `To'lovdan keyin balans: ${fmtSom(state.balance - total)}`;
     btn.textContent = `${fmtSom(total)} — Uzaytirish`;
     btn.disabled = false;
+    btn.dataset.action = 'extend';
   }
 }
 
 async function submitExtend() {
   const btn = $('extend-btn');
+  if (btn.dataset.action === 'topup') return openTopup();
   setBusy(btn, true, 'Uzaytirilmoqda…');
 
   try {
@@ -795,10 +866,103 @@ async function submitExtend() {
   }
 }
 
+// ───────────────────────────── Telegramga chiqish ─────────────────────────────
+
+/**
+ * Telegram havolasini ochadi. `openTelegramLink` ilovadan chiqmasdan ochadi;
+ * eski versiyalarda esa oddiy havolaga tushamiz.
+ */
+function openTelegram(url) {
+  try {
+    if (tg?.openTelegramLink) return tg.openTelegramLink(url);
+  } catch { /* pastdagi zaxira variantga o'tamiz */ }
+  window.open(url, '_blank');
+}
+
+/**
+ * Botdagi to'lov oynasini ochadi.
+ *
+ * `?start=pay` deeplinki bot menyularini chetlab o'tib, to'g'ridan-to'g'ri
+ * summa so'rash bosqichiga olib boradi — foydalanuvchi balans yetmaganda
+ * bir bosishda to'lovga tushadi.
+ */
+function openTopup() {
+  haptic('light');
+  const bot = state.settings.bot_username;
+  if (bot) {
+    openTelegram(`https://t.me/${bot}?start=pay`);
+    setTimeout(() => tg?.close?.(), 250);
+  } else {
+    toast('Botdagi «💰 Balans → 💳 To\'lov» bo\'limiga o\'ting');
+    setTimeout(() => tg?.close?.(), 1400);
+  }
+}
+
+/** "Rare Bird #7043" → "rarebird-7043" (server bilan bir xil qoida). */
+function giftSlug(name) {
+  return String(name || '')
+    .trim()
+    .replace(/\s*#\s*/g, '-')
+    .replace(/[\s_]+/g, '')
+    .toLowerCase();
+}
+
+// ───────────────────────────── Video qo'llanma ─────────────────────────────
+
+function openVideoSheet() {
+  const frame = $('video-frame');
+  const url = state.settings.profile_link_video_url;
+
+  if (!frame.dataset.loaded) {
+    if (url && /\.(mp4|webm|mov)(\?|$)/i.test(url)) {
+      // To'g'ridan-to'g'ri video fayli — ilova ichida o'ynatamiz
+      frame.innerHTML =
+        `<video src="${escapeHtml(url)}" controls playsinline preload="metadata"></video>`;
+    } else if (url) {
+      // Boshqa har qanday havola (YouTube va h.k.) — faqat "Batafsil" tugmasi
+      frame.innerHTML =
+        '<div class="video-empty">Qisqa video hozircha yo\'q.<br>Pastdagi tugma orqali to\'liq qo\'llanmani ko\'ring.</div>';
+    } else {
+      frame.innerHTML =
+        '<div class="video-empty">Video qo\'llanma hali qo\'shilmagan.</div>';
+    }
+    frame.dataset.loaded = '1';
+  }
+
+  const more = $('video-more');
+  const youtube = state.settings.profile_link_youtube_url;
+  if (youtube) {
+    more.href = youtube;
+    more.hidden = false;
+  } else {
+    more.hidden = true;
+  }
+
+  $('video-sheet').classList.add('is-open');
+  haptic('light');
+}
+
+function closeVideoSheet() {
+  $('video-sheet').classList.remove('is-open');
+  // Varaq yopilganda video to'xtasin
+  const v = $('video-frame').querySelector('video');
+  if (v) v.pause();
+}
+
 // ───────────────────────────── Balans ─────────────────────────────
 
+let lastBalance = null;
 function renderBalancePill() {
   $('balance-value').textContent = fmtNum(state.balance);
+
+  // Balans o'zgarganda qisqa urg'u beramiz — to'lov o'tgani sezilib turadi.
+  if (lastBalance !== null && lastBalance !== state.balance) {
+    const pill = $('balance-pill');
+    pill.classList.remove('is-bumped');
+    void pill.offsetWidth;
+    pill.classList.add('is-bumped');
+  }
+  lastBalance = state.balance;
 }
 
 function renderBalance() {
@@ -893,11 +1057,26 @@ function bindEvents() {
     }
   });
 
-  // Balansni to'ldirish faqat botda bo'ladi — ilova shunchaki botga qaytaradi.
-  $('topup-btn').addEventListener('click', () => {
+  $('topup-btn').addEventListener('click', openTopup);
+  $('mine-refresh').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.classList.add('is-busy');
+    await refreshRentals();
+    setTimeout(() => btn.classList.remove('is-busy'), 400);
+  });
+
+  $('video-btn').addEventListener('click', (e) => { e.preventDefault(); openVideoSheet(); });
+  $('video-close').addEventListener('click', closeVideoSheet);
+  $('video-sheet').addEventListener('click', (e) => {
+    if (e.target === $('video-sheet')) closeVideoSheet();
+  });
+
+  $('view-btn').addEventListener('click', () => {
+    const gift = state.gift;
+    if (!gift) return;
     haptic('light');
-    if (tg?.close) tg.close();
-    else toast('Botdagi «💰 Balans → 💳 To\'lov» bo\'limiga o\'ting');
+    // Telegram'ning o'z NFT sahifasi: t.me/nft/<nom>-<raqam>
+    openTelegram(`https://t.me/nft/${giftSlug(gift.nft_name)}`);
   });
 
   // Pastga tushganda keyingi sahifani so'raymiz
@@ -942,6 +1121,7 @@ function applyBootstrap(data) {
   renderBalancePill();
   renderBalance();
   updateMineBadge();
+  renderBannerStats();
 
   if (state.rentals.some((r) => r.status === 'paying')) startPaymentWatcher();
 }

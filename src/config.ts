@@ -135,8 +135,17 @@ export const config = {
    * 429 (Too Many Requests) oladi — shuning uchun yuk vaqt bo'ylab tarqatiladi.
    */
   marketCycleSec: optionalInt("MARKET_CYCLE_SEC", 60),
-  /** Bitta siklda nechta kolleksiya yangilanadi. */
+  /** Bitta siklda nechta kolleksiya yangilanadi (endi faqat zaxira yo'lda). */
   marketBatch: optionalInt("MARKET_BATCH", 12),
+  /**
+   * Butun katalog shu davrda bir marta to'liq qayta o'qiladi (soniya).
+   *
+   * `/v1/rent/gifts/` kolleksiya filtrisiz hamma giftni ~100 tadan sahifalab
+   * beradi, ya'ni ~8000 gift = ~80 so'rov. Shuning uchun to'liq yangilanish
+   * bir necha daqiqada bo'ladi va band qilingan giftlar ro'yxatda uzoq
+   * turib qolmaydi.
+   */
+  marketSweepSec: optionalInt("MARKET_SWEEP_SEC", 240),
   /**
    * Marketapp'ga ikkita so'rov orasidagi eng kam vaqt (ms).
    * 429 kelsa bu qiymat avtomatik oshadi, keyin asta-sekin qaytadi.
@@ -148,7 +157,10 @@ export const config = {
   marketStaleSec: optionalInt("MARKET_STALE_SEC", 3600),
   /** Mini App bitta so'rovda nechta gift oladi. */
   marketPageSize: optionalInt("MARKET_PAGE_SIZE", 60),
+  /** Ilova ichida o'ynatiladigan QISQA video (.mp4/.webm to'g'ridan-to'g'ri havolasi). */
   profileLinkVideoUrl: optional("PROFILE_LINK_VIDEO_URL", ""),
+  /** "Batafsil" tugmasi — to'liq YouTube qo'llanmasi. */
+  profileLinkYoutubeUrl: optional("PROFILE_LINK_YOUTUBE_URL", ""),
 
   // ---------- Mini App API himoyasi ----------
   /** initData shu muddatdan eski bo'lsa qabul qilinmaydi (soniya). */
@@ -205,4 +217,18 @@ export function validateConfig(): void {
     console.error("\n   .env.example faylidan nusxa oling: cp .env.example .env\n");
     process.exit(1);
   }
+}
+
+/**
+ * Bot username'i. Ishga tushishda `bot.init()` dan keyin bir marta yoziladi —
+ * Mini App undan `t.me/<bot>?start=pay` deeplinkini yasaydi.
+ */
+let cachedBotUsername = "";
+
+export function setBotUsername(name: string): void {
+  cachedBotUsername = name;
+}
+
+export function botUsername(): string {
+  return cachedBotUsername;
 }

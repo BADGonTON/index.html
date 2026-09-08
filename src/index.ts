@@ -1,6 +1,6 @@
 import { run, RunnerHandle } from "@grammyjs/runner";
 import type { Server } from "node:http";
-import { config, validateConfig, miniAppUrl } from "./config";
+import { config, validateConfig, miniAppUrl, setBotUsername } from "./config";
 import { runMigrations } from "./db/migrate";
 import { closePool, pingDatabase } from "./db/pool";
 import { createBot } from "./bot/bot";
@@ -40,6 +40,7 @@ async function main(): Promise<void> {
 
   const bot = createBot();
   await bot.init();
+  setBotUsername(bot.botInfo.username);
   console.log(`✅ Bot: @${bot.botInfo.username}`);
 
   try {

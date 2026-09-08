@@ -83,6 +83,20 @@ async function open(
   return { ...seen, failed } as Seen & { styled: string };
 }
 
+async function launchBrowser(): Promise<Browser> {
+  const candidates = [process.env.CHROMIUM_PATH, undefined, "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"];
+  let lastError: unknown;
+  for (const executablePath of candidates) {
+    if (executablePath === "") continue;
+    try {
+      return await chromium.launch({ args: ["--no-sandbox"], executablePath });
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
 async function main() {
   const { runMigrations } = await import("../src/db/migrate");
   const { pool, closePool } = await import("../src/db/pool");
@@ -118,9 +132,10 @@ async function main() {
   });
   await new Promise<void>((r) => wrapper.listen(PORT, () => r()));
 
-  // CHROMIUM_PATH berilmasa Playwright o'zi o'rnatgan brauzerni topadi.
-  const executablePath = process.env.CHROMIUM_PATH || undefined;
-  const browser = await chromium.launch({ args: ["--no-sandbox"], executablePath });
+  // Avval Playwright o'zi o'rnatgan brauzerni sinaymiz; topilmasa —
+  // muhitdagi tayyor Chromium'ga tushamiz. Shu tufayli test CI'da ham,
+  // lokal muhitda ham qo'shimcha sozlamasiz ishlaydi.
+  const browser = await launchBrowser();
 
   const initData = sign({ user: { id: 900001, first_name: "Shahboz" } }, config.botToken, new Date());
 

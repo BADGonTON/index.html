@@ -1,10 +1,12 @@
 import { Router } from "express";
-import { config } from "../config";
+import { config, botUsername } from "../config";
 import { requireTelegramAuth, rateLimit } from "./auth";
 import {
   listCatalogCollections,
   queryGifts,
   findGift,
+  verifyGiftAvailable,
+  removeGift,
   catalogStats,
   catalogVersion,
   giftImageUrl,
@@ -75,8 +77,12 @@ export function createApiRouter(): Router {
       },
       settings: {
         profile_link_video_url: config.profileLinkVideoUrl || null,
+        profile_link_youtube_url: config.profileLinkYoutubeUrl || null,
         support_url: config.supportBot,
         page_size: config.marketPageSize,
+        // Mini App "Balansni to'ldirish" tugmasi shu orqali
+        // t.me/<bot>?start=pay deeplinkini yasaydi.
+        bot_username: botUsername(),
       },
       catalog: {
         version: catalogVersion(),
@@ -146,7 +152,20 @@ export function createApiRouter(): Router {
 
     const gift = findGift(nftAddress);
     if (!gift) {
-      res.status(404).json({ error: "Bu gift endi mavjud emas. Ro'yxatni yangilang." });
+      res.status(404).json({ error: "Bu gift endi mavjud emas. Ro'yxatni yangilang.", gone: true });
+      return;
+    }
+
+    // Gift shu daqiqada ham bo'shmi? Katalog ~10 daqiqada bir yangilanadi,
+    // ya'ni kimdir hozirgina ijaraga olgan bo'lishi mumkin. Pulni yechishdan
+    // OLDIN aynan shu kolleksiyani bitta so'rov bilan tekshiramiz —
+    // "to'lov o'tdi, keyin gift yo'q" degan holat bo'lmasligi uchun.
+    const check = await verifyGiftAvailable(nftAddress);
+    if (check.checked && !check.available) {
+      res.status(409).json({
+        error: "Bu giftni hozirgina boshqa kimdir ijaraga oldi. Boshqasini tanlang.",
+        gone: true,
+      });
       return;
     }
     if (!Number.isFinite(days) || days < gift.min_days || days > gift.max_days) {
@@ -193,6 +212,10 @@ export function createApiRouter(): Router {
 
     // Blokcheyn ishi navbatga qo'yiladi — foydalanuvchi kutmaydi.
     await enqueueRentJob(rental.id, "pay", { days, cost_uzs: cost });
+
+    // Gift band bo'ldi — katalogdan DARHOL olib tashlaymiz, shunda boshqalar
+    // uni ko'rmaydi va sotib olishga urinmaydi.
+    removeGift(nftAddress);
 
     res.json({
       ok: true,

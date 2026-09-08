@@ -79,6 +79,7 @@
       </div>
     </div>
     <button class="balance-pill" id="balance-pill" type="button">
+      <svg class="ico ico-sm"><use href="#i-tab-balance-on"/></svg>
       <span class="balance-value" id="balance-value">0</span>
       <span class="balance-unit">so'm</span>
     </button>
@@ -86,9 +87,24 @@
 
   <!-- ═══════════ Market ═══════════ -->
   <section class="screen is-active" data-screen="market">
-    <div class="hero">
-      <h1>Gift Arenda</h1>
-      <p>TON NFT sovg'alarni ijaraga oling va profilingizda ko'rsating</p>
+    <div class="banner-hero">
+      <div class="banner-glow"></div>
+      <div class="banner-body">
+        <span class="banner-tag">TON NFT</span>
+        <h1>Gift Arenda</h1>
+        <p>Sovg'ani ijaraga oling va Telegram profilingizda ko'rsating</p>
+        <div class="banner-stats">
+          <span><b id="stat-gifts">—</b> gift</span>
+          <i></i>
+          <span><b id="stat-collections">—</b> kolleksiya</span>
+          <i></i>
+          <span><b id="stat-from">—</b> so'm/kundan</span>
+        </div>
+      </div>
+      <svg class="banner-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2.2L2.4 8.4 12 21.8l9.6-13.4L12 2.2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+        <path d="M12 2.2v19.6M2.4 8.4h19.2" stroke="currentColor" stroke-width="1" opacity=".5"/>
+      </svg>
     </div>
 
     <div class="toolbar">
@@ -155,16 +171,38 @@
       <div class="hint" id="detail-hint"></div>
     </div>
 
-    <div class="sticky">
+    <div class="sticky sticky-row">
+      <button class="btn btn-line btn-icon" id="view-btn" type="button" title="Telegramda ko'rish">
+        <svg class="ico"><use href="#i-arrow-up-right"/></svg>
+        Ko'rish
+      </button>
       <button class="btn btn-primary" id="pay-btn" type="button">To'lov qilish</button>
     </div>
   </section>
 
   <!-- ═══════════ Mening giftlarim ═══════════ -->
   <section class="screen" data-screen="mine">
-    <div class="hero">
-      <h1>Mening giftlarim</h1>
-      <p>Ijaraga olingan sovg'alaringiz</p>
+    <div class="mine-head">
+      <div class="mine-head-top">
+        <h1>Mening giftlarim</h1>
+        <button class="icon-btn" id="mine-refresh" type="button" aria-label="Yangilash">
+          <svg class="ico"><use href="#i-refresh"/></svg>
+        </button>
+      </div>
+      <div class="mine-stats" id="mine-stats" hidden>
+        <div class="mine-stat">
+          <span class="mine-stat-value" id="mine-active">0</span>
+          <span class="mine-stat-label">Faol</span>
+        </div>
+        <div class="mine-stat">
+          <span class="mine-stat-value" id="mine-waiting">0</span>
+          <span class="mine-stat-label">Ulash kutilmoqda</span>
+        </div>
+        <div class="mine-stat">
+          <span class="mine-stat-value" id="mine-soonest">—</span>
+          <span class="mine-stat-label">Eng yaqin tugash</span>
+        </div>
+      </div>
     </div>
     <div id="mine-list" class="mine-list"></div>
   </section>
@@ -249,11 +287,12 @@
     </div>
 
     <div class="topup">
-      <p>Balansni to'ldirish uchun botga qayting va <b>«💰 Balans → 💳 To'lov»</b> bo'limini oching.</p>
       <button class="btn btn-primary" id="topup-btn" type="button">
-        Botga qaytish
-        <svg class="ico"><use href="#i-arrow-up-right"/></svg>
+        <svg class="ico"><use href="#i-wallet-big"/></svg>
+        Balansni to'ldirish
       </button>
+      <p>Tugma sizni botdagi to'lov oynasiga olib o'tadi — summa kiritasiz,
+         karta rekvizitlari chiqadi.</p>
     </div>
   </section>
 
@@ -276,6 +315,22 @@
       <span>Balans</span>
     </button>
   </nav>
+
+  <!-- ═══════════ Video qo'llanma ═══════════ -->
+  <div class="sheet-bg" id="video-sheet">
+    <div class="sheet">
+      <div class="sheet-grab"></div>
+      <h3>Profilga ulash — qo'llanma</h3>
+      <div class="video-frame" id="video-frame"></div>
+      <p class="video-note">Fragment'da hamyonni ulab, <code>tc://</code> havolasini
+         nusxalang va ilovaga joylashtiring.</p>
+      <a class="btn btn-line" id="video-more" target="_blank" rel="noopener" hidden>
+        <svg class="ico"><use href="#i-play"/></svg>
+        Batafsil — YouTube'da ko'rish
+      </a>
+      <button class="btn btn-primary" id="video-close" type="button">Tushunarli</button>
+    </div>
+  </div>
 
   <!-- ═══════════ Kolleksiya varag'i ═══════════ -->
   <div class="sheet-bg" id="collection-sheet">

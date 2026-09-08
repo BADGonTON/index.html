@@ -1,8 +1,17 @@
 import { Bot } from "grammy";
 import { MyContext } from "../session";
 import { renderMenu } from "../ui";
-import { getOrCreateUser } from "../../db/repo/users";
-import { fmt, START_MESSAGE, BALANCE_MESSAGE, REFERRAL_MESSAGE, RENT_INTRO } from "../texts";
+import { getOrCreateUser, getBanRemaining } from "../../db/repo/users";
+import { STEP } from "../steps";
+import {
+  fmt,
+  START_MESSAGE,
+  BALANCE_MESSAGE,
+  REFERRAL_MESSAGE,
+  RENT_INTRO,
+  ENTER_AMOUNT,
+  PAYMENT_BANNED,
+} from "../texts";
 import { startKb, balanceKb, backKb, rentKb } from "../keyboards";
 
 export function registerStartHandlers(bot: Bot<MyContext>): void {
@@ -10,8 +19,9 @@ export function registerStartHandlers(bot: Bot<MyContext>): void {
     ctx.session.step = undefined;
     ctx.session.data = {};
 
-    // /start 12345 — referal havolasi
     const payload = (ctx.message?.text ?? "").split(" ")[1];
+
+    // /start 12345 — referal havolasi
     let refId: number | null = null;
     if (payload && /^\d+$/.test(payload)) {
       const parsed = parseInt(payload, 10);
@@ -19,6 +29,25 @@ export function registerStartHandlers(bot: Bot<MyContext>): void {
     }
 
     const user = await getOrCreateUser(ctx.from!.id, ctx.from?.username ?? null, refId);
+
+    // /start pay — Mini App'dan "Balansni to'ldirish" bosilganda keladi.
+    // Foydalanuvchini menyular bo'ylab yurgizmasdan, TO'G'RIDAN-TO'G'RI
+    // summa so'rash bosqichiga olib kiramiz.
+    if (payload === "pay") {
+      const remaining = await getBanRemaining(ctx.from!.id);
+      if (remaining > 0) {
+        await renderMenu(
+          ctx,
+          fmt(PAYMENT_BANNED, { minutes: Math.ceil(remaining / 60) }),
+          backKb("balance")
+        );
+        return;
+      }
+      await renderMenu(ctx, ENTER_AMOUNT, backKb("balance"));
+      ctx.session.step = STEP.PAY_AMOUNT;
+      return;
+    }
+
     await renderMenu(
       ctx,
       fmt(START_MESSAGE, { name: ctx.from?.first_name ?? "", balance: user.balance }),

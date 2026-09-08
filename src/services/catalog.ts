@@ -1,6 +1,13 @@
 import crypto from "node:crypto";
 import { config } from "../config";
-import { listCollections, listGiftsForCollection, rateLimitState } from "./marketapp";
+import {
+  listCollections,
+  listGiftsForCollection,
+  sweepAllRentGifts,
+  traitOf,
+  rateLimitState,
+  RawRentGift,
+} from "./marketapp";
 import {
   loadAllCollections,
   upsertCollectionNames,
@@ -46,6 +53,10 @@ export interface CatalogGift {
   price_per_day_nano: string;
   min_days: number;
   max_days: number;
+  /** Atributlar — bir xil mavzudagi kolleksiya yig'ish uchun. */
+  model?: string | null;
+  symbol?: string | null;
+  backdrop?: string | null;
 }
 
 export interface CatalogCollection {
@@ -96,6 +107,7 @@ let cycleTimer: NodeJS.Timeout | null = null;
 let listTimer: NodeJS.Timeout | null = null;
 let cycleRunning = false;
 let lastListAt = 0;
+let knownCollections = new Map<string, { address: string; name: string }>();
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000);
@@ -143,31 +155,65 @@ function rebuildIndex(): void {
   indexVersion = hash.digest("hex").slice(0, 12);
 }
 
+/** Bo'sh satrlarni `null` ga keltiradi. */
+function str(v: unknown): string | null {
+  const t = typeof v === "string" ? v.trim() : "";
+  return t === "" ? null : t;
+}
+
 function comparePrice(a: CatalogGift, b: CatalogGift): number {
   const pa = BigInt(a.price_per_day_nano || "0");
   const pb = BigInt(b.price_per_day_nano || "0");
   return pa < pb ? -1 : pa > pb ? 1 : a.nft_name.localeCompare(b.nft_name);
 }
 
-function normalizeGifts(
-  raw: Awaited<ReturnType<typeof listGiftsForCollection>>,
-  address: string,
-  name: string
-): CatalogGift[] {
-  const out: CatalogGift[] = [];
-  for (const g of raw) {
-    if (!g?.nft_address || !g?.nft_name) continue;
-    out.push({
-      nft_address: g.nft_address,
-      nft_name: g.nft_name,
-      collection_address: address,
-      collection_name: name,
-      price_per_day_nano: String(g.price_per_day ?? "0").split(".")[0] || "0",
-      min_days: Math.max(1, secToDays(g.min_duration)),
-      max_days: Math.max(1, secToDays(g.max_duration)),
-    });
-  }
-  return out;
+/**
+ * Gift nomidan kolleksiya "kaliti"ni yasaydi.
+ *
+ * Javobda gift o'z kolleksiya manzilini olib yurmaydi, faqat nomi bo'ladi:
+ * "Pool Float #64956". Kolleksiya ro'yxatida esa nom KO'PLIKDA: "Pool Floats".
+ * Shuning uchun ikkalasini bir xil ko'rinishga keltiramiz:
+ *
+ *   "Pool Float #64956" → "poolfloat"
+ *   "Pool Floats"       → "poolfloat"
+ *   "Bling Binky"       → "blingbinky"
+ *   "Bling Binkies"     → "blingbinky"   (ies → y)
+ */
+function collectionKey(name: string): string {
+  let key = String(name || "")
+    .replace(/#\s*\d+\s*$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+  if (key.endsWith("ies")) key = key.slice(0, -3) + "y";
+  else if (key.endsWith("ses") || key.endsWith("xes") || key.endsWith("zes")) key = key.slice(0, -2);
+  else if (key.endsWith("s")) key = key.slice(0, -1);
+  return key;
+}
+
+/** Gift nomidan kolleksiya nomini ajratadi: "Pool Float #64956" → "Pool Float". */
+function baseName(nftName: string): string {
+  return String(nftName || "").replace(/\s*#\s*\d+\s*$/, "").trim();
+}
+
+function normalizeGift(g: RawRentGift, collections: Map<string, { address: string; name: string }>): CatalogGift | null {
+  if (!g?.nft_address || !g?.nft_name) return null;
+
+  const base = baseName(g.nft_name);
+  const col = collections.get(collectionKey(base));
+
+  return {
+    nft_address: g.nft_address,
+    nft_name: g.nft_name,
+    collection_address: col?.address ?? `name:${collectionKey(base)}`,
+    collection_name: col?.name ?? base,
+    price_per_day_nano: String(g.price_per_day ?? "0").split(".")[0] || "0",
+    min_days: Math.max(1, secToDays(g.min_duration)),
+    max_days: Math.max(1, secToDays(g.max_duration)),
+    model: traitOf(g, "Model"),
+    symbol: traitOf(g, "Symbol"),
+    backdrop: traitOf(g, "Backdrop"),
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -249,6 +295,50 @@ export function findGift(nftAddress: string): CatalogGift | null {
   return byNft.get(nftAddress) ?? null;
 }
 
+/**
+ * Giftni katalogdan DARHOL olib tashlaydi.
+ *
+ * Ijara rasmiylashtirilishi bilan chaqiriladi: shu zahoti u boshqa
+ * foydalanuvchilarga ko'rinmaydi. Aks holda keyingi yangilanishgacha
+ * (~10 daqiqa) gift ro'yxatda turaverar va kimdir uni sotib olishga
+ * urinib, "mavjud emas" degan javob olardi.
+ */
+export function removeGift(nftAddress: string): void {
+  const gift = byNft.get(nftAddress);
+  if (!gift) return;
+
+  const entry = byAddress.get(gift.collection_address);
+  if (entry) entry.gifts = entry.gifts.filter((g) => g.nft_address !== nftAddress);
+  rebuildIndex();
+}
+
+/**
+ * Bitta kolleksiyani NAVBATDAN TASHQARI yangilaydi.
+ *
+ * Xarid oldidan chaqiriladi: shu bitta so'rov "gift hali ham bo'shmi?"
+ * degan savolga aniq javob beradi. Butun katalogni tez-tez yangilash
+ * o'rniga faqat MUHIM daqiqada, faqat kerakli kolleksiyani so'raymiz —
+ * Marketapp'ga yuk deyarli qo'shilmaydi.
+ *
+ * `timeoutMs` ichida ulgurmasa — kutmaymiz: xaridni to'sib qo'ygandan ko'ra
+ * davom etgan ma'qul (ish bajarilmasa, ishchi pulni qaytaradi).
+ */
+export async function verifyGiftAvailable(
+  nftAddress: string,
+  timeoutMs = 6000
+): Promise<{ available: boolean; checked: boolean }> {
+  const gift = byNft.get(nftAddress);
+  if (!gift) return { available: false, checked: true };
+
+  const refreshed = await Promise.race([
+    refreshSingleCollection(gift.collection_address, gift.collection_name).then(() => true),
+    new Promise<boolean>((r) => setTimeout(() => r(false), timeoutMs)),
+  ]).catch(() => false);
+
+  if (!refreshed) return { available: true, checked: false };
+  return { available: byNft.has(nftAddress), checked: true };
+}
+
 export function catalogStats(): CatalogStats {
   let pending = 0;
   let failing = 0;
@@ -283,128 +373,122 @@ export function catalogVersion(): string {
 //  Yangilash
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Kolleksiyalar RO'YXATINI yangilaydi (giftlarga tegmaydi). */
-async function refreshCollectionList(): Promise<void> {
+/** Kolleksiyalar ro'yxatini o'qiydi (nom → manzil xaritasi uchun). */
+async function loadCollectionMap(): Promise<Map<string, { address: string; name: string }>> {
+  const map = new Map<string, { address: string; name: string }>();
   try {
-    const raw = await listCollections();
-    if (raw.length === 0) {
-      console.warn("⚠️  Marketapp bo'sh kolleksiya ro'yxatini qaytardi — o'zgartirmaymiz");
-      return;
+    for (const c of await listCollections()) {
+      if (!c?.address) continue;
+      const name = String(c.name ?? "").trim();
+      if (!name) continue;
+      map.set(collectionKey(name), { address: c.address, name });
     }
-
-    const items = raw
-      .filter((c) => c?.address)
-      .map((c) => ({ address: c.address, name: String(c.name ?? "Nomsiz") }));
-
-    for (const item of items) {
-      const existing = byAddress.get(item.address);
-      if (existing) {
-        existing.name = item.name;
-      } else {
-        byAddress.set(item.address, {
-          address: item.address,
-          name: item.name,
-          gifts: [],
-          fetchedAt: 0,
-          lastError: null,
-          lastTryAt: 0,
-        });
-      }
-    }
-
-    // Marketapp'dan yo'qolgan kolleksiyalarni olib tashlaymiz.
-    const keep = new Set(items.map((i) => i.address));
-    for (const address of [...byAddress.keys()]) {
-      if (!keep.has(address)) byAddress.delete(address);
-    }
-
-    await upsertCollectionNames(items);
-    await deleteMissingCollections(items.map((i) => i.address));
-
     lastListAt = nowSec();
-    rebuildIndex();
-    console.log(`📚 Kolleksiyalar ro'yxati: ${items.length} ta`);
+    knownCollections = map;
   } catch (err) {
     console.error("❌ Kolleksiyalar ro'yxatini olib bo'lmadi:", (err as Error).message);
   }
+  return knownCollections.size > 0 ? knownCollections : map;
 }
 
-/** Navbatdagi partiya: eng uzoq vaqt yangilanmagan kolleksiyalar. */
-function pickBatch(size: number): Entry[] {
-  return [...byAddress.values()]
-    .sort((a, b) => {
-      // Hali bir marta ham yuklanmaganlar eng oldinda.
-      if (a.fetchedAt === 0 && b.fetchedAt !== 0) return -1;
-      if (b.fetchedAt === 0 && a.fetchedAt !== 0) return 1;
-      // Keyin — eng eskisi. Xato berganini biroz kutamiz (lastTryAt hisobga olinadi).
-      return a.fetchedAt + (a.lastError ? 300 : 0) - (b.fetchedAt + (b.lastError ? 300 : 0));
-    })
-    .slice(0, size);
-}
-
-/** Bitta kolleksiyani yangilaydi. Xatoda MAVJUD giftlar saqlanib qoladi. */
-async function refreshOne(entry: Entry): Promise<boolean> {
-  entry.lastTryAt = nowSec();
-  try {
-    const raw = await listGiftsForCollection(entry.address);
-    const gifts = normalizeGifts(raw, entry.address, entry.name);
-
-    // Ilgari giftlari bor edi, endi bo'sh kelyapti — bu deyarli har doim
-    // Marketapp tomonidagi vaqtinchalik nosozlik. Ishlaydigan ma'lumotni
-    // o'chirmaymiz, faqat belgilab qo'yamiz.
-    if (gifts.length === 0 && entry.gifts.length > 0) {
-      entry.lastError = "bo'sh javob";
-      await markCollectionFailed(entry.address, "bo'sh javob");
-      return false;
-    }
-
-    entry.gifts = gifts;
-    entry.fetchedAt = nowSec();
-    entry.lastError = null;
-    await saveCollectionGifts(entry.address, entry.name, gifts, entry.fetchedAt);
-    return true;
-  } catch (err) {
-    const message = (err as Error).message;
-    entry.lastError = message.slice(0, 200);
-    await markCollectionFailed(entry.address, message).catch(() => {});
-    // DIQQAT: entry.gifts ga TEGILMAYDI — eski ma'lumot joyida qoladi.
-    return false;
-  }
-}
-
-/** Bitta sikl: bir nechta kolleksiyani ketma-ket yangilaydi. */
-async function runCycle(): Promise<void> {
+/**
+ * To'liq aylanish: butun katalogni bitta oqim bilan qayta o'qiydi.
+ *
+ * MUHIM: natija FAQAT oqim to'liq tugagandagina qo'llanadi. Yarim yo'lda
+ * uzilib qolsa, eski (ishlaydigan) katalog joyida qoladi — bo'sh ro'yxat
+ * hech qachon saqlanmaydi.
+ */
+async function runSweep(): Promise<void> {
   if (cycleRunning) return;
   cycleRunning = true;
 
+  const startedAt = Date.now();
   try {
-    if (byAddress.size === 0 || nowSec() - lastListAt > config.marketCollectionsRefreshSec) {
-      await refreshCollectionList();
+    if (knownCollections.size === 0 || nowSec() - lastListAt > config.marketCollectionsRefreshSec) {
+      await loadCollectionMap();
     }
 
-    const batch = pickBatch(config.marketBatch);
-    if (batch.length === 0) return;
+    const raw = await sweepAllRentGifts((loaded, page) => {
+      if (page % 20 === 0) console.log(`   … ${loaded} gift (${page}-sahifa)`);
+    });
 
-    let ok = 0;
-    for (const entry of batch) {
-      // eslint-disable-next-line no-await-in-loop
-      if (await refreshOne(entry)) ok++;
+    if (raw.length === 0) {
+      console.warn("⚠️  Marketapp bo'sh katalog qaytardi — eski nusxa saqlanib qoldi");
+      return;
     }
 
+    // Kolleksiyalar bo'yicha guruhlaymiz
+    const grouped = new Map<string, Entry>();
+    for (const g of raw) {
+      const gift = normalizeGift(g, knownCollections);
+      if (!gift) continue;
+
+      let entry = grouped.get(gift.collection_address);
+      if (!entry) {
+        entry = {
+          address: gift.collection_address,
+          name: gift.collection_name,
+          gifts: [],
+          fetchedAt: nowSec(),
+          lastError: null,
+          lastTryAt: nowSec(),
+        };
+        grouped.set(gift.collection_address, entry);
+      }
+      entry.gifts.push(gift);
+    }
+
+    byAddress.clear();
+    for (const [address, entry] of grouped) byAddress.set(address, entry);
     rebuildIndex();
 
-    const stats = catalogStats();
+    // Bazaga yozamiz — restartdan keyin darhol xizmat ko'rsatish uchun
+    const fetchedAt = nowSec();
+    await upsertCollectionNames(
+      [...grouped.values()].map((e) => ({ address: e.address, name: e.name }))
+    ).catch(() => {});
+    for (const entry of grouped.values()) {
+      await saveCollectionGifts(entry.address, entry.name, entry.gifts, fetchedAt).catch(() => {});
+    }
+    await deleteMissingCollections([...grouped.keys()]).catch(() => {});
+
+    const withAttrs = index.filter((g) => g.model || g.backdrop || g.symbol).length;
     console.log(
-      `🔄 Katalog: ${ok}/${batch.length} kolleksiya yangilandi · ` +
-        `jami ${stats.gifts} gift / ${stats.collections} kolleksiya` +
-        (stats.pending ? ` · ${stats.pending} ta kutilmoqda` : "") +
-        (stats.failing ? ` · ${stats.failing} ta xato` : "")
+      `🔄 Katalog to'liq yangilandi: ${index.length} gift / ${byAddress.size} kolleksiya · ` +
+        `${Math.round((Date.now() - startedAt) / 1000)}s` +
+        (withAttrs ? ` · ${withAttrs} tasida atributlar bor` : " · atributlar topilmadi")
     );
   } catch (err) {
-    console.error("❌ Katalog sikli xatosi:", (err as Error).message);
+    console.error("❌ Katalogni yangilashda xato:", (err as Error).message);
   } finally {
     cycleRunning = false;
   }
+}
+
+
+/**
+ * Bitta kolleksiyani navbatdan tashqari yangilaydi — xarid oldidan
+ * "bu gift hali bo'shmi?" degan savolga javob olish uchun.
+ */
+async function refreshSingleCollection(address: string, name: string): Promise<void> {
+  const raw = await listGiftsForCollection(address);
+  const gifts = raw.map((g) => normalizeGift(g, knownCollections)).filter(Boolean) as CatalogGift[];
+
+  // Bo'sh javob deyarli har doim vaqtinchalik nosozlik — ishlaydigan
+  // ma'lumotni o'chirmaymiz.
+  const entry = byAddress.get(address);
+  if (gifts.length === 0 && entry && entry.gifts.length > 0) return;
+
+  byAddress.set(address, {
+    address,
+    name,
+    gifts,
+    fetchedAt: nowSec(),
+    lastError: null,
+    lastTryAt: nowSec(),
+  });
+  rebuildIndex();
+  await saveCollectionGifts(address, name, gifts, nowSec()).catch(() => {});
 }
 
 /** Bazadagi oxirgi nusxani xotiraga yuklaydi (ishga tushishda). */
@@ -420,6 +504,7 @@ async function hydrate(): Promise<void> {
         lastError: row.last_error,
         lastTryAt: row.last_try_at,
       });
+      knownCollections.set(collectionKey(row.name), { address: row.address, name: row.name });
     }
     rebuildIndex();
 
@@ -432,28 +517,20 @@ async function hydrate(): Promise<void> {
 }
 
 /**
- * Fon yangilashini boshlaydi.
- *
- * Birinchi sikl DARHOL ishlaydi, lekin uni kutmaymiz: bazadan tiklangan
- * katalog allaqachon xizmat ko'rsatishga tayyor.
+ * Fon yangilashini boshlaydi. Birinchi to'liq aylanish DARHOL boshlanadi,
+ * lekin uni kutmaymiz — bazadan tiklangan katalog allaqachon xizmatga tayyor.
  */
 export async function startCatalogRefresher(): Promise<void> {
   await hydrate();
 
-  runCycle().catch(() => {});
+  runSweep().catch(() => {});
 
   cycleTimer = setInterval(() => {
-    runCycle().catch(() => {});
-  }, config.marketCycleSec * 1000);
+    runSweep().catch(() => {});
+  }, config.marketSweepSec * 1000);
   cycleTimer.unref();
 
-  const fullPassMin = Math.round(
-    ((Math.max(1, byAddress.size) / config.marketBatch) * config.marketCycleSec) / 60
-  );
-  console.log(
-    `⚙️  Katalog yangilash: har ${config.marketCycleSec}s da ${config.marketBatch} ta kolleksiya ` +
-      `(to'liq aylanish ~${fullPassMin} daqiqa)`
-  );
+  console.log(`⚙️  Katalog har ${config.marketSweepSec}s da to'liq yangilanadi`);
 }
 
 export function stopCatalogRefresher(): void {
@@ -465,8 +542,7 @@ export function stopCatalogRefresher(): void {
 
 /** Admin uchun: darhol to'liq yangilash (navbat orqali, sekin ketadi). */
 export async function refreshCatalogNow(): Promise<void> {
-  await refreshCollectionList();
-  await runCycle();
+  await runSweep();
 }
 
 /** Mini App ijaralarni ko'rsatishda ham shu narx formulasini ishlatadi. */

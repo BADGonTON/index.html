@@ -13,6 +13,12 @@ import { config } from "../config";
  *    chaqiriladi; foydalanuvchi so'rovi hech qachon bu yerni kutmaydi.
  */
 
+/** Bitta kolleksiya uchun eng ko'p shuncha sahifa o'qiladi (himoya chegarasi). */
+const MAX_PAGES_PER_COLLECTION = 40;
+
+/** To'liq aylanishda eng ko'p shuncha sahifa (himoya chegarasi: ~20 000 gift). */
+const MAX_SWEEP_PAGES = 200;
+
 let clientRef: AxiosInstance | null = null;
 
 function client(): AxiosInstance {
@@ -227,7 +233,67 @@ export interface RawRentGift {
   price_per_day: string | number; // nanoTON
   min_duration: number; // soniya
   max_duration: number; // soniya
+  /**
+   * Atributlar MASSIV ko'rinishida keladi:
+   *   [{ trait_type: "Model", value: "Lizard" }, { trait_type: "Backdrop", ... }]
+   */
+  attributes?: Array<{ trait_type?: string; value?: string }>;
+  owner?: string;
+  discount_per_day?: number;
+  listed_at?: number;
   [k: string]: unknown;
+}
+
+/** Atributlar massividan bitta xususiyatni oladi. */
+export function traitOf(gift: RawRentGift, name: string): string | null {
+  const found = gift.attributes?.find(
+    (a) => String(a?.trait_type ?? "").toLowerCase() === name.toLowerCase()
+  );
+  const value = typeof found?.value === "string" ? found.value.trim() : "";
+  return value === "" ? null : value;
+}
+
+/**
+ * Sahifalangan javobdan keyingi kursorni ajratib oladi.
+ *
+ * API hujjatida `cursor` so'rov parametri bor, lekin javobdagi maydon nomi
+ * turli xil bo'lishi mumkin. Shuning uchun ko'p uchraydigan variantlarni
+ * tekshiramiz — qaysi biri ishlatilsa ham sahifalash to'g'ri ishlaydi.
+ */
+function extractCursor(data: any): string | null {
+  const candidates = [
+    data?.next_cursor,
+    data?.cursor,
+    data?.next,
+    data?.paging?.next_cursor,
+    data?.meta?.next_cursor,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c !== "") return c;
+  }
+  return null;
+}
+
+/** Javobdagi elementlar ro'yxati (maydon nomi turlicha bo'lishi mumkin). */
+function extractItems<T>(data: any): T[] {
+  if (Array.isArray(data)) return data as T[];
+  for (const key of ["items", "results", "data", "gifts"]) {
+    if (Array.isArray(data?.[key])) return data[key] as T[];
+  }
+  return [];
+}
+
+/** Diagnostika: javobning haqiqiy shaklini bir marta jurnalga yozamiz. */
+let shapeLogged = false;
+function logShapeOnce(data: any): void {
+  if (shapeLogged) return;
+  shapeLogged = true;
+  const keys = data && typeof data === "object" ? Object.keys(data) : [];
+  const first = extractItems<Record<string, unknown>>(data)[0];
+  console.log(
+    `🔎 Marketapp javob shakli: {${keys.join(", ")}}` +
+      (first ? ` · gift maydonlari: {${Object.keys(first).join(", ")}}` : "")
+  );
 }
 
 /**
@@ -244,14 +310,90 @@ export async function listCollections(): Promise<RawCollection[]> {
   return Array.isArray(data) ? data : data.items ?? [];
 }
 
+/**
+ * BUTUN katalogni bitta oqim bilan oladi — kolleksiya bo'yicha filtrsiz.
+ *
+ * `/v1/rent/gifts/` kolleksiya ko'rsatilmasa hamma giftni narx bo'yicha
+ * saralangan holda, ~100 tadan sahifalab qaytaradi. Ya'ni ~8000 gift uchun
+ * ~80 ta so'rov kifoya.
+ *
+ * Avval har bir kolleksiya alohida so'ralardi (120+ so'rov) va to'liq
+ * aylanish ~10 daqiqa davom etardi — band qilingan giftlar shuncha vaqt
+ * ro'yxatda turaverardi. Endi to'liq yangilanish bir necha daqiqada.
+ *
+ * `onPage` har bir sahifadan keyin chaqiriladi — jarayonni kuzatish uchun.
+ */
+export async function sweepAllRentGifts(
+  onPage?: (loaded: number, page: number) => void
+): Promise<RawRentGift[]> {
+  const all: RawRentGift[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+
+  for (let page = 0; page < MAX_SWEEP_PAGES; page++) {
+    const params: Record<string, unknown> = {};
+    if (cursor) params.cursor = cursor;
+
+    const data: any = await schedule(() =>
+      request("get", "/v1/rent/gifts/", { params, retries: 2 })
+    );
+    logShapeOnce(data);
+
+    const items = extractItems<RawRentGift>(data);
+    for (const g of items) {
+      if (!g?.nft_address || seen.has(g.nft_address)) continue;
+      seen.add(g.nft_address);
+      all.push(g);
+    }
+
+    onPage?.(all.length, page + 1);
+
+    const next = extractCursor(data);
+    if (!next || next === cursor || items.length === 0) break;
+    cursor = next;
+  }
+
+  return all;
+}
+
+/**
+ * Kolleksiyadagi BARCHA giftlarni oladi — kursor bo'yicha sahifalab.
+ *
+ * Avval faqat birinchi sahifa olinardi (`data.items`), ya'ni katta
+ * kolleksiyalarning bir qismi katalogga umuman tushmasdi.
+ *
+ * Har bir sahifa umumiy navbatdan o'tadi (rate limiter), shuning uchun
+ * Marketapp'ga qo'shimcha bosim tushmaydi — faqat vaqt bo'ylab tarqaladi.
+ */
 export async function listGiftsForCollection(collectionAddress: string): Promise<RawRentGift[]> {
-  const data = await schedule(() =>
-    request<{ items?: RawRentGift[] }>("get", "/v1/rent/gifts/", {
-      params: { collection_address: collectionAddress },
-      retries: 1,
-    })
-  );
-  return data.items ?? [];
+  const all: RawRentGift[] = [];
+  const seen = new Set<string>();
+  let cursor: string | null = null;
+
+  for (let page = 0; page < MAX_PAGES_PER_COLLECTION; page++) {
+    const params: Record<string, unknown> = { collection_address: collectionAddress };
+    if (cursor) params.cursor = cursor;
+
+    const data: any = await schedule(() =>
+      request("get", "/v1/rent/gifts/", { params, retries: 1 })
+    );
+    logShapeOnce(data);
+
+    const items = extractItems<RawRentGift>(data);
+    for (const g of items) {
+      // Kursor noto'g'ri ishlasa cheksiz siklga tushmaslik uchun
+      // takrorlangan elementlarni tashlab ketamiz.
+      if (!g?.nft_address || seen.has(g.nft_address)) continue;
+      seen.add(g.nft_address);
+      all.push(g);
+    }
+
+    const next = extractCursor(data);
+    if (!next || next === cursor || items.length === 0) break;
+    cursor = next;
+  }
+
+  return all;
 }
 
 export async function payForRent(
