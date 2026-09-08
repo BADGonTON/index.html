@@ -10,6 +10,66 @@ import { pingDatabase } from "../db/pool";
 import { catalogStats } from "../services/catalog";
 
 /**
+ * Kiruvchi HTTP so'rovlar jurnali.
+ *
+ * Busiz "serverga so'rov kelyaptimi?" degan savolga javob yo'q edi — bot
+ * hech narsa yozmasdi. Endi har bir so'rov ko'rinadi:
+ *
+ *   → GET  /app                200  8ms   ip=213.230.x.x
+ *   → GET  /api/bootstrap      200 41ms   ip=213.230.x.x user=1905881970
+ *   → POST /tg/***             200  6ms   ip=91.108.x.x   (Telegram webhook)
+ *
+ * Foydalanuvchi ID'si `initData` dan olinadi (imzo TEKSHIRILMAYDI — bu faqat
+ * jurnal uchun; haqiqiy tekshiruv `requireTelegramAuth` da bo'ladi).
+ *
+ * Webhook maxfiy kaliti jurnalda HECH QACHON ko'rinmaydi.
+ */
+function requestLogger() {
+  const secretPath = config.webhookSecret ? `/tg/${config.webhookSecret}` : null;
+
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const startedAt = process.hrtime.bigint();
+
+    res.on("finish", () => {
+      const ms = Number(process.hrtime.bigint() - startedAt) / 1e6;
+
+      // Maxfiy kalitni yashiramiz
+      let url = req.originalUrl;
+      if (secretPath && url.startsWith(secretPath)) url = "/tg/***";
+
+      const parts = [
+        `→ ${req.method.padEnd(4)} ${url.slice(0, 80).padEnd(28)}`,
+        String(res.statusCode),
+        `${ms.toFixed(0)}ms`.padStart(6),
+      ];
+
+      const ip = req.ip ?? req.socket.remoteAddress;
+      if (ip) parts.push(`ip=${ip}`);
+
+      const userId = peekUserId(req.header("Authorization"));
+      if (userId) parts.push(`user=${userId}`);
+
+      console.log(parts.join(" "));
+    });
+
+    next();
+  };
+}
+
+/** initData dan foydalanuvchi ID'sini oladi — FAQAT jurnal uchun. */
+function peekUserId(authHeader: string | undefined): number | null {
+  if (!authHeader?.startsWith("tma ")) return null;
+  try {
+    const raw = new URLSearchParams(authHeader.slice(4)).get("user");
+    if (!raw) return null;
+    const id = JSON.parse(raw)?.id;
+    return typeof id === "number" ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Bitta Express serveri uchta vazifani bajaradi:
  *   1. Mini App statik fayllari  (/app)
  *   2. Mini App API              (/api/*)
@@ -22,6 +82,10 @@ export function createServer(bot: Bot<MyContext>): Express {
 
   app.disable("x-powered-by");
   if (config.trustProxy) app.set("trust proxy", 1);
+
+  // Kiruvchi so'rovlar jurnali — eng oldin, shunda HAMMA so'rov ko'rinadi
+  // (webhook ham, statik fayllar ham).
+  if (config.logRequests) app.use(requestLogger());
 
   // gzip/brotli — Mini App JS/CSS hajmini ~4 barobar kamaytiradi.
   app.use(compression());
@@ -74,6 +138,11 @@ export function createServer(bot: Bot<MyContext>): Express {
     express.static(miniappDir, {
       etag: true,
       lastModified: true,
+      // `/app` (oxirida "/" YO'Q) so'roviga 301 yo'naltirish BERMASIN.
+      // Telegram ilovani aynan shu manzil bilan ochadi, ya'ni har bir
+      // ochilish ortiqcha bir aylanishga aylanardi. Yo'naltirish o'rniga
+      // pastdagi marshrut index.html ni to'g'ridan-to'g'ri beradi.
+      redirect: false,
       setHeaders(res, filePath) {
         if (filePath.endsWith(".html")) {
           // HTML doim tekshiriladi — yangi versiya darhol yetib boradi.
@@ -86,8 +155,12 @@ export function createServer(bot: Bot<MyContext>): Express {
     })
   );
 
-  // /app dagi har qanday yo'l index.html ni beradi (klient tomonda navigatsiya).
-  app.get("/app/*", (_req, res) => {
+  // Telegram ilovani AYNAN `/app` manzili bilan ochadi (oxirida "/" yo'q).
+  // express.static bunday so'rovni `/app/` ga 301 bilan yo'naltiradi — ya'ni
+  // har bir ochilishda ortiqcha bir aylanish. Shuning uchun uni to'g'ridan-to'g'ri
+  // beramiz.
+  app.get(["/app", "/app/*"], (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(miniappDir, "index.html"));
   });
 

@@ -73,6 +73,12 @@ export const config = {
   port: optionalInt("PORT", 8080),
   /** Reverse proxy (nginx/Caddy) orqasida ishlaganda haqiqiy IP ni olish uchun. */
   trustProxy: optionalBool("TRUST_PROXY", true),
+  /**
+   * Har bir kiruvchi HTTP so'rovni jurnalga yozish.
+   * "Serverga so'rov kelyaptimi?" degan savolga javob shu yerdan olinadi.
+   * Juda katta yukda o'chirib qo'yish mumkin (LOG_REQUESTS=false).
+   */
+  logRequests: optionalBool("LOG_REQUESTS", true),
 
   /**
    * "webhook" — ishlab chiqarish uchun (bir nechta instance ishlatish mumkin).

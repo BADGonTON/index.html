@@ -39,6 +39,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Testlar (initData + Mini App uchdan-uchgacha)
+        env:
+          BOT_TOKEN: "1:CI_PLACEHOLDER"
+          ADMIN_IDS: "1"
+          MARKETAPP_API_TOKEN: ci
+          TON_MNEMONIC: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+          DATABASE_URL: postgresql://hozirol:hozirol@localhost:5432/hozirol_ci
+          BOT_MODE: polling
+          LOG_REQUESTS: "false"
+        run: npm test
+
       - name: Migratsiyalar toza bazada qo'llanadimi
         env:
           BOT_TOKEN: "1:CI_PLACEHOLDER"

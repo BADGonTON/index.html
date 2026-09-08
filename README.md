@@ -130,6 +130,36 @@ Bot ishga tushganda menyu tugmasini o'zi o'rnatadi (`setChatMenuButton`) — ya'
 foydalanuvchi Mini App'ni ikki joydan ocha oladi: `/start` dagi tugmadan va
 xabar maydoni yonidagi doimiy tugmadan.
 
+### So'rovlar jurnali
+
+`LOG_REQUESTS=true` (standart) bo'lganda har bir kiruvchi so'rov ko'rinadi —
+ya'ni "serverga so'rov kelyaptimi?" degan savolga aniq javob bor:
+
+```
+→ GET  /app                  200    8ms  ip=213.230.x.x
+→ GET  /api/bootstrap        200   41ms  ip=213.230.x.x user=1905881970
+→ GET  /api/gifts?limit=60   200   12ms  ip=213.230.x.x user=1905881970
+→ POST /tg/***               200    6ms  ip=91.108.x.x
+```
+
+Oxirgi qator — Telegram webhook'i (maxfiy kalit jurnalda hech qachon
+ko'rinmaydi). `pm2 logs hozirol` bilan jonli kuzatasiz.
+
+### Testlar
+
+```bash
+npm test
+```
+
+`test/initdata.test.ts` — `initData` imzosini Telegram'ning **rasmiy**
+`@telegram-apps/init-data-node` kutubxonasiga qarshi tekshiradi: rasmiy
+kutubxona imzolaydi, biz tekshiramiz. Aynan shu test `signature` maydoni
+bo'yicha haqiqiy xatoni topgan.
+
+`test/tma-e2e.test.ts` — haqiqiy server va PostgreSQL ustida: `/app`
+yo'naltirishsiz ochiladimi, iframe'ni to'suvchi sarlavhalar yo'qmi, imzo
+xatolari to'g'ri ajratiladimi, bootstrap yengilmi.
+
 Mini App tomonida ham:
 
 - Telegramdan tashqarida ochilsa — "Avtorizatsiya xatosi" o'rniga

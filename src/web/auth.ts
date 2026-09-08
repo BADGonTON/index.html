@@ -58,10 +58,17 @@ export function verifyInitDataDetailed(initData: string): VerifyResult {
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   if (!hash) return { user: null, reason: "missing" };
+  // MUHIM: data-check-string ga `hash` DAN BOSHQA hamma maydon kiradi —
+  // shu jumladan `signature` ham (uni yangi Telegram klientlari yuboradi).
+  //
+  // Avval `signature` ham o'chirilardi va bu haqiqiy xato edi: Telegram uni
+  // hash hisoblashda ISHLATADI, biz esa tashlab yuborardik — natijada yangi
+  // klientdagi har bir foydalanuvchi 401 olardi. Xato Telegram'ning rasmiy
+  // `@telegram-apps/init-data-node` kutubxonasiga qarshi test bilan topildi.
+  //
+  // (`signature` faqat Ed25519 orqali UCHINCHI TOMON tekshiruvida chiqariladi —
+  // bu yerda esa bot tokeni bilan HMAC tekshiruvi bo'lyapti.)
   params.delete("hash");
-  // `signature` maydoni (Telegram'ning uchinchi tomon validatsiyasi uchun)
-  // data-check-string ga KIRMAYDI.
-  params.delete("signature");
 
   const dataCheckString = [...params.entries()]
     .map(([k, v]) => `${k}=${v}`)
