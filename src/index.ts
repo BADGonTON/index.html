@@ -7,6 +7,7 @@ import { createBot } from "./bot/bot";
 import { createServer } from "./web/server";
 import { loadStarPrice } from "./services/starPrice";
 import { loadPricing } from "./services/pricing";
+import { loadMaintenance } from "./services/maintenance";
 import { startCatalogRefresher, stopCatalogRefresher } from "./services/catalog";
 import { startTxWorker, stopTxWorker, recoverStuckTxs } from "./worker/txWorker";
 import { startRentWorker, stopRentWorker } from "./worker/rentWorker";
@@ -35,7 +36,7 @@ async function main(): Promise<void> {
   console.log("✅ PostgreSQL ulanishi tayyor");
 
   await runMigrations();
-  await Promise.all([loadStarPrice(), loadPricing()]);
+  await Promise.all([loadStarPrice(), loadPricing(), loadMaintenance()]);
   console.log("✅ Narx sozlamalari yuklandi");
 
   const bot = createBot();

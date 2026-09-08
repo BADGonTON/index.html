@@ -7,6 +7,7 @@ import { createPgSessionStorage } from "../db/repo/sessions";
 import { bindLogger } from "../services/logger";
 
 import { offerGate, registerOfferHandlers } from "./handlers/offer";
+import { maintenanceGate, registerMaintenanceHandlers } from "./handlers/maintenance";
 import { registerStartHandlers } from "./handlers/start";
 import { registerAdminHandlers } from "./handlers/admin";
 import { registerAdminAccountsHandlers } from "./handlers/adminAccounts";
@@ -45,9 +46,16 @@ export function createBot(): Bot<MyContext> {
   // bu talab. Barcha ushlovchilardan OLDIN turishi shart.
   bot.use(offerGate());
 
+  // TEXNIK ISHLAR DARVOZASI. Yoqilganda oddiy foydalanuvchi faqat
+  // "texnik ishlar bormoqda" javobini oladi; adminlar uchun bot
+  // odatdagidek ishlaydi. Ofertadan KEYIN turadi — rozilik bermagan
+  // foydalanuvchi baribir ofertani ko'rishi kerak.
+  bot.use(maintenanceGate());
+
   // Tartib muhim: aniq buyruq/callback ushlovchilar oldin,
   // umumiy matn marshrutizatori ENG OXIRIDA.
   registerOfferHandlers(bot);
+  registerMaintenanceHandlers(bot);
   registerStartHandlers(bot);
   registerAdminHandlers(bot);
   registerAdminAccountsHandlers(bot);

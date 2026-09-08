@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { MyContext } from "../session";
 import { renderMenu, sendTracked } from "../ui";
 import { isAdmin } from "../../config";
+import { isMaintenance } from "../../services/maintenance";
 import { STEP } from "../steps";
 import {
   fmt,
@@ -52,10 +53,11 @@ const BROADCAST_BATCH = 25;
 const BROADCAST_PAUSE_MS = 1000;
 
 async function renderAdminPanel(ctx: MyContext): Promise<void> {
-  const [totalUsers, totalOrders, pendingTxs] = await Promise.all([
+  const [totalUsers, totalOrders, pendingTxs, maintenance] = await Promise.all([
     getTotalUsers(),
     getTotalOrders(),
     getQueueSize(),
+    isMaintenance(),
   ]);
   await renderMenu(
     ctx,
@@ -64,8 +66,11 @@ async function renderAdminPanel(ctx: MyContext): Promise<void> {
       total_users: totalUsers,
       total_orders: totalOrders,
       pending_txs: pendingTxs,
+      // Panelning tepasida rejim holati ko'rinib tursin — admin uni
+      // yoqib qo'ygani esidan chiqib qolmasligi uchun.
+      status: maintenance ? "🚧 TEXNIK ISHLAR REJIMI YOQILGAN" : "✅ Bot ochiq",
     }),
-    adminKb()
+    adminKb(maintenance)
   );
 }
 

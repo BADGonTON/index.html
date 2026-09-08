@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { MyContext } from "../session";
-import { renderMenu } from "../ui";
+import { renderMenu, sendFresh, deleteLastBotMessage } from "../ui";
 import { getOrCreateUser, getBanRemaining } from "../../db/repo/users";
 import { STEP } from "../steps";
 import {
@@ -48,7 +48,14 @@ export function registerStartHandlers(bot: Bot<MyContext>): void {
       return;
     }
 
-    await renderMenu(
+    // /start HAR DOIM chatning oxirida chiqadi.
+    //
+    // Ilgari u oxirgi bot xabarini tahrirlardi. Lekin oraliqda boshqa
+    // xabarlar (buyurtma bajarildi, chek namunasi) tushgan bo'lsa, menyu
+    // ularning ORASIDA yoki YUQORISIDA paydo bo'lardi va chat chalkash
+    // ko'rinardi. Endi eski menyu o'chiriladi, yangisi pastda chiqadi.
+    await deleteLastBotMessage(ctx);
+    await sendFresh(
       ctx,
       fmt(START_MESSAGE, { name: ctx.from?.first_name ?? "", balance: user.balance }),
       startKb()

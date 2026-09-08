@@ -126,6 +126,11 @@ export function rentDoneKb(): InlineKeyboard {
   return kb;
 }
 
+/** Faqat support havolasi (texnik ishlar xabari uchun). */
+export function supportKb(): InlineKeyboard {
+  return addUrl(new InlineKeyboard(), BTN.SUPPORT, config.supportBot).primary();
+}
+
 /** Balans yetmaganda — to'g'ridan-to'g'ri to'lovga o'tish. */
 export function needBalanceKb(back = "back_to_main"): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -138,7 +143,7 @@ export function needBalanceKb(back = "back_to_main"): InlineKeyboard {
 //  ADMIN PANEL
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function adminKb(): InlineKeyboard {
+export function adminKb(maintenance = false): InlineKeyboard {
   const kb = new InlineKeyboard();
   add(kb, BTN.ADMIN_ADD, "admin_add").success();
   add(kb, BTN.ADMIN_SUB, "admin_sub").danger().row();
@@ -151,7 +156,13 @@ export function adminKb(): InlineKeyboard {
   add(kb, BTN.ADMIN_TG_ADD, "admin_tg_add").success();
   add(kb, BTN.ADMIN_TG_STATS, "admin_tg_stats").primary().row();
   add(kb, BTN.ADMIN_RENT_STATS, "admin_rent_stats").primary().row();
-  add(kb, BTN.ADMIN_BROADCAST, "admin_broadcast").primary();
+  add(kb, BTN.ADMIN_BROADCAST, "admin_broadcast").primary().row();
+
+  // Texnik ishlar tugmasi holatga qarab o'zgaradi: yoqilgan bo'lsa
+  // "Botni ochish" (yashil), o'chirilgan bo'lsa "Yoqish" (qizil).
+  if (maintenance) add(kb, BTN.ADMIN_MAINTENANCE_OFF, "admin_maintenance").success();
+  else add(kb, BTN.ADMIN_MAINTENANCE_ON, "admin_maintenance").danger();
+
   return kb;
 }
 
@@ -178,16 +189,15 @@ export function giftsPageKb(
 ): InlineKeyboard {
   const kb = new InlineKeyboard();
 
-  // Har bir gift: premium ikonka + "N ⭐️" yozuvi. Giftning o'z premium
-  // emojisi bo'lsa (premium_id) o'sha, bo'lmasa umumiy gift ikonkasi.
-  const fallbackIcon = splitButtonLabel(BTN.GIFTS).icon;
-
+  // Giftning O'Z premium emojisi bo'lsa — u ikonka bo'ladi va yozuvda
+  // faqat narx qoladi. Bo'lmasa giftning oddiy emojisi yozuvda turadi:
+  // hamma gift uchun bir xil umumiy ikonka qo'yishdan ko'ra, giftning
+  // o'z belgisi ko'rinib turgani yaxshiroq.
   gifts.forEach((gift, i) => {
     kb.text(
-      {
-        text: `${gift.star_count} ⭐️`,
-        icon_custom_emoji_id: gift.premium_id ?? fallbackIcon,
-      },
+      gift.premium_id
+        ? { text: `${gift.star_count} ⭐️`, icon_custom_emoji_id: gift.premium_id }
+        : { text: `${gift.emoji} ${gift.star_count} ⭐️` },
       `buy_${gift.id}_${gift.star_count}`
     ).success();
     if (i % 2 === 1) kb.row();
@@ -204,14 +214,15 @@ export function giftsPageKb(
 
 export function giftAdminListKb(gifts: GiftRow[]): InlineKeyboard {
   const kb = new InlineKeyboard();
-  const trashIcon = splitButtonLabel("🗑").icon;
 
   for (const g of gifts) {
     kb.text(
-      {
-        text: `${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…`,
-        icon_custom_emoji_id: g.premium_id ?? trashIcon,
-      },
+      g.premium_id
+        ? {
+            text: `${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…`,
+            icon_custom_emoji_id: g.premium_id,
+          }
+        : { text: `${g.emoji} ${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…` },
       `admin_gift_del_${g.id}`
     )
       .danger()

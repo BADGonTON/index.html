@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { MyContext } from "../session";
-import { renderMenu } from "../ui";
+import { renderMenu, sendFresh, deleteLastBotMessage } from "../ui";
 import { config } from "../../config";
 import { acceptOffer, getOrCreateUser } from "../../db/repo/users";
 import { fmt, OFFER_MESSAGE, OFFER_REQUIRED, START_MESSAGE } from "../texts";
@@ -52,7 +52,9 @@ export function offerGate() {
 
     // Rozilik yo'q. /start ofertani ko'rsatadi, qolgan hamma narsa to'xtaydi.
     if (isStart(ctx)) {
-      await showOffer(ctx);
+      // /start kabi, oferta ham chatning oxirida chiqadi.
+      await deleteLastBotMessage(ctx);
+      await showOffer(ctx, { fresh: true });
       return;
     }
 
@@ -70,12 +72,10 @@ function isStart(ctx: MyContext): boolean {
   return /^\/start(\s|$)/.test(ctx.message?.text ?? "");
 }
 
-async function showOffer(ctx: MyContext): Promise<void> {
-  await renderMenu(
-    ctx,
-    fmt(OFFER_MESSAGE, { name: ctx.from?.first_name ?? "foydalanuvchi" }),
-    offerKb()
-  );
+async function showOffer(ctx: MyContext, opts: { fresh?: boolean } = {}): Promise<void> {
+  const text = fmt(OFFER_MESSAGE, { name: ctx.from?.first_name ?? "foydalanuvchi" });
+  if (opts.fresh) await sendFresh(ctx, text, offerKb());
+  else await renderMenu(ctx, text, offerKb());
 }
 
 export function registerOfferHandlers(bot: Bot<MyContext>): void {

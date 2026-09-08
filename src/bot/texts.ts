@@ -82,6 +82,29 @@ export const OFFER_REQUIRED = `❗️ Avval ommaviy ofertaga rozilik bering
 
 /start buyrug'ini yuboring`;
 
+/**
+ * TEXNIK ISHLAR — rejim yoqilganda oddiy foydalanuvchi ko'radigan yagona javob.
+ *
+ * Qisqa bo'lishi muhim: foydalanuvchiga nima bo'layotgani va nima qilishi
+ * kerakligi darrov ayon bo'lsin.
+ */
+export const MAINTENANCE_MESSAGE = `🚧 <b>Texnik ishlar bormoqda</b>
+
+Bot vaqtincha yangilanmoqda — biroz kutib turing.
+
+Muammo bo'lsa support'ga yozing 👇`;
+
+export const MAINTENANCE_ON = `🚧 <b>Texnik ishlar rejimi YOQILDI</b>
+
+Oddiy foydalanuvchilar uchun bot yopiq — ular faqat
+"texnik ishlar bormoqda" degan javob oladi.
+
+✅ Adminlar uchun bot odatdagidek ishlaydi.`;
+
+export const MAINTENANCE_OFF = `✅ <b>Bot yana ochiq</b>
+
+Texnik ishlar rejimi o'chirildi, hamma xizmatlar ishlamoqda.`;
+
 /** Stars bo'limi (Stars olish / Premium olish). */
 export const STARS_SECTION = `⭐ <b>Stars va Premium</b>
 
@@ -404,6 +427,8 @@ ${e(I.CHART, "📊")} Statistika
 • Jami buyurtmalar (processed) {total_orders}
 • Navbatdagi tranzaksiyalar {pending_txs}
 
+{status}
+
 Kerakli amalni tanlang`;
 
 export const ADMIN_ADD_BALANCE = `${e(I.PLUS, "➕")} <b>Balans qo'shish</b>
@@ -624,43 +649,45 @@ export const BTN = {
   PREMIUM_BUY: "👑 Premium olish",
   GIFTS: "🎁 Gift olish",
   BALANCE: "💰 Balans",
-  TG_PROFILE: "📱 Profil olish",
+  TG_PROFILE: "👤 Profil olish",
   SUPPORT: "🆘 Support",
 
   PAY: "💳 To'lov",
   REFERRAL: "👥 Referal",
   CANCEL: "❌ Bekor qilish",
   BACK: "🔙 Orqaga qaytish",
-  MENU: "🏠 Bosh menyu",
-  PREV: "◀️ Orqaga",
-  NEXT: "▶️ Keyingi",
+  MENU: "🏘 Bosh menyu",
+  PREV: "🔙 Orqaga",
+  NEXT: "➡️ Keyingi",
 
-  OFFER_READ: "📚 Ommaviy oferta",
+  OFFER_READ: "📌 Ommaviy oferta",
   OFFER_ACCEPT: "✅ Roziman",
 
   ADMIN_ADD: "➕ Balans qo'shish",
   ADMIN_SUB: "➖ Balans ayirish",
   ADMIN_BAN: "⛔ Ban / Unban",
   ADMIN_PRICE: "💵 Narxni o'zgartirish",
-  ADMIN_BROADCAST: "📢 Hammaga xabar",
+  ADMIN_BROADCAST: "🆘 Hammaga xabar",
+  ADMIN_MAINTENANCE_ON: "⛔ Texnik ishlarni yoqish",
+  ADMIN_MAINTENANCE_OFF: "✅ Botni ochish",
   ADMIN_GIFT_ADD: "➕ Gift qo'shish",
-  ADMIN_GIFT_LIST: "📋 Gift ro'yxati",
+  ADMIN_GIFT_LIST: "📊 Gift ro'yxati",
   ADMIN_TG_ADD: "➕ Akkount qo'shish",
-  ADMIN_TG_STATS: "📊 Akkountlar",
+  ADMIN_TG_STATS: "📆 Akkountlar",
   BROADCAST_CONFIRM: "✅ Yuborish",
   BROADCAST_CANCEL: "❌ Bekor qilish",
 
   TG_BUY: "🛒 Sotib olish",
   TG_GET_CODE: "🔑 Kod olish",
-  TG_RECHECK: "🔄 Qayta tekshirish",
+  TG_RECHECK: "🔍 Qayta tekshirish",
 
   // --- Gift Arenda (Mini App) ---
-  RENT: "🖼 Gift Arenda",
-  OPEN_APP: "🖼 Ilovani ochish",
-  MY_GIFTS: "🎒 Mening giftlarim",
-  ADMIN_TON_RATE: "💱 TON kursi",
+  RENT: "🎁 Gift Arenda",
+  OPEN_APP: "🎁 Ilovani ochish",
+  MY_GIFTS: "🎁 Mening giftlarim",
+  ADMIN_TON_RATE: "💵 TON kursi",
   ADMIN_SERVICE_FEE: "🧾 Xizmat haqi",
-  ADMIN_RENT_STATS: "🖼 Arenda statistikasi",
+  ADMIN_RENT_STATS: "📊 Arenda statistikasi",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

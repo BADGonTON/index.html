@@ -14,7 +14,7 @@
  * va aynan qaysi belgi ekanini aytadi.
  */
 import * as texts from "../src/bot/texts";
-import { premiumize, splitButtonLabel, findUnmappedEmoji, EMOJI_IDS } from "../src/bot/emoji";
+import { premiumize, splitButtonLabel, findSharedIds, EMOJI_IDS } from "../src/bot/emoji";
 
 let fails = 0;
 const ok = (label: string, cond: boolean, extra = "") => {
@@ -44,26 +44,29 @@ const messages = Object.entries(texts).filter(
 
 ok("matnlar topildi", messages.length > 20, `(${messages.length} ta)`);
 
-const unmapped = new Map<string, string[]>();
-const leftBare = new Map<string, string[]>();
-
+// Xaritadagi emoji HAR DOIM premium bo'lishi kerak; xaritada yo'qlari
+// oddiy holicha qolaveradi — bu ataylab shunday (ba'zi emojining o'zi yetarli).
+const notConverted = new Map<string, string[]>();
 for (const [name, raw] of messages) {
-  const missing = findUnmappedEmoji(raw);
-  if (missing.length) unmapped.set(name, missing);
-
-  const bare = bareEmoji(premiumize(raw));
-  if (bare.length) leftBare.set(name, bare);
+  const bare = bareEmoji(premiumize(raw)).filter((ch) => EMOJI_IDS[ch]);
+  if (bare.length) notConverted.set(name, bare);
 }
 
 ok(
-  "har bir emojining premium ID'si bor",
-  unmapped.size === 0,
-  [...unmapped].map(([n, e]) => `${n}: ${e.join(" ")}`).join(" | ")
+  "xaritadagi emoji premium bo'ldi",
+  notConverted.size === 0,
+  [...notConverted].map(([n, e]) => `${n}: ${e.join(" ")}`).join(" | ")
 );
+
+// ENG MUHIM TEKSHIRUV: bitta ID ikkita turli emojiga berilmasin.
+//
+// Avval mos ID topilmagan emoji "eng yaqiniga" bog'langan edi va natija
+// xunuk chiqdi — 🕒 o'rniga «SOON» belgisi ko'rinardi.
+const shared = findSharedIds();
 ok(
-  "premiumize'dan keyin oddiy emoji qolmadi",
-  leftBare.size === 0,
-  [...leftBare].map(([n, e]) => `${n}: ${e.join(" ")}`).join(" | ")
+  "hech bir ID ikkita emojida ishlatilmagan",
+  shared.length === 0,
+  shared.map((s) => `${s.glyphs.join(" ")} → ${s.id}`).join(" | ")
 );
 
 console.log("\n── Tugma yozuvlari ──");
@@ -71,17 +74,21 @@ console.log("\n── Tugma yozuvlari ──");
 const buttons = Object.entries(texts.BTN) as Array<[string, string]>;
 ok("tugmalar topildi", buttons.length > 15, `(${buttons.length} ta)`);
 
-const noIcon: string[] = [];
-const emojiInText: string[] = [];
-
+// Premium ID'si bor emoji IKONKAGA o'tishi, yozuvda qolmasligi kerak.
+// ID'si yo'q emoji esa yozuvda QOLADI — aks holda tugma belgisiz qolardi.
+const wrong: string[] = [];
 for (const [name, label] of buttons) {
   const { text, icon } = splitButtonLabel(label);
-  if (!icon) noIcon.push(`${name} ("${label}")`);
-  if (bareEmoji(text).length) emojiInText.push(`${name} ("${text}")`);
-}
+  const leftInText = bareEmoji(text).filter((ch) => EMOJI_IDS[ch]);
 
-ok("har bir tugmada premium ikonka bor", noIcon.length === 0, noIcon.join(", "));
-ok("tugma YOZUVIDA emoji qolmadi", emojiInText.length === 0, emojiInText.join(", "));
+  if (leftInText.length) wrong.push(`${name}: premium emoji yozuvda qoldi (${leftInText})`);
+  if (icon && bareEmoji(text).length) wrong.push(`${name}: ikonka ham, emoji ham bor`);
+}
+ok("premium emoji ikonkaga o'tdi, yozuvda qolmadi", wrong.length === 0, wrong.join(" | "));
+
+const withIcon = buttons.filter(([, l]) => splitButtonLabel(l).icon).length;
+ok("tugmalarning ko'pchiligida premium ikonka bor",
+   withIcon >= buttons.length * 0.6, `${withIcon}/${buttons.length}`);
 
 console.log("\n── premiumize() ──");
 
@@ -119,6 +126,12 @@ ok("emojisiz yozuv o'zgarmadi", plain.text === "Orqaga qaytish" && plain.icon ==
 
 const mid = splitButtonLabel("Orqaga 🎁");
 ok("faqat BOSHIDAGI emoji olinadi", mid.icon === undefined, JSON.stringify(mid));
+
+// ID'si yo'q emoji yozuvda QOLISHI kerak — kesib tashlansa tugma
+// umuman belgisiz qolardi.
+const noId = splitButtonLabel("🖼 Gift Arenda");
+ok("ID'siz emoji yozuvda qoladi", noId.text === "🖼 Gift Arenda" && !noId.icon,
+   JSON.stringify(noId));
 
 console.log(fails ? `\n❌ ${fails} ta test yiqildi` : "\n🎉 Butun bot premium emoji bilan");
 process.exit(fails ? 1 : 0);

@@ -230,6 +230,56 @@ async function main(): Promise<void> {
      (second?.payload.text ?? "").split("\n")[0]);
   ok("bosh menyu chiqdi", /Kerakli bo'limni tanlang/.test(second?.payload.text ?? ""));
 
+  // ── 8. /start CHATNING OXIRIDA chiqishi kerak ──
+  //
+  // Oraliqda fon xabari tushgan bo'lsa (buyurtma bajarildi va h.k.),
+  // menyu uning YUQORISIDA paydo bo'lmasligi kerak — aks holda chat
+  // chalkash ko'rinadi.
+  console.log("\n── /start fon xabaridan keyin ──");
+  const { notifyUser } = await import("../src/services/logger");
+  await notifyUser(USER.id, "Buyurtmangiz bajarildi");
+  take();
+
+  await bot.handleUpdate(textUpdate("/start"));
+  sent = take();
+  console.log("   chaqiruvlar:", sent.map((c) => c.method).join(", "));
+  ok("menyu YANGI xabar bo'lib pastda chiqdi",
+     sent.some((c) => c.method === "sendMessage") &&
+       !sent.some((c) => c.method === "editMessageText"),
+     sent.map((c) => c.method).join(", "));
+
+  // ── 9. Texnik ishlar rejimi ──
+  console.log("\n── Texnik ishlar ──");
+  const { toggleMaintenance } = await import("../src/services/maintenance");
+  await toggleMaintenance();
+
+  await bot.handleUpdate(callbackUpdate("stars", offerMsgId));
+  sent = take();
+  // Ogohlantirish `answerCallbackQuery` da ham chiqadi — bizga CHATDAGI
+  // xabar kerak, shuning uchun metodni ham tekshiramiz.
+  const notice = sent.find(
+    (c) => c.method === "sendMessage" && /Texnik ishlar bormoqda/.test(c.payload?.text ?? "")
+  );
+  ok("oddiy foydalanuvchi to'xtatildi", Boolean(notice),
+     (notice?.payload?.text ?? sent.map((c) => c.method).join(", ")).split("\n")[0]);
+  ok("Stars bo'limi ochilmadi",
+     !sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")));
+  ok("support tugmasi bor",
+     buttons(notice?.payload).some((b) => typeof b.url === "string"),
+     buttons(notice?.payload).map((b) => b.text).join(" | "));
+
+  await bot.handleUpdate(textUpdate("/start"));
+  sent = take();
+  ok("/start ham to'xtatildi",
+     sent.some((c) => /Texnik ishlar bormoqda/.test(c.payload?.text ?? "")));
+
+  await toggleMaintenance();
+  await bot.handleUpdate(callbackUpdate("stars", offerMsgId));
+  sent = take();
+  ok("o'chirilgach yana ishladi",
+     sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")),
+     sent.map((c) => c.method).join(", "));
+
   await pool.query("DELETE FROM users WHERE user_id = $1", [USER.id]);
   await closePool();
 
