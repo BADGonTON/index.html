@@ -64,10 +64,10 @@ export async function renderMenu(
 }
 
 /**
- * Yangi holatni ko'rsatadi (odatda foydalanuvchi matn yozgandan keyin).
+ * Bosqichdagi savolni ko'rsatadi (foydalanuvchi matn yozgandan keyin).
  *
- * `renderMenu` bilan bir xil ishlaydi — nom faqat o'qishga qulaylik uchun
- * saqlangan.
+ * Oxirgi bot xabarini TAHRIRLAYDI: "summa kiriting" → "username kiriting"
+ * bir joyda almashib turadi va chat toza qoladi.
  */
 export async function sendTracked(
   ctx: MyContext,
@@ -75,6 +75,29 @@ export async function sendTracked(
   keyboard?: InlineKeyboard
 ): Promise<void> {
   await editTrackedOrSend(ctx, prepare(text), keyboard);
+}
+
+/**
+ * HODISA haqidagi xabarni chatning OXIRIGA yuboradi — hech qachon
+ * tahrirlamaydi.
+ *
+ * Nega alohida funksiya kerak: "to'lov tasdiqlandi", "buyurtma bajarildi"
+ * kabi xabarlar foydalanuvchi menyu bo'ylab yurgani uchun emas, TASHQI
+ * voqea sodir bo'lgani uchun chiqadi. Ular orasida bot boshqa narsa
+ * (masalan chek namunasi rasmi) yuborgan bo'lishi mumkin.
+ *
+ * Aynan shu holatda xato bor edi: chek tashlangach javob eski "karta
+ * ma'lumoti" xabarini tahrirlab yozilardi. U esa rasmdan YUQORIDA turardi —
+ * ekranning pastida hech narsa o'zgarmasdi va bot "javob bermagandek"
+ * ko'rinardi. Endi bunday xabar har doim pastda, yangi xabar bo'lib chiqadi.
+ */
+export async function sendFresh(
+  ctx: MyContext,
+  text: string,
+  keyboard?: InlineKeyboard
+): Promise<void> {
+  const sent = await ctx.reply(prepare(text), { ...SEND_OPTIONS, reply_markup: keyboard });
+  ctx.session.lastBotMessageId = sent.message_id;
 }
 
 /**

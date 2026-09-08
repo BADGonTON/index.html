@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import { MyContext } from "../session";
-import { renderMenu, sendTracked } from "../ui";
+import { renderMenu, sendTracked, sendFresh } from "../ui";
 import { premiumize } from "../emoji";
 import { config } from "../../config";
 import { STEP } from "../steps";
@@ -14,6 +14,7 @@ import {
   PAYMENT_FOUND,
   PAYMENT_CONFIRMED,
   PAYMENT_BANNED,
+  PAYMENT_NOT_FOUND_YET,
   LOG_PAYMENT_CONFIRMED,
 } from "../texts";
 import { backKb, cancelKb, successKb } from "../keyboards";
@@ -22,6 +23,7 @@ import {
   deletePayment,
   markPaymentFound,
   consumeFoundPayment,
+  getPendingPayment,
 } from "../../db/repo/payments";
 import {
   addReferralBonus,
@@ -79,6 +81,7 @@ export function registerPaymentHandlers(bot: Bot<MyContext>): void {
     } else {
       await notifyUser(payment.user_id, PAYMENT_FOUND);
     }
+
   });
 
   // Chek rasmi kelganda — kutilayotgan to'lovni tasdiqlaymiz
@@ -86,7 +89,21 @@ export function registerPaymentHandlers(bot: Bot<MyContext>): void {
     // Atomik: to'lov o'chiriladi va qaytariladi. Foydalanuvchi ketma-ket 5 ta
     // chek yuborsa ham balans FAQAT BIR MARTA to'ldiriladi.
     const payment = await consumeFoundPayment(ctx.from!.id);
-    if (!payment) return;
+
+    if (!payment) {
+      // Chek keldi, lekin tasdiqlanadigan to'lov yo'q. Ilgari bot bunda
+      // JIM turardi — foydalanuvchi uchun bu "bot qotib qoldi" degani edi.
+      // Endi holatga qarab tushuntiramiz.
+      const pending = await getPendingPayment(ctx.from!.id);
+      if (pending) {
+        await sendFresh(
+          ctx,
+          fmt(PAYMENT_NOT_FOUND_YET, { unique_sum: pending.unique_sum }),
+          backKb("balance")
+        );
+      }
+      return;
+    }
 
     const user = await getUser(ctx.from!.id);
     const newBalance = await creditBalance(
@@ -104,26 +121,34 @@ export function registerPaymentHandlers(bot: Bot<MyContext>): void {
       );
     }
 
-    if (config.adminChannelId) {
-      const bestPhoto = ctx.message.photo[ctx.message.photo.length - 1];
-      await ctx.api
-        .sendPhoto(config.adminChannelId, bestPhoto.file_id, {
-          caption: premiumize(fmt(LOG_PAYMENT_CONFIRMED, {
-            user_id: payment.user_id,
-            amount: payment.amount,
-            post_link: payment.post_link ?? "",
-            datetime: now(),
-          })),
-          parse_mode: "HTML",
-        })
-        .catch(() => {});
-    }
-
-    await sendTracked(
+    // FOYDALANUVCHI BIRINCHI. Tasdiq chatning oxiriga, YANGI xabar bo'lib
+    // chiqadi — tahrirlanmaydi: oraliqda chek namunasi rasmi ketgan, ya'ni
+    // eski xabar ekranning ancha yuqorisida qolib ketgan bo'ladi.
+    await sendFresh(
       ctx,
       fmt(PAYMENT_CONFIRMED, { amount: payment.amount, balance: newBalance }),
       successKb()
     );
+
+    // Chek log kanalga KEYIN, fonda ketadi: foydalanuvchi kanalning
+    // javobini kutib turmaydi. Bot chekni o'zida saqlamaydi — Telegram'dagi
+    // file_id shunchaki kanalga uzatiladi.
+    if (config.adminChannelId) {
+      const bestPhoto = ctx.message.photo[ctx.message.photo.length - 1];
+      void ctx.api
+        .sendPhoto(config.adminChannelId, bestPhoto.file_id, {
+          caption: premiumize(
+            fmt(LOG_PAYMENT_CONFIRMED, {
+              user_id: payment.user_id,
+              amount: payment.amount,
+              post_link: payment.post_link ?? "",
+              datetime: now(),
+            })
+          ),
+          parse_mode: "HTML",
+        })
+        .catch((err) => console.error("Chekni log kanalga yuborib bo'lmadi:", err.message));
+    }
   });
 }
 

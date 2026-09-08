@@ -45,3 +45,25 @@ export async function pruneOldSessions(olderThanSec: number): Promise<number> {
   const { rowCount } = await pool.query("DELETE FROM bot_sessions WHERE updated_at < $1", [threshold]);
   return rowCount ?? 0;
 }
+
+/**
+ * Foydalanuvchining "oxirgi bot xabari" belgisini o'chiradi.
+ *
+ * Bot fon jarayonidan (masalan to'lov kanalidan) foydalanuvchiga xabar
+ * yuborganda chaqiriladi. Bunday xabar sessiyadan tashqarida ketadi,
+ * ya'ni sessiyada eslab qolingan xabar endi chatning oxirgisi EMAS.
+ * Belgi tozalanmasa, bot keyingi javobini o'sha eski xabarni tahrirlab
+ * yozardi — foydalanuvchi esa ekranning pastida hech narsa ko'rmasdi.
+ *
+ * Sessiya butunlay o'chirilmaydi: FSM bosqichi va oferta roziligi joyida
+ * qoladi, faqat bitta maydon olib tashlanadi.
+ */
+export async function clearTrackedMessage(userId: number): Promise<void> {
+  await pool
+    .query("UPDATE bot_sessions SET value = value - 'lastBotMessageId' WHERE key = $1", [
+      String(userId),
+    ])
+    .catch(() => {
+      // Sessiya hali yaratilmagan bo'lishi mumkin — muhim emas.
+    });
+}

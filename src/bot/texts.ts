@@ -133,6 +133,22 @@ ${e(I.CROSS, "❌")} Boshqa summa qabul qilinmaydi
 
 ${e(I.PHOTO, "📸")} To'lovdan keyin chek rasmini yuboring`;
 
+/**
+ * Chek keldi, lekin to'lov hali kanalda ko'rinmagan.
+ *
+ * Odatda ikki sabab: pul hali o'tmagan yoki summa boshqa yuborilgan.
+ * Ikkalasida ham foydalanuvchi nima qilishini bilishi kerak.
+ */
+export const PAYMENT_NOT_FOUND_YET = `⏳ <b>To'lov hali ko'rinmadi</b>
+
+Chekingiz qabul qilindi, lekin bankdan tasdiq hali kelmadi.
+
+📌 Yuborilishi kerak bo'lgan summa: <code>{unique_sum} so'm</code>
+
+❗️ Aynan shu summa yuborilganini tekshiring — bir so'm farq qilsa ham to'lov topilmaydi.
+
+Pul o'tgan bo'lsa 1-2 daqiqada o'zi tasdiqlanadi.`;
+
 export const PAYMENT_CANCELLED = `${e(I.CROSS, "❌")} <b>To'lov bekor qilindi</b>`;
 
 export const PAYMENT_TIMEOUT = `${e(I.CROSS, "❌")} <b>To'lov topilmadi</b>

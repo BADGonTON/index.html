@@ -117,3 +117,21 @@ export async function expirePendingPayments(): Promise<Array<{ unique_sum: numbe
   );
   return rows;
 }
+
+/**
+ * Foydalanuvchining hali TOPILMAGAN ('pending') to'lovi.
+ *
+ * Chek keldi-yu, tasdiqlanadigan to'lov topilmaganda ishlatiladi: pul hali
+ * kanalga tushmagan bo'lsa, buni foydalanuvchiga aytish kerak. Aks holda
+ * bot jim turadi va "ishlamayapti" degan taassurot qoladi.
+ */
+export async function getPendingPayment(userId: number): Promise<PaymentRow | null> {
+  const { rows } = await pool.query<PaymentRow>(
+    `SELECT * FROM payments
+      WHERE user_id = $1 AND status = 'pending'
+      ORDER BY created_at DESC
+      LIMIT 1`,
+    [userId]
+  );
+  return rows[0] ?? null;
+}

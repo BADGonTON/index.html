@@ -1,6 +1,7 @@
 import type { Api } from "grammy";
 import { config } from "../config";
 import { premiumize } from "../bot/emoji";
+import { clearTrackedMessage } from "../db/repo/sessions";
 
 /**
  * Chiqadigan matnni tayyorlaydi: har bir oddiy emoji premium emojiga
@@ -31,6 +32,21 @@ export async function sendLog(text: string): Promise<void> {
   }
 }
 
+/**
+ * FON xabari yuborilgach, sessiyadagi "oxirgi bot xabari" belgisini tozalaydi.
+ *
+ * Bu funksiyalar sessiyadan tashqarida ishlaydi (to'lov kanali, blokcheyn
+ * ishchisi va h.k.), ya'ni sessiyada eslab qolingan xabar endi chatning
+ * oxirgisi EMAS. Tozalanmasa, botning keyingi javobi o'sha eski xabarni
+ * tahrirlab yozilardi — foydalanuvchi esa ekranning pastida hech narsa
+ * ko'rmasdi va bot "javob bermagandek" tuyulardi.
+ *
+ * Aynan shu sabab "chek tashladim, bot qotdi" degan xato chiqqan edi.
+ */
+async function invalidateTrackedMessage(userId: number): Promise<void> {
+  await clearTrackedMessage(userId).catch(() => {});
+}
+
 /** Rasm + izoh yuboradi (izohdagi emoji ham premium bo'ladi). */
 export async function notifyUserPhoto(
   userId: number,
@@ -40,6 +56,7 @@ export async function notifyUserPhoto(
   if (!apiRef) return;
   try {
     await apiRef.sendPhoto(userId, photo, { caption: prepare(caption), parse_mode: "HTML" });
+    await invalidateTrackedMessage(userId);
   } catch {
     // Foydalanuvchi botni bloklagan yoki rasm manzili yaroqsiz.
   }
@@ -57,6 +74,7 @@ export async function notifyUser(
       parse_mode: "HTML",
       ...(extra ?? {}),
     } as never);
+    await invalidateTrackedMessage(userId);
   } catch {
     // Foydalanuvchi botni bloklagan yoki chatni o'chirgan bo'lishi mumkin.
   }
