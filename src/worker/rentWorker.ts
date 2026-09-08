@@ -11,6 +11,7 @@ import {
 import { refundBalance } from "../db/repo/users";
 import { payForRent, extendRentApi } from "../services/marketapp";
 import { sendTransaction } from "../services/wallet";
+import { userFacingRentError, isRetryableRentError } from "../services/rentErrors";
 import { sendLog, notifyUser } from "../services/logger";
 import { now } from "../util/time";
 import { fmt, RENT_PAID, RENT_EXTENDED, RENT_FAILED, LOG_RENT_PAID, LOG_RENT_FAILED } from "../bot/texts";
@@ -110,10 +111,16 @@ export async function startRentWorker(): Promise<void> {
 
         console.log(`✅ Arenda ishi #${job.id} (${job.kind}) yakunlandi`);
       } catch (err) {
+        // XOM matn — faqat jurnal va adminlar uchun.
         const errorMsg = (err as Error).message;
+        // Foydalanuvchi ko'radigan sodda jumla.
+        const userMsg = userFacingRentError(errorMsg);
         console.error(`❌ Arenda ishi #${job.id} xato:`, errorMsg);
 
-        if (job.retries < config.maxRetries) {
+        // "Gift allaqachon band" kabi xatoda qayta urinishdan foyda yo'q —
+        // uch marta urinib, orada 70 soniya kuttirgandan ko'ra pulni
+        // DARHOL qaytargan ma'qul.
+        if (isRetryableRentError(errorMsg) && job.retries < config.maxRetries) {
           await finishRentJob(job.id, "pending", errorMsg);
           const waitSec = 10 * 2 ** job.retries;
           console.log(`🔁 Arenda ishi #${job.id} ${waitSec}s dan keyin qayta uriniladi`);
@@ -122,8 +129,12 @@ export async function startRentWorker(): Promise<void> {
         }
 
         // Butunlay muvaffaqiyatsiz — pulni to'liq qaytaramiz.
+        //
+        // Navbat yozuvida XOM matn qoladi (nosozlikni izlash uchun),
+        // ijara yozuvida esa foydalanuvchi ko'radigan jumla — Mini App
+        // aynan `tx_error` ni ko'rsatadi.
         await finishRentJob(job.id, "failed", errorMsg);
-        if (job.kind === "pay") await setRentalStatus(rental.id, "failed", errorMsg);
+        if (job.kind === "pay") await setRentalStatus(rental.id, "failed", userMsg);
         await refundBalance(rental.user_id, costUzs, rental.id);
 
         await notifyUser(
@@ -131,7 +142,7 @@ export async function startRentWorker(): Promise<void> {
           fmt(RENT_FAILED, {
             gift: rental.nft_name,
             uzs: costUzs.toLocaleString("ru-RU"),
-            error: errorMsg.slice(0, 200),
+            error: userMsg,
           })
         );
         await sendLog(

@@ -18,6 +18,7 @@ import {
   bundleStats,
   serializeBundle,
   KIND_LABEL,
+  isBundleKind,
   BundleKind,
 } from "../services/bundles";
 import {
@@ -48,6 +49,8 @@ import {
   RentalRow,
 } from "../db/repo/rentals";
 import { tonConnectLink } from "../services/marketapp";
+import { guideVideoUrl } from "../services/media";
+import { sanitizeStoredRentError } from "../services/rentErrors";
 import { sendLog } from "../services/logger";
 
 /**
@@ -92,7 +95,7 @@ export function createApiRouter(): Router {
         service_fee_uzs: getServiceFeeUzs(),
       },
       settings: {
-        profile_link_video_url: config.profileLinkVideoUrl || null,
+        profile_link_video_url: guideVideoUrl(),
         profile_link_youtube_url: config.profileLinkYoutubeUrl || null,
         support_url: config.supportBot,
         page_size: config.marketPageSize,
@@ -156,8 +159,7 @@ export function createApiRouter(): Router {
   // ---------------------------------------------------------------------
   api.get("/bundles", (req, res) => {
     const kindParam = String(req.query.kind ?? "");
-    const kind: BundleKind | null =
-      kindParam === "backdrop" || kindParam === "model" || kindParam === "symbol" ? kindParam : null;
+    const kind: BundleKind | null = isBundleKind(kindParam) ? kindParam : null;
 
     const page = queryBundles({
       kind,
@@ -527,7 +529,8 @@ function serializeRental(r: RentalRow, balanceUzs: number) {
     collection_name: r.collection_name,
     image_url: giftImageUrl(r.nft_name),
     status: r.status,
-    tx_error: r.tx_error,
+    // Xom API xatosi HECH QACHON foydalanuvchiga chiqmaydi.
+    tx_error: sanitizeStoredRentError(r.tx_error),
     total_days: secToDays(r.duration_sec),
     left_days: r.end_time ? Math.max(0, Math.ceil((r.end_time - now) / 86_400)) : null,
     end_time: r.end_time,

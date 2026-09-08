@@ -150,6 +150,12 @@ export const config = {
   /** Mini App bitta so'rovda nechta gift oladi. */
   marketPageSize: optionalInt("MARKET_PAGE_SIZE", 60),
   /** Ilova ichida o'ynatiladigan QISQA video (.mp4/.webm to'g'ridan-to'g'ri havolasi). */
+  /**
+   * Serverdagi video fayl nomi. `miniapp/media/` ichidan izlanadi va
+   * `/app/media/<nom>` sifatida beriladi — tashqi saytga bog'liqlik yo'q.
+   */
+  profileLinkVideoFile: optional("PROFILE_LINK_VIDEO_FILE", "guide.mp4"),
+  /** Fayl topilmasa ishlatiladigan tashqi havola (ixtiyoriy). */
   profileLinkVideoUrl: optional("PROFILE_LINK_VIDEO_URL", ""),
   /** "Batafsil" tugmasi — to'liq YouTube qo'llanmasi. */
   profileLinkYoutubeUrl: optional("PROFILE_LINK_YOUTUBE_URL", ""),

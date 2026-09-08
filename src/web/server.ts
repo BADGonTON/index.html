@@ -175,6 +175,10 @@ export function createServer(bot: Bot<MyContext>): Express {
         if (filePath.endsWith(".html")) {
           // HTML doim tekshiriladi — yangi versiya darhol yetib boradi.
           res.setHeader("Cache-Control", "no-cache");
+        } else if (filePath.includes(`${path.sep}media${path.sep}`)) {
+          // Video qo'llanma — kamdan-kam o'zgaradi, uzoq keshlanadi.
+          // Range so'rovlari (oldinga surish) express.static'ning o'zida bor.
+          res.setHeader("Cache-Control", "public, max-age=604800");
         } else {
           // CSS/JS/rasm — 1 kun keshlanadi (fayl nomida ?v= versiyasi bor).
           res.setHeader("Cache-Control", "public, max-age=86400");
@@ -187,7 +191,17 @@ export function createServer(bot: Bot<MyContext>): Express {
   // express.static bunday so'rovni `/app/` ga 301 bilan yo'naltiradi — ya'ni
   // har bir ochilishda ortiqcha bir aylanish. Shuning uchun uni to'g'ridan-to'g'ri
   // beramiz.
-  app.get(["/app", "/app/*"], (_req, res) => {
+  app.get(["/app", "/app/*"], (req, res) => {
+    // Kengaytmasi bor manzil FAYL so'ralganini bildiradi. Bunday fayl
+    // topilmagan bo'lsa (express.static uni bermadi) HTML qaytarish
+    // xatoni yashiradi: brauzer JS o'rniga HTML oladi va ilova jim
+    // yiqiladi — aynan shu sabab bir marta qora ekran chiqqan edi.
+    // Endi bunday holatda halol 404 beriladi.
+    if (/\.[a-z0-9]{2,5}$/i.test(req.path)) {
+      res.status(404).type("text").send("Topilmadi");
+      return;
+    }
+
     res.setHeader("Cache-Control", "no-cache");
     res.type("html").send(indexHtml);
   });

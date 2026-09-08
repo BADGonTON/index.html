@@ -141,14 +141,36 @@ async function main() {
   ok("o'lchamlar faqat 3/6/9/12",
      bpage.items.every((b) => b.sizes.every((n) => [3, 6, 9, 12].includes(n))));
 
-  // Bitta to'plamdagi barcha giftlar HAQIQATAN bir xil belgiga ega bo'lishi kerak.
+  // Har bir daraja qaysi atributlarni bir xil bo'lishini talab qiladi.
+  const NEEDS: Record<string, string[]> = {
+    backdrop: ["backdrop"],
+    backdrop_model: ["backdrop", "model"],
+    backdrop_model_symbol: ["backdrop", "model", "symbol"],
+  };
+
+  // Bitta to'plamdagi barcha giftlar HAQIQATAN bir xil bo'lishi kerak.
   const mixed = bpage.items.find((b) =>
-    b.gifts.some((g) => {
-      const v = b.kind === "backdrop" ? g.backdrop : b.kind === "model" ? g.model : g.symbol;
-      return v !== b.value;
-    })
+    b.gifts.some((g) =>
+      NEEDS[b.kind].some((t) => (g as any)[t] !== (b as any)[t])
+    )
   );
-  ok("to'plam ichida belgi bir xil", !mixed, mixed ? `${mixed.kind}=${mixed.value}` : "");
+  ok("to'plam ichida atributlar bir xil", !mixed, mixed ? `${mixed.kind}=${mixed.value}` : "");
+
+  // HAR BIR to'plam fondan boshlanadi — talab shunday edi.
+  ok("hamma to'plamda fon bor", bpage.items.every((b) => Boolean(b.backdrop)));
+  ok("faqat fon darajasida model yo'q",
+     bpage.items.filter((b) => b.kind === "backdrop").every((b) => b.model === null));
+  ok("fon+model darajasida belgi yo'q",
+     bpage.items.filter((b) => b.kind === "backdrop_model").every((b) => b.symbol === null));
+  ok("eng qat'iy darajada uchalasi ham bor",
+     bpage.items
+       .filter((b) => b.kind === "backdrop_model_symbol")
+       .every((b) => b.backdrop && b.model && b.symbol));
+
+  // Uchala daraja ham yig'ilishi kerak.
+  const kinds = new Set(bundles.queryBundles({ kind: null, collection: null, offset: 0, limit: 500 })
+    .items.map((b) => b.kind));
+  ok("uchala daraja ham bor", kinds.size === 3, [...kinds].join(", "));
 
   // ...va bitta kolleksiyadan — xarid oldidan BITTA so'rov bilan tekshirish
   // aynan shunga tayanadi.
@@ -157,11 +179,14 @@ async function main() {
   );
   ok("to'plam bitta kolleksiyadan", !crossCollection);
 
-  const backdrops = bundles.queryBundles({ kind: "backdrop", collection: null, offset: 0, limit: 60 });
-  ok("fon bo'yicha filtr ishlaydi",
-     backdrops.total > 0 && backdrops.items.every((b) => b.kind === "backdrop"),
-     `(${backdrops.total} ta)`);
-  ok("fon to'plamlari birinchi turadi", bpage.items[0].kind === "backdrop", bpage.items[0].kind);
+  const strict = bundles.queryBundles({
+    kind: "backdrop_model_symbol", collection: null, offset: 0, limit: 60,
+  });
+  ok("daraja bo'yicha filtr ishlaydi",
+     strict.total > 0 && strict.items.every((b) => b.kind === "backdrop_model_symbol"),
+     `(${strict.total} ta)`);
+  ok("faqat fon darajasi birinchi turadi", bpage.items[0].kind === "backdrop", bpage.items[0].kind);
+  ok("noto'g'ri daraja rad etiladi", !bundles.isBundleKind("model") && bundles.isBundleKind("backdrop"));
 
   const one = bpage.items[0];
   const found = bundles.findBundle(one.id);
@@ -172,6 +197,7 @@ async function main() {
   ok("javobda alohida gift narxi yo'q",
      !JSON.stringify(view.gifts).includes("price"),
      Object.keys(view.gifts![0]).join(", "));
+  ok("javobda atributlar bor", Boolean(view.backdrop), `fon=${view.backdrop} model=${view.model}`);
   ok("har o'lcham uchun narx bor",
      view.prices.length === one.sizes.length && view.prices.every((p) => p.total_uzs > 0),
      view.prices.map((p) => `${p.size}ta=${p.total_uzs}`).join(" "));

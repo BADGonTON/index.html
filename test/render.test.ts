@@ -129,9 +129,12 @@ async function main() {
 
   const bundleFixture = {
     id: "b1",
-    kind: "backdrop",
-    kind_label: "Bir xil fon",
-    value: "Neon Blue",
+    kind: "backdrop_model",
+    kind_label: "Fon + model",
+    value: "Neon Blue · Lizard",
+    backdrop: "Neon Blue",
+    model: "Lizard",
+    symbol: null,
     collection_name: "Pool Floats",
     collection_address: "EQCol0",
     available: 12,
@@ -243,7 +246,7 @@ async function main() {
     })()`) as any;
 
     ok("to'plam kartochkasi chizildi", Boolean(card), card ? `${card.name} · ${card.price}` : "yo'q");
-    ok("fon nomi ko'rindi", card?.kind?.includes("Bir xil fon"), card?.kind ?? "");
+    ok("daraja nomi ko'rindi", card?.kind?.includes("Fon + model"), card?.kind ?? "");
     ok("kartochkada 4 ta rasm katagi bor", card?.cells === 4, String(card?.cells));
 
     await page.click(".bcard");
@@ -256,6 +259,10 @@ async function main() {
         sizes: Array.prototype.map.call(document.querySelectorAll("#bundle-sizes .size-chip"), function (b) { return b.textContent; }),
         picked: (document.querySelector("#bundle-sizes .size-chip.is-active") || {}).textContent,
         gifts: document.querySelectorAll("#bundle-grid .bgift").length,
+        traits: Array.prototype.map.call(document.querySelectorAll("#bundle-traits .trait"), function (t) {
+          var label = t.querySelector("i").textContent.trim();
+          return label + " " + t.textContent.replace(label, "").trim();
+        }).join("|"),
         lit: document.querySelectorAll("#bundle-grid .bgift.is-in").length,
         total: (document.getElementById("bundle-total") || {}).textContent,
         days: (document.getElementById("bundle-days-value") || {}).textContent,
@@ -264,6 +271,7 @@ async function main() {
     })()`) as any;
 
     ok("to'plam detali ochildi", detail.active);
+    ok("atribut chiplari chizildi", detail.traits === "Fon Neon Blue|Model Lizard", detail.traits);
     ok("o'lchamlar 3/6/9/12", detail.sizes.join(",") === "3 ta,6 ta,9 ta,12 ta", detail.sizes.join(","));
     ok("boshlang'ich muddat 7 kun", detail.days === "7", detail.days);
     ok("12 ta gift chizildi", detail.gifts === 12, String(detail.gifts));

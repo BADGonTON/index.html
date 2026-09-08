@@ -203,8 +203,10 @@
           To'plam
         </span>
         <h1>Bir mavzudagi to'plamlar</h1>
-        <p>Bir xil fon, model yoki belgidagi <b>3, 6, 9</b> yoki <b>12</b> ta gift —
-           bitta to'lovda, kamida <b id="bundle-min-days">7</b> kunga.</p>
+        <p>Fon bo'yicha tanlangan <b>3, 6, 9</b> yoki <b>12</b> ta gift — bitta
+           to'lovda, kamida <b id="bundle-min-days">7</b> kunga. Qat'iyroq
+           to'plam kerak bo'lsa: <b>fon + model</b>, hatto
+           <b>fon + model + belgi</b>.</p>
       </div>
     </div>
 
@@ -212,10 +214,10 @@
       <button class="chip is-active" data-kind="" type="button">Hammasi</button>
       <button class="chip" data-kind="backdrop" type="button">
         <svg class="ico ico-sm"><use href="#i-palette"/></svg>
-        Bir xil fon
+        Fon
       </button>
-      <button class="chip" data-kind="model" type="button">Bir xil model</button>
-      <button class="chip" data-kind="symbol" type="button">Bir xil belgi</button>
+      <button class="chip" data-kind="backdrop_model" type="button">Fon + model</button>
+      <button class="chip" data-kind="backdrop_model_symbol" type="button">Fon + model + belgi</button>
     </div>
 
     <div id="bundle-list" class="bundle-list"></div>
@@ -228,6 +230,7 @@
       <span class="tag" id="bundle-kind">—</span>
       <h2 id="bundle-name">—</h2>
       <p id="bundle-collection">—</p>
+      <div class="traits" id="bundle-traits"></div>
     </div>
 
     <div class="card">

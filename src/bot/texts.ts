@@ -637,9 +637,9 @@ export const RENT_FAILED = `<b>❌ Ijara amalga oshmadi</b>
 🖼 Gift: <b>{gift}</b>
 💵 <b>{uzs}</b> so'm balansingizga to'liq qaytarildi.
 
-Sabab: <code>{error}</code>
+{error}
 
-Iltimos, birozdan keyin qayta urinib ko'ring yoki support bilan bog'laning.`;
+Boshqa giftni tanlab ko'ring. Savol bo'lsa — support bilan bog'laning.`;
 
 export const LOG_RENT_PAID = `🖼 <b>YANGI IJARA</b>
 

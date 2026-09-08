@@ -20,7 +20,10 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 interface Res { status: number; body: string; json: any; headers: Record<string, string> }
 
-function call(path: string, opts: { method?: string; initData?: string; body?: unknown } = {}): Promise<Res> {
+function call(
+  path: string,
+  opts: { method?: string; initData?: string; body?: unknown; range?: string } = {}
+): Promise<Res> {
   return new Promise((resolve, reject) => {
     const payload = opts.body ? JSON.stringify(opts.body) : undefined;
     const req = http.request(
@@ -29,6 +32,7 @@ function call(path: string, opts: { method?: string; initData?: string; body?: u
         headers: {
           ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}),
           ...(opts.initData ? { Authorization: `tma ${opts.initData}` } : {}),
+          ...(opts.range ? { Range: opts.range } : {}),
         },
       },
       (res) => {
@@ -92,6 +96,40 @@ async function main() {
      !/frame-ancestors/i.test(appNoSlash.headers["content-security-policy"] ?? ""));
   ok("HTML keshlanmaydi (yangi versiya darhol yetadi)",
      (appNoSlash.headers["cache-control"] ?? "").includes("no-cache"));
+
+  // ── Video qo'llanma SERVERDAN beriladi ──
+  //
+  // Fayl `miniapp/media/` ga tashlanadi va `/app/media/...` bo'lib chiqadi.
+  // Testda vaqtinchalik fayl yaratamiz: yo'l ochiqmi, Range so'rovi
+  // (videoni oldinga surish) ishlaydimi — shu tekshiriladi.
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { miniappDir, resetGuideVideoCache } = await import("../src/services/media");
+
+  const mediaDir = path.join(miniappDir(), "media");
+  const probe = path.join(mediaDir, "__test_guide.mp4");
+  fs.mkdirSync(mediaDir, { recursive: true });
+  fs.writeFileSync(probe, Buffer.alloc(2048, 7));
+  try {
+    const video = await call("/app/media/__test_guide.mp4");
+    ok("video serverdan beriladi", video.status === 200, `(${video.status})`);
+    ok("video uzoq keshlanadi",
+       (video.headers["cache-control"] ?? "").includes("max-age="),
+       video.headers["cache-control"] ?? "");
+    ok("oldinga surish ishlaydi (Range)",
+       (await call("/app/media/__test_guide.mp4", { range: "bytes=0-99" })).status === 206);
+
+    // Papkadan chiqib ketishga urinish o'tmasligi kerak
+    const escape = await call("/app/media/../../package.json");
+    ok("papkadan chiqib bo'lmaydi", escape.status !== 200 || !escape.body.includes("dependencies"),
+       `(${escape.status})`);
+
+    resetGuideVideoCache();
+    ok("mavjud bo'lmagan video 404", (await call("/app/media/yoq.mp4")).status === 404);
+  } finally {
+    fs.rmSync(probe, { force: true });
+    resetGuideVideoCache();
+  }
 
   console.log("\n── Avtorizatsiya ──");
 

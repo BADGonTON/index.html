@@ -8,11 +8,16 @@ import { BUNDLE_MIN_DAYS, BUNDLE_SIZES, bundleQuote, pricePerDayUzs } from "./pr
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Foydalanuvchi bitta gift emas, 3 / 6 / 9 yoki 12 tadan iborat, BIR XIL
- * belgiga ega to'plamni bir bosishda ijaraga oladi:
+ * ko'rinishdagi to'plamni bir bosishda ijaraga oladi. Uchta daraja bor va
+ * har biri ORQA FONDAN boshlanadi — to'plamning ko'zga tashlanadigan
+ * belgisi aynan fon rangi:
  *
- *   • orqa fon (Backdrop) — bir xil rangdagi giftlar, eng chiroyli variant
- *   • model  (Model)
- *   • belgi  (Symbol)
+ *   1) fon                       — bir xil rangdagi giftlar
+ *   2) fon + model               — rangi ham, modeli ham bir xil
+ *   3) fon + model + belgi       — uchalasi ham bir xil, eng nozik variant
+ *
+ * Ya'ni har bir keyingi daraja oldingisidan qat'iyroq: 3-darajadagi
+ * to'plam giftlari bir-biridan faqat raqami bilan farq qiladi.
  *
  * Muddat kamida BUNDLE_MIN_DAYS (7) kun, har bir gift uchun xizmat haqi
  * olinadi, ustiga BUNDLE_MARKUP_PCT (10%) ustama qo'shiladi. Foydalanuvchiga
@@ -23,14 +28,27 @@ import { BUNDLE_MIN_DAYS, BUNDLE_SIZES, bundleQuote, pricePerDayUzs } from "./pr
  * qo'shimcha so'rov ketmaydi.
  */
 
-/** To'plam qaysi belgi bo'yicha yig'ilgan. */
-export type BundleKind = "backdrop" | "model" | "symbol";
+/** To'plam qanchalik qat'iy tanlangan (hammasi fondan boshlanadi). */
+export type BundleKind = "backdrop" | "backdrop_model" | "backdrop_model_symbol";
+
+/** Har bir daraja qaysi atributlarni bir xil bo'lishini talab qiladi. */
+const KIND_TRAITS: Record<BundleKind, Array<"backdrop" | "model" | "symbol">> = {
+  backdrop: ["backdrop"],
+  backdrop_model: ["backdrop", "model"],
+  backdrop_model_symbol: ["backdrop", "model", "symbol"],
+};
+
+const KINDS = Object.keys(KIND_TRAITS) as BundleKind[];
 
 export interface Bundle {
   id: string;
   kind: BundleKind;
-  /** Belgi qiymati, masalan "Cobalt Blue". */
+  /** Ko'rsatish uchun: "Neon Blue" yoki "Neon Blue · Lizard · Eagle". */
   value: string;
+  /** To'plamni belgilovchi atributlar (darajaga qarab null bo'lishi mumkin). */
+  backdrop: string;
+  model: string | null;
+  symbol: string | null;
   collection_address: string;
   collection_name: string;
   /** To'plamdagi giftlar — narx bo'yicha arzondan qimmatga. */
@@ -41,12 +59,17 @@ export interface Bundle {
   max_days: number;
 }
 
-const KIND_ORDER: Record<BundleKind, number> = { backdrop: 0, model: 1, symbol: 2 };
+// Foydalanuvchi ro'yxatni shu tartibda ko'radi: avval eng keng variant.
+const KIND_ORDER: Record<BundleKind, number> = {
+  backdrop: 0,
+  backdrop_model: 1,
+  backdrop_model_symbol: 2,
+};
 
 export const KIND_LABEL: Record<BundleKind, string> = {
   backdrop: "Bir xil fon",
-  model: "Bir xil model",
-  symbol: "Bir xil belgi",
+  backdrop_model: "Fon + model",
+  backdrop_model_symbol: "Fon + model + belgi",
 };
 
 /** Bitta to'plamdagi eng ko'p gift soni. */
@@ -57,8 +80,8 @@ let builtFor = " ";
 let ordered: Bundle[] = [];
 let byId = new Map<string, Bundle>();
 
-function traitOfGift(g: CatalogGift, kind: BundleKind): string | null {
-  const v = kind === "backdrop" ? g.backdrop : kind === "model" ? g.model : g.symbol;
+function traitOfGift(g: CatalogGift, trait: "backdrop" | "model" | "symbol"): string | null {
+  const v = trait === "backdrop" ? g.backdrop : trait === "model" ? g.model : g.symbol;
   const t = typeof v === "string" ? v.trim() : "";
   return t === "" ? null : t;
 }
@@ -86,10 +109,14 @@ function build(): void {
   for (const gift of listGifts()) {
     if (gift.max_days < BUNDLE_MIN_DAYS) continue;
 
-    for (const kind of ["backdrop", "model", "symbol"] as BundleKind[]) {
-      const value = traitOfGift(gift, kind);
-      if (!value) continue;
+    for (const kind of KINDS) {
+      // Darajaning HAMMA atributi bo'lishi shart. Fon ko'rsatilmagan gift
+      // hech qaysi to'plamga tushmaydi, modeli yo'q gift esa faqat
+      // birinchi darajada qoladi.
+      const parts = KIND_TRAITS[kind].map((t) => traitOfGift(gift, t));
+      if (parts.some((p) => p === null)) continue;
 
+      const value = parts.join(" · ");
       const id = bundleId(kind, gift.collection_address, value);
       let group = groups.get(id);
       if (!group) {
@@ -97,6 +124,9 @@ function build(): void {
           id,
           kind,
           value,
+          backdrop: parts[0]!,
+          model: parts[1] ?? null,
+          symbol: parts[2] ?? null,
           collection_address: gift.collection_address,
           collection_name: gift.collection_name,
           gifts: [],
@@ -122,8 +152,8 @@ function build(): void {
     out.push(group);
   }
 
-  // Avval "bir xil fon" (eng chiroylisi), keyin kattaroq to'plamlar,
-  // oxirida arzonrog'i — foydalanuvchi eng yaxshisini birinchi ko'radi.
+  // Avval eng keng daraja (faqat fon), keyin qat'iyroqlari; har daraja
+  // ichida kattaroq to'plam va arzonrog'i oldinda turadi.
   out.sort((a, b) => {
     const k = KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
     if (k !== 0) return k;
@@ -186,12 +216,11 @@ export function findBundle(id: string): Bundle | null {
   return byId.get(id) ?? null;
 }
 
-export function bundleStats(): { total: number; backdrops: number } {
+export function bundleStats(): Record<BundleKind, number> & { total: number } {
   build();
-  return {
-    total: ordered.length,
-    backdrops: ordered.reduce((n, b) => n + (b.kind === "backdrop" ? 1 : 0), 0),
-  };
+  const out = { total: ordered.length, backdrop: 0, backdrop_model: 0, backdrop_model_symbol: 0 };
+  for (const b of ordered) out[b.kind]++;
+  return out;
 }
 
 /**
@@ -208,6 +237,9 @@ export function serializeBundle(b: Bundle, opts: { withGifts?: boolean } = {}) {
     kind: b.kind,
     kind_label: KIND_LABEL[b.kind],
     value: b.value,
+    backdrop: b.backdrop,
+    model: b.model,
+    symbol: b.symbol,
     collection_name: b.collection_name,
     collection_address: b.collection_address,
     available: b.gifts.length,
@@ -238,4 +270,9 @@ export function serializeBundle(b: Bundle, opts: { withGifts?: boolean } = {}) {
         }))
       : undefined,
   };
+}
+
+/** So'rovdagi `kind` parametrini tekshiradi. */
+export function isBundleKind(value: string): value is BundleKind {
+  return (KINDS as string[]).includes(value);
 }

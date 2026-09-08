@@ -636,10 +636,14 @@ function renderMine() {
       card.appendChild(bar);
     }
 
-    if (rental.status === 'failed' && rental.tx_error) {
+    if (rental.status === 'failed') {
+      // Pul qaytarilgani — foydalanuvchi uchun eng muhim gap, shuning
+      // uchun sabab bo'lmasa ham shu qator ko'rsatiladi.
       const errBox = document.createElement('div');
       errBox.className = 'mine-error';
-      errBox.textContent = rental.tx_error;
+      errBox.innerHTML =
+        (rental.tx_error ? `<b>${escapeHtml(rental.tx_error)}</b><br>` : '') +
+        `To'langan ${fmtSom(rental.paid_uzs)} balansingizga qaytarildi.`;
       card.appendChild(errBox);
     }
 
@@ -740,13 +744,10 @@ function openLink(rental) {
   $('link-hint').className = 'hint';
   $('link-hint').textContent = '';
 
+  // Video ham, YouTube havolasi ham bo'lmasa tugma umuman ko'rsatilmaydi.
   const video = $('video-btn');
-  if (state.settings.profile_link_video_url) {
-    video.href = state.settings.profile_link_video_url;
-    video.hidden = false;
-  } else {
-    video.hidden = true;
-  }
+  if (state.settings.profile_link_video_url) video.href = state.settings.profile_link_video_url;
+  video.hidden = !(state.settings.profile_link_video_url || state.settings.profile_link_youtube_url);
 
   showScreen('link');
   haptic('light');
@@ -1104,6 +1105,25 @@ function appendBundleCards(items) {
 
 // ───────────────────────────── To'plam detali ─────────────────────────────
 
+/**
+ * To'plamdagi giftlarni nima birlashtirib turibdi — fon, model, belgi.
+ * Daraja qanchalik qat'iy bo'lsa, shuncha ko'p chip chiqadi.
+ */
+function renderBundleTraits(bundle) {
+  const box = $('bundle-traits');
+  const rows = [
+    ['Fon', bundle.backdrop],
+    ['Model', bundle.model],
+    ['Belgi', bundle.symbol],
+  ].filter(([, value]) => Boolean(value));
+
+  box.innerHTML = rows.map(([label, value]) => `
+    <span class="trait">
+      <i>${escapeHtml(label)}</i>
+      ${escapeHtml(value)}
+    </span>`).join('');
+}
+
 async function openBundle(summary) {
   state.bundle = null;
   state.bundleSize = summary.sizes[0];
@@ -1112,6 +1132,7 @@ async function openBundle(summary) {
   $('bundle-kind').textContent = summary.kind_label;
   $('bundle-name').textContent = summary.value;
   $('bundle-collection').textContent = summary.collection_name;
+  renderBundleTraits(summary);
   $('bundle-grid').innerHTML = '';
   $('bundle-total').textContent = '…';
   $('bundle-note').textContent = '';

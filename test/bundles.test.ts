@@ -15,6 +15,11 @@ import {
   getServiceFeeUzs,
   getTonRateUzs,
 } from "../src/services/pricing";
+import {
+  userFacingRentError,
+  isRetryableRentError,
+  sanitizeStoredRentError,
+} from "../src/services/rentErrors";
 
 let fails = 0;
 const ok = (label: string, cond: boolean, extra = "") => {
@@ -91,5 +96,50 @@ ok("3 ta giftda ham 10% ustama bor",
    bundleQuote(three, 7).total_uzs ===
      bundleQuote(three, 7).subtotal_uzs + bundleQuote(three, 7).markup_uzs);
 
-console.log(fails ? `\n❌ ${fails} ta test yiqildi` : "\n🎉 To'plam narxi testlari o'tdi");
+
+// ── Xatolar foydalanuvchiga XOM ko'rinishda chiqmasligi kerak ──
+//
+// Foydalanuvchi ekranida aynan shunday matn turgan edi:
+//
+//   POST /v1/rent/EQBQ6Ymp5QWJLE-.../pay/ [400]: {"detail":{"status":"error",
+//   "reason":"Too late. It is not for rent anymore."}}
+//
+// Bunday matn boshqa hech qachon ko'rinmasligi kerak.
+
+console.log("\n── Xato matnlari ──");
+
+const RAW_TOO_LATE =
+  'POST /v1/rent/EQBQ6Ymp5QWJLE-0fKaky0C9M1oljkqn38rWe3ylXAqRIezA/pay/ [400]: ' +
+  '{"detail":{"status":"error","reason":"Too late. It is not for rent anymore."}}';
+
+const friendly = userFacingRentError(RAW_TOO_LATE);
+ok("xom matn almashtirildi", friendly !== RAW_TOO_LATE, friendly);
+ok("manzil ko'rinmaydi", !/\/v1\/|EQBQ|POST|\[400\]|detail/.test(friendly), friendly);
+ok("sabab tushunarli", /boshqa kimdir/i.test(friendly), friendly);
+ok("band gift uchun qayta urinilmaydi", !isRetryableRentError(RAW_TOO_LATE));
+
+ok("tarmoq xatosida qayta uriniladi", isRetryableRentError("connect ETIMEDOUT 1.2.3.4:443"));
+ok("429 da qayta uriniladi", isRetryableRentError("GET /v1/rent/gifts/: 429 Too Many Requests"));
+ok("noma'lum xatoda qayta uriniladi", isRetryableRentError("nimadir noto'g'ri ketdi"));
+
+// Har qanday xom matn uchun javob doim sodda jumla bo'lishi kerak
+for (const raw of [
+  RAW_TOO_LATE,
+  'Error: connect ECONNREFUSED 127.0.0.1:443',
+  'GET https://api.marketapp.org/v1/rent/gifts/: 502 Bad Gateway',
+  '{"detail":"insufficient balance"}',
+  'butunlay tanish bo\'lmagan xato',
+]) {
+  const text = userFacingRentError(raw);
+  ok(`sodda jumla: "${text}"`,
+     !/https?:\/\/|\/v1\/|[{}]|\[\d{3}\]|Error:/.test(text) && text.length < 120);
+}
+
+// Bazada allaqachon yotgan xom matn ham tozalanadi, tayyor jumlaga tegilmaydi
+const already = userFacingRentError(RAW_TOO_LATE);
+ok("eski yozuv tozalanadi", sanitizeStoredRentError(RAW_TOO_LATE) === already);
+ok("tayyor jumlaga tegilmaydi", sanitizeStoredRentError(already) === already, already);
+ok("bo'sh xato null qoladi", sanitizeStoredRentError(null) === null);
+
+console.log(fails ? `\n❌ ${fails} ta test yiqildi` : "\n🎉 To'plam va xato testlari o'tdi");
 process.exit(fails ? 1 : 0);
