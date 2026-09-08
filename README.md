@@ -160,6 +160,20 @@ bo'yicha haqiqiy xatoni topgan.
 yo'naltirishsiz ochiladimi, iframe'ni to'suvchi sarlavhalar yo'qmi, imzo
 xatolari to'g'ri ajratiladimi, bootstrap yengilmi.
 
+`test/render.test.ts` — sahifani **haqiqiy brauzerda** ochadi va "ekranda
+nimadir bormi?" degan savolga javob beradi: to'g'ridan-to'g'ri ham, **iframe
+ichida** ham (Telegram Web/Desktop shunday ochadi). HTTP testlari fayllarni
+to'g'ridan-to'g'ri so'rab o'tib ketishi mumkin — brauzer esa ularni HTML
+ichidagi manzildan hisoblaydi, va aynan shu farq qora ekranga olib kelgan edi.
+
+### Statik fayllar versiyasi
+
+`index.html` dagi `?v=__V__` ni server ishga tushishda `app.js` va `styles.css`
+mazmunidan olingan hash bilan almashtiradi. Fayl o'zgarsa manzil ham o'zgaradi,
+ya'ni brauzerda eski JS yangi HTML bilan juftlashib qolmaydi. Manzillar
+**mutlaq** (`/app/app.js`) — sahifa `/app` da ham, `/app/` da ham bir xil
+ishlaydi.
+
 Mini App tomonida ham:
 
 - Telegramdan tashqarida ochilsa — "Avtorizatsiya xatosi" o'rniga

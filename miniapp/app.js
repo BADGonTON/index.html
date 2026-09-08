@@ -123,6 +123,43 @@ function showGate(title, text, retry = false) {
   $('splash')?.classList.add('is-done');
 }
 
+/**
+ * Ushlanmagan xatoni EKRANDA ko'rsatadi.
+ *
+ * Busiz JS xatosi ilovani jimgina o'ldirardi: splash ekrani abadiy aylanib
+ * turardi va foydalanuvchi ham, biz ham sababni bilmasdik. Telefonda konsolni
+ * ochish deyarli imkonsiz, shuning uchun xato matni to'g'ridan-to'g'ri
+ * ko'rsatiladi va uni nusxalab yuborish mumkin.
+ */
+let fatalShown = false;
+function showFatal(source, error) {
+  if (fatalShown) return;
+  fatalShown = true;
+
+  const detail = [
+    `${source}: ${error?.message || error}`,
+    error?.stack ? String(error.stack).split('\n').slice(0, 3).join(' | ') : '',
+    `${navigator.userAgent.slice(0, 90)}`,
+    `tg=${tg?.version || 'yo\'q'} platform=${tg?.platform || '?'}`,
+  ].filter(Boolean).join('\n');
+
+  showGate('Ilovada xatolik', detail, true);
+
+  const btn = $('gate-btn');
+  btn.textContent = 'Xato matnini nusxalash';
+  btn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(detail);
+      btn.textContent = 'Nusxalandi ✓';
+    } catch {
+      btn.textContent = 'Nusxalab bo\'lmadi — skrinshot oling';
+    }
+  };
+}
+
+window.addEventListener('error', (e) => showFatal('JS xatosi', e.error || e));
+window.addEventListener('unhandledrejection', (e) => showFatal('Promise xatosi', e.reason));
+
 // ───────────────────────────── API ─────────────────────────────
 
 async function api(path, options = {}) {

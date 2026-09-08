@@ -39,7 +39,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Testlar (initData + Mini App uchdan-uchgacha)
+      - name: Brauzer o'rnatish (render testi uchun)
+        run: npx playwright install --with-deps chromium
+
+      - name: Testlar (initData + uchdan-uchgacha + brauzerda render)
         env:
           BOT_TOKEN: "1:CI_PLACEHOLDER"
           ADMIN_IDS: "1"
@@ -48,6 +51,7 @@ jobs:
           DATABASE_URL: postgresql://hozirol:hozirol@localhost:5432/hozirol_ci
           BOT_MODE: polling
           LOG_REQUESTS: "false"
+          CHROMIUM_PATH: ""
         run: npm test
 
       - name: Migratsiyalar toza bazada qo'llanadimi

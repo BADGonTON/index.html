@@ -15,7 +15,7 @@
     "dev": "tsx watch src/index.ts",
     "migrate": "tsx src/db/migrate.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx test/initdata.test.ts && tsx test/tma-e2e.test.ts"
+    "test": "tsx test/initdata.test.ts && tsx test/tma-e2e.test.ts && tsx test/render.test.ts"
   },
   "dependencies": {
     "@grammyjs/runner": "^2.0.3",
@@ -38,6 +38,7 @@
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "@telegram-apps/init-data-node": "^2.0.10"
+    "@telegram-apps/init-data-node": "^2.0.10",
+    "playwright": "^1.49.0"
   }
 }

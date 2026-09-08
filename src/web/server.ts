@@ -1,4 +1,6 @@
 import path from "node:path";
+import fs from "node:fs";
+import crypto from "node:crypto";
 import express, { Express } from "express";
 import compression from "compression";
 import { webhookCallback } from "grammy";
@@ -54,6 +56,23 @@ function requestLogger() {
 
     next();
   };
+}
+
+/**
+ * index.html ni o'qib, `__V__` o'rniga statik fayllar mazmunining hash'ini
+ * qo'yadi. Natija xotirada saqlanadi.
+ */
+function buildIndexHtml(dir: string): string {
+  const html = fs.readFileSync(path.join(dir, "index.html"), "utf-8");
+
+  const hash = crypto.createHash("sha1");
+  for (const file of ["app.js", "styles.css"]) {
+    hash.update(fs.readFileSync(path.join(dir, file)));
+  }
+  const version = hash.digest("hex").slice(0, 10);
+
+  console.log(`📦 Mini App versiyasi: ${version}`);
+  return html.replace(/__V__/g, version);
 }
 
 /** initData dan foydalanuvchi ID'sini oladi — FAQAT jurnal uchun. */
@@ -133,6 +152,15 @@ export function createServer(bot: Bot<MyContext>): Express {
   // ---------------------------------------------------------------------
   const miniappDir = path.join(__dirname, "..", "..", "miniapp");
 
+  // index.html bir marta o'qiladi va `__V__` o'rniga fayllar MAZMUNIDAN
+  // olingan hash qo'yiladi.
+  //
+  // Nega: avval versiya qo'lda (`?v=3`) yozilardi. app.js o'zgarib, raqam
+  // o'zgarmasa — brauzerda 24 soat eski fayl qolib ketardi va yangi HTML
+  // eski JS bilan juftlashib, ilova qora ekran bo'lib qolardi. Endi mazmun
+  // o'zgarsa manzil ham o'zgaradi, ya'ni bunday juftlik umuman bo'lmaydi.
+  const indexHtml = buildIndexHtml(miniappDir);
+
   app.use(
     "/app",
     express.static(miniappDir, {
@@ -161,7 +189,7 @@ export function createServer(bot: Bot<MyContext>): Express {
   // beramiz.
   app.get(["/app", "/app/*"], (_req, res) => {
     res.setHeader("Cache-Control", "no-cache");
-    res.sendFile(path.join(miniappDir, "index.html"));
+    res.type("html").send(indexHtml);
   });
 
   app.get("/", (_req, res) => res.redirect("/app"));
