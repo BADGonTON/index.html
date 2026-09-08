@@ -26,6 +26,12 @@ const ICON: Record<CheckLevel, string> = { ok: "✅", warn: "⚠️", fail: "❌
 /** Telegram Mini App'ni iframe'da ochadigan klientlar (Web / Desktop). */
 const BLOCKING_HEADERS = ["x-frame-options"];
 
+/** Shu process qachon ishga tushgan (ms). */
+const PROCESS_STARTED_AT = Date.now() - Math.round(process.uptime() * 1000);
+
+/** Bundan eski xato "o'tib ketgan" hisoblanadi (navbat bo'sh bo'lsa). */
+const STALE_ERROR_MS = 10 * 60 * 1000;
+
 async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
@@ -196,16 +202,57 @@ async function checkWebhook(api: Api): Promise<CheckResult[]> {
       });
     }
 
+    // Telegram oxirgi xatoni YOPISHQOQ saqlaydi: u qachon bo'lganidan qat'i
+    // nazar `getWebhookInfo` da turaveradi. Shuning uchun xatoning o'zi emas,
+    // uning VAQTI muhim:
+    //   • bot qayta ishga tushishidan oldin bo'lgan bo'lsa — restart paytidagi
+    //     tabiiy 502, muammo emas;
+    //   • eski bo'lsa va navbat bo'sh bo'lsa — o'tib ketgan;
+    //   • yangi bo'lsa — haqiqiy muammo.
     if (info.last_error_message) {
-      const when = info.last_error_date
-        ? new Date(info.last_error_date * 1000).toLocaleString("ru-RU")
-        : "";
-      results.push({
-        name: "Webhook xatosi",
-        level: "fail",
-        detail: `${info.last_error_message}${when ? ` (${when})` : ""}`,
-        fix: "Telegram serveringizga ulana olmayapti — SSL sertifikat va nginx'ni tekshiring",
-      });
+      const at = (info.last_error_date ?? 0) * 1000;
+      const when = at ? new Date(at).toLocaleString("ru-RU") : "";
+      const pending = info.pending_update_count ?? 0;
+      const age = Date.now() - at;
+
+      const beforeRestart = at > 0 && at < PROCESS_STARTED_AT;
+      const passed = age > STALE_ERROR_MS && pending === 0;
+
+      // Navbat to'lib turgan bo'lsa — vaqt belgilaridan qat'i nazar, webhook
+      // AYNAN HOZIR ishlamayapti. Bu eng ishonchli signal: xato eski bo'lishi
+      // mumkin, lekin qayta ishlanmagan xabarlar to'planib borayotgani yangi.
+      if (pending > 20) {
+        results.push({
+          name: "Webhook xatosi",
+          level: "fail",
+          detail: `${info.last_error_message} — navbatda ${pending} ta xabar to'planib qoldi`,
+          fix: "Webhook hozir ham ishlamayapti. pm2 status va nginx loglarini tekshiring",
+        });
+      } else if (beforeRestart) {
+        results.push({
+          name: "Webhook xatosi (eski)",
+          level: "warn",
+          detail: `${info.last_error_message} — ${when}, bot qayta ishga tushishidan oldin`,
+          fix: "Bu restart paytidagi tabiiy xato. Webhook hozir ishlayapti — pastdagi qatorga qarang",
+        });
+      } else if (passed) {
+        results.push({
+          name: "Webhook xatosi (o'tgan)",
+          level: "warn",
+          detail: `${info.last_error_message} — ${when}, o'shandan beri navbat bo'sh`,
+        });
+      } else {
+        results.push({
+          name: "Webhook xatosi",
+          level: "fail",
+          detail: `${info.last_error_message}${when ? ` (${when})` : ""}`,
+          fix:
+            info.last_error_message.includes("502") ||
+            info.last_error_message.includes("Bad Gateway")
+              ? "nginx botga ulana olmayapti — bot ishlayaptimi (pm2 status) va PORT to'g'rimi?"
+              : "SSL sertifikat va nginx sozlamasini tekshiring",
+        });
+      }
     }
 
     if ((info.pending_update_count ?? 0) > 50) {
@@ -228,6 +275,60 @@ async function checkWebhook(api: Api): Promise<CheckResult[]> {
   }
 
   return results;
+}
+
+/**
+ * Webhook manzilining O'ZI hozir tirikmi?
+ *
+ * `getWebhookInfo` faqat o'tmishdagi xatoni ko'rsatadi, hozirgi holatni emas.
+ * Shuning uchun webhook yo'liga o'zimiz murojaat qilamiz — MAXFIY SARLAVHASIZ.
+ * grammY bunday so'rovni rad etadi (401), ya'ni:
+ *
+ *   401 → nginx botga yetib boryapti, yo'l tirik (soxta yangilanish o'tmaydi)
+ *   502 → nginx botga ulana olmayapti — muammo AYNAN HOZIR bor
+ *
+ * Bu tekshiruv botga hech qanday soxta xabar yubormaydi.
+ */
+async function checkWebhookPathAlive(): Promise<CheckResult> {
+  const url = `${config.publicUrl}/tg/${config.webhookSecret}`;
+  try {
+    const res = await fetchWithTimeout2(url);
+    if (res.status === 401 || res.status === 403) {
+      return { name: "Webhook yo'li", level: "ok", detail: "hozir tirik va himoyalangan" };
+    }
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      return {
+        name: "Webhook yo'li",
+        level: "fail",
+        detail: `HTTP ${res.status} — nginx botga ulana olmayapti (muammo hozir ham bor)`,
+        fix: "pm2 status bilan bot ishlayotganini va PORT nginx'dagi bilan bir xilligini tekshiring",
+      };
+    }
+    return { name: "Webhook yo'li", level: "warn", detail: `kutilmagan javob: HTTP ${res.status}` };
+  } catch (err) {
+    return {
+      name: "Webhook yo'li",
+      level: "fail",
+      detail: `ochilmadi: ${(err as Error).message}`,
+      fix: "nginx /tg/ yo'lini ham botga uzatyaptimi?",
+    };
+  }
+}
+
+/** POST so'rovi uchun (yuqoridagi tekshiruv). */
+async function fetchWithTimeout2(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    return await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -261,14 +362,22 @@ async function checkMenuButton(api: Api): Promise<CheckResult> {
 export async function runTelegramChecks(api: Api): Promise<CheckResult[]> {
   const results: CheckResult[] = [checkPublicUrl()];
 
-  const [webhook, menu, miniApp, apiCheck] = await Promise.all([
+  // Webhook yo'lining tirikligi `getWebhookInfo` dan MUSTAQIL tekshiriladi:
+  // Telegram API ochilmagan bo'lsa ham, nginx→bot yo'li ishlayaptimi degan
+  // savolga javob kerak.
+  const needsWebhookPath = config.botMode === "webhook" && Boolean(config.publicUrl);
+
+  const [webhook, menu, miniApp, apiCheck, webhookPath] = await Promise.all([
     checkWebhook(api),
     checkMenuButton(api),
     checkMiniAppReachable(),
     checkApiReachable(),
+    needsWebhookPath ? checkWebhookPathAlive() : Promise.resolve(null),
   ]);
 
-  results.push(...webhook, menu, ...miniApp, apiCheck);
+  results.push(...webhook);
+  if (webhookPath) results.push(webhookPath);
+  results.push(menu, ...miniApp, apiCheck);
   return results;
 }
 
