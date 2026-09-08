@@ -98,8 +98,43 @@ src/
     sweeper.ts            muddati o'tganlarni tozalash
 
 miniapp/                  Mini App (build kerak emas — sof HTML/CSS/JS)
-  index.html  styles.css  app.js
+  index.html                ikonka sprite'i shu faylga joylashtirilgan
+  styles.css  app.js
 ```
+
+**Ikonkalar:** [Solar](https://www.figma.com/community/file/1166831539721848736)
+(480 Design), CC BY 4.0 — svgrepo.com aynan shu to'plamni tarqatadi. Barchasi
+`index.html` ichiga SVG sprite sifatida joylashtirilgan, ya'ni ikonkalar uchun
+alohida so'rov ketmaydi.
+
+---
+
+## Telegram bilan bog'lanish
+
+Mini App ochilmasligining sabablari deyarli har doim sozlamada bo'ladi, kodda
+emas. Shuning uchun bot **ishga tushganda avtomatik tekshiradi** va aniq xabar
+beradi; istalgan vaqtda botda `/diag` buyrug'i bilan qayta tekshirasiz.
+
+| Tekshiruv | Nega muhim |
+|---|---|
+| `PUBLIC_URL` https ekanligi | Telegram http:// manzilni umuman ochmaydi |
+| Webhook holati va oxirgi xatosi | Telegram serveringizga ulana olyaptimi |
+| Navbatdagi xabarlar soni | 50 dan oshsa — bot to'xtagan yoki sekin |
+| **Mini App sahifasi tashqaridan ochiladimi** | nginx, SSL va marshrutni birdaniga tekshiradi |
+| **`X-Frame-Options` yo'qligi** | Bu sarlavha bo'lsa Telegram **Web/Desktop**'da ilova ochilmaydi, telefonda esa ishlayveradi — shuning uchun sezish qiyin |
+| CSP `frame-ancestors` | yuqoridagining ikkinchi ko'rinishi |
+| `/api/bootstrap` javob beradimi | nginx `/api/` ni ham uzatyaptimi |
+| Menyu tugmasi | xabar maydoni yonidagi doimiy tugma |
+
+Bot ishga tushganda menyu tugmasini o'zi o'rnatadi (`setChatMenuButton`) — ya'ni
+foydalanuvchi Mini App'ni ikki joydan ocha oladi: `/start` dagi tugmadan va
+xabar maydoni yonidagi doimiy tugmadan.
+
+Mini App tomonida ham:
+
+- Telegramdan tashqarida ochilsa — "Avtorizatsiya xatosi" o'rniga
+  **"Ilovani Telegram orqali oching"** deb tushuntiradi.
+- Seans muddati tugasa (`INITDATA_MAX_AGE_SEC`) — qayta ochishni taklif qiladi.
 
 ---
 
@@ -177,6 +212,8 @@ Botda `/admin`:
 - 📱 Telegram akkaunt qo'shish / statistikasi
 - 🖼 **Arenda statistikasi** (faol ijaralar, navbat, katalog holati)
 - 📢 Broadcast
+
+Alohida buyruq: `/diag` — Telegram bog'lanishi diagnostikasi.
 
 ---
 

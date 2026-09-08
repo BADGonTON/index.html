@@ -45,6 +45,7 @@ import {
 } from "../../services/pricing";
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
+import { runTelegramChecks, formatChecksForTelegram } from "../../services/telegramCheck";
 
 /** Broadcast: Telegram soniyasiga ~30 xabarga ruxsat beradi. 25/s xavfsiz tezlik. */
 const BROADCAST_BATCH = 25;
@@ -85,6 +86,20 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
     ctx.session.step = undefined;
     ctx.session.data = {};
     await renderAdminPanel(ctx);
+  });
+
+  // Telegram bog'lanishi bo'yicha to'liq diagnostika.
+  // Mini App ochilmasa — birinchi navbatda shu buyruq ishlatiladi.
+  bot.command("diag", async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) return;
+    const waiting = await ctx.reply("🔧 Tekshirilmoqda...");
+    const results = await runTelegramChecks(ctx.api);
+    await ctx.api
+      .editMessageText(ctx.chat!.id, waiting.message_id, formatChecksForTelegram(results), {
+        parse_mode: "HTML",
+        link_preview_options: { is_disabled: true },
+      })
+      .catch(() => ctx.reply(formatChecksForTelegram(results), { parse_mode: "HTML" }));
   });
 
   bot.callbackQuery(

@@ -101,9 +101,29 @@ function setBusy(button, busy, label) {
   }
 }
 
-// ───────────────────────────── API ─────────────────────────────
+// ───────────────────────────── Telegram bilan bog'lanish ─────────────────────────────
 
 const initData = tg?.initData || '';
+
+/**
+ * Ilova Telegram ichida ochilganmi?
+ *
+ * `initData` bo'sh bo'lsa — sahifa oddiy brauzerda ochilgan. Bunda oldin
+ * "Avtorizatsiya xatosi" degan tushunarsiz yozuv chiqardi; endi nima
+ * qilish kerakligi aniq aytiladi.
+ */
+const insideTelegram = Boolean(tg && initData);
+
+function showGate(title, text, retry = false) {
+  $('gate-title').textContent = title;
+  $('gate-text').textContent = text;
+  $('gate-btn').hidden = !retry;
+  $('gate').hidden = false;
+  $('app').hidden = true;
+  $('splash')?.classList.add('is-done');
+}
+
+// ───────────────────────────── API ─────────────────────────────
 
 async function api(path, options = {}) {
   const res = await fetch(`/api${path}`, {
@@ -119,6 +139,15 @@ async function api(path, options = {}) {
   try { data = await res.json(); } catch { /* bo'sh javob */ }
 
   if (!res.ok) {
+    // Seans muddati tugagan bo'lsa, boshqa har qanday so'rov ham ishlamaydi —
+    // foydalanuvchini bir marta ogohlantirib, qayta ochishni taklif qilamiz.
+    if (res.status === 401 && data.reason === 'expired') {
+      showGate(
+        'Seans muddati tugadi',
+        'Ilovani yopib, botdagi «Gift Arenda» tugmasidan qaytadan oching.',
+        true
+      );
+    }
     const err = new Error(data.error || `Xatolik (${res.status})`);
     err.status = res.status;
     err.payload = data;
@@ -223,10 +252,10 @@ function renderSkeleton(count = 8) {
     </article>`).join('');
 }
 
-function renderEmpty(message, hint) {
+function renderEmpty(message, hint, icon = 'empty-search') {
   $('market-grid').innerHTML = `
     <div class="empty">
-      <div class="empty-ico">${state.catalog.loading ? '⏳' : '🔍'}</div>
+      <svg class="ico ico-lg"><use href="#i-${icon}"/></svg>
       <b>${escapeHtml(message)}</b>
       <span>${escapeHtml(hint)}</span>
     </div>`;
@@ -278,7 +307,8 @@ async function loadGifts({ reset = false } = {}) {
         state.catalog.loading ? 'Katalog yuklanmoqda' : 'Gift topilmadi',
         state.catalog.loading
           ? 'Bir necha daqiqadan keyin qayta oching'
-          : (state.search ? 'Qidiruv shartini o\'zgartiring' : 'Boshqa kolleksiyani tanlang')
+          : (state.search ? 'Qidiruv shartini o\'zgartiring' : 'Boshqa kolleksiyani tanlang'),
+        state.catalog.loading ? 'refresh' : 'empty-search'
       );
     } else {
       appendTiles(page.items);
@@ -286,7 +316,7 @@ async function loadGifts({ reset = false } = {}) {
     }
   } catch (err) {
     if (state.feed.items.length === 0) {
-      renderEmpty('Yuklab bo\'lmadi', err.message);
+      renderEmpty('Yuklab bo\'lmadi', err.message, 'empty-net');
     } else {
       toast(err.message, 'error');
     }
@@ -323,10 +353,9 @@ function appendTiles(items) {
 function updateCounter() {
   const note = $('stale-note');
   if (state.catalog.loading) {
+    $('stale-text').textContent =
+      `Katalog to'lmoqda — hozircha ${fmtNum(state.feed.total)} ta gift mavjud.`;
     note.hidden = false;
-    note.textContent =
-      `Katalog hali to'lmoqda — hozircha ${fmtNum(state.feed.total)} ta gift mavjud. ` +
-      `Bir necha daqiqada to'liq bo'ladi.`;
   } else {
     note.hidden = true;
   }
@@ -474,7 +503,7 @@ function renderMine() {
   if (state.rentals.length === 0) {
     list.innerHTML = `
       <div class="empty">
-        <div class="empty-ico">🎁</div>
+        <svg class="ico ico-lg"><use href="#i-empty-gift"/></svg>
         <b>Hozircha gift yo'q</b>
         <span>Market bo'limidan birinchi giftingizni ijaraga oling</span>
       </div>`;
@@ -527,14 +556,16 @@ function renderMine() {
       const linkBtn = document.createElement('button');
       linkBtn.type = 'button';
       linkBtn.className = rental.status === 'pending_link' ? 'btn btn-primary' : 'btn btn-ghost';
-      linkBtn.textContent = rental.is_linked ? 'Profilni qayta ulash' : 'Profilga ulash';
+      linkBtn.innerHTML =
+        '<svg class="ico"><use href="#i-link"/></svg>' +
+        (rental.is_linked ? 'Qayta ulash' : 'Profilga ulash');
       linkBtn.addEventListener('click', () => openLink(rental));
       actions.appendChild(linkBtn);
 
       const extendBtn = document.createElement('button');
       extendBtn.type = 'button';
       extendBtn.className = rental.status === 'linked' ? 'btn btn-primary' : 'btn btn-ghost';
-      extendBtn.textContent = 'Uzaytirish';
+      extendBtn.innerHTML = '<svg class="ico"><use href="#i-extend"/></svg>Uzaytirish';
       extendBtn.addEventListener('click', () => openExtend(rental));
       actions.appendChild(extendBtn);
     }
@@ -825,9 +856,11 @@ function bindEvents() {
     }
   });
 
+  // Balansni to'ldirish faqat botda bo'ladi — ilova shunchaki botga qaytaradi.
   $('topup-btn').addEventListener('click', () => {
-    toast('Botdagi «💰 Balans → 💳 To\'lov» bo\'limiga o\'ting');
-    setTimeout(() => tg?.close?.(), 1400);
+    haptic('light');
+    if (tg?.close) tg.close();
+    else toast('Botdagi «💰 Balans → 💳 To\'lov» bo\'limiga o\'ting');
   });
 
   // Pastga tushganda keyingi sahifani so'raymiz
@@ -869,8 +902,6 @@ function applyBootstrap(data) {
     avatar.textContent = name.slice(0, 1).toUpperCase();
   }
 
-  if (state.settings.support_url) $('support-link').href = state.settings.support_url;
-
   renderBalancePill();
   renderBalance();
   updateMineBadge();
@@ -879,12 +910,25 @@ function applyBootstrap(data) {
 }
 
 async function init() {
+  // Telegram SDK bilan aloqa. Har bir chaqiruv `?.` bilan — eski Telegram
+  // versiyalarida ba'zi metodlar bo'lmaydi va ular yo'qligi ilovani
+  // yiqitmasligi kerak.
   if (tg) {
-    tg.ready();
-    tg.expand();
+    tg.ready?.();
+    tg.expand?.();
     tg.setHeaderColor?.('secondary_bg_color');
     tg.disableVerticalSwipes?.();
   }
+
+  if (!insideTelegram) {
+    showGate(
+      'Ilovani Telegram orqali oching',
+      'Bu sahifa Telegram ichida ishlaydi. Botga o\'ting va «Gift Arenda» tugmasini bosing.'
+    );
+    return;
+  }
+
+  $('gate-btn').addEventListener('click', () => location.reload());
 
   bindEvents();
   renderSkeleton();
@@ -894,11 +938,21 @@ async function init() {
     applyBootstrap(data);
     await loadGifts({ reset: true });
   } catch (err) {
-    renderEmpty('Yuklab bo\'lmadi', err.message);
+    if (err.status === 401 && err.payload?.reason !== 'expired') {
+      showGate(
+        'Kirish tasdiqlanmadi',
+        'Ilovani yopib, botdan qaytadan oching. Muammo takrorlansa — support bilan bog\'laning.',
+        true
+      );
+      return;
+    }
+    if (err.status !== 401) renderEmpty('Yuklab bo\'lmadi', err.message, 'empty-net');
   } finally {
-    $('app').hidden = false;
-    $('splash').classList.add('is-done');
-    setTimeout(() => $('splash')?.remove(), 400);
+    if ($('gate').hidden) {
+      $('app').hidden = false;
+      $('splash').classList.add('is-done');
+      setTimeout(() => $('splash')?.remove(), 400);
+    }
   }
 }
 

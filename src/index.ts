@@ -12,6 +12,7 @@ import { startTxWorker, stopTxWorker, recoverStuckTxs } from "./worker/txWorker"
 import { startRentWorker, stopRentWorker } from "./worker/rentWorker";
 import { startSweeper, stopSweeper } from "./worker/sweeper";
 import { getWalletAddress } from "./services/wallet";
+import { reportTelegramChecks, installMenuButton } from "./services/telegramCheck";
 
 /**
  * Butun platformaning kirish nuqtasi.
@@ -67,6 +68,10 @@ async function main(): Promise<void> {
     { command: "start", description: "Botni ishga tushirish" },
   ]);
 
+  // Xabar maydoni yonidagi doimiy "Gift Arenda" tugmasi — ko'pchilik
+  // Mini App'ni aynan shu yerdan qidiradi.
+  await installMenuButton(bot.api);
+
   let runner: RunnerHandle | null = null;
 
   if (config.botMode === "webhook") {
@@ -93,7 +98,14 @@ async function main(): Promise<void> {
     console.log("✅ Long polling ishga tushdi (parallel)");
   }
 
-  console.log("\n🎉 Hammasi tayyor!\n");
+  // Telegram bilan bog'lanishni tekshiramiz: webhook, menyu tugmasi va
+  // Mini App sahifasining TASHQARIDAN ochilishi. Muammolar shu yerda
+  // aniq ko'rinadi — keyinroq "nega ochilmayapti?" deb qidirmaslik uchun.
+  await reportTelegramChecks(bot.api).catch((err) =>
+    console.warn("Diagnostikani bajarib bo'lmadi:", err.message)
+  );
+
+  console.log("🎉 Hammasi tayyor!\n");
 
   // ---------------------------------------------------------------------
   //  To'g'ri o'chirish (graceful shutdown)

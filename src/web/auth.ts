@@ -39,12 +39,25 @@ function safeEqualHex(a: string, b: string): boolean {
   }
 }
 
-export function verifyInitData(initData: string): TelegramUser | null {
-  if (!initData) return null;
+export type AuthFailure = "missing" | "invalid" | "expired";
+
+export interface VerifyResult {
+  user: TelegramUser | null;
+  reason?: AuthFailure;
+}
+
+/**
+ * Xatoning SABABINI ham qaytaradi — Mini App shunga qarab to'g'ri
+ * xabar ko'rsatadi: "Telegram orqali oching" yoki "ilovani qayta oching".
+ * Ikkalasi ham 401 bo'lgani uchun foydalanuvchi avval nima bo'lganini
+ * tushunmasdi.
+ */
+export function verifyInitDataDetailed(initData: string): VerifyResult {
+  if (!initData) return { user: null, reason: "missing" };
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
-  if (!hash) return null;
+  if (!hash) return { user: null, reason: "missing" };
   params.delete("hash");
   // `signature` maydoni (Telegram'ning uchinchi tomon validatsiyasi uchun)
   // data-check-string ga KIRMAYDI.
@@ -56,21 +69,27 @@ export function verifyInitData(initData: string): TelegramUser | null {
     .join("\n");
 
   const computed = crypto.createHmac("sha256", secretKey()).update(dataCheckString).digest("hex");
-  if (!safeEqualHex(computed, hash)) return null;
+  if (!safeEqualHex(computed, hash)) return { user: null, reason: "invalid" };
 
   // Eskirgan initData qabul qilinmaydi (o'g'irlangan havola cheksiz ishlamasin).
   const authDate = Number(params.get("auth_date") ?? 0);
-  if (!authDate || Date.now() / 1000 - authDate > config.initDataMaxAgeSec) return null;
+  if (!authDate || Date.now() / 1000 - authDate > config.initDataMaxAgeSec) {
+    return { user: null, reason: "expired" };
+  }
 
   const userRaw = params.get("user");
-  if (!userRaw) return null;
+  if (!userRaw) return { user: null, reason: "invalid" };
 
   try {
     const user = JSON.parse(userRaw) as TelegramUser;
-    return typeof user?.id === "number" ? user : null;
+    return typeof user?.id === "number" ? { user } : { user: null, reason: "invalid" };
   } catch {
-    return null;
+    return { user: null, reason: "invalid" };
   }
+}
+
+export function verifyInitData(initData: string): TelegramUser | null {
+  return verifyInitDataDetailed(initData).user;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,9 +113,15 @@ export function requireTelegramAuth(req: Request, res: Response, next: NextFunct
   const header = req.header("Authorization") ?? "";
   const initData = header.startsWith("tma ") ? header.slice(4) : header;
 
-  const user = verifyInitData(initData);
+  const { user, reason } = verifyInitDataDetailed(initData);
   if (!user) {
-    res.status(401).json({ error: "Avtorizatsiya xatosi. Ilovani Telegram orqali oching." });
+    const message =
+      reason === "missing"
+        ? "Ilovani Telegram orqali oching."
+        : reason === "expired"
+          ? "Seans muddati tugadi — ilovani qaytadan oching."
+          : "Avtorizatsiya tekshiruvidan o'tmadi.";
+    res.status(401).json({ error: message, reason });
     return;
   }
 

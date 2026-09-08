@@ -3,36 +3,78 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<meta name="theme-color" content="#07080c" />
-<title>Gift Arenda — HozirOL</title>
+<meta name="theme-color" content="#0A0910" />
+<title>Gift Arenda</title>
 <link rel="preconnect" href="https://nft.fragment.com" crossorigin />
-<link rel="dns-prefetch" href="https://nft.fragment.com" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="stylesheet" href="styles.css?v=2" />
+<link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
 
-<!-- ══════════════ Yuklanish ekrani ══════════════ -->
+<!--
+  Ikonkalar: Solar (480 Design), CC BY 4.0 — svgrepo.com aynan shu to'plamni
+  tarqatadi. Sprite sifatida bir marta joylashtirilgan: har bir ikonka
+  <svg class="ico"><use href="#i-nom"/></svg> orqali chaqiriladi, ya'ni
+  bir xil ikonka takrorlanganda ham hajm oshmaydi.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-tab-market" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M22 22H2"/><path stroke-linecap="round" d="M20 22V11"/><path stroke-linecap="round" d="M4 22V11"/><path stroke-linejoin="round" d="M16.5278 2H7.47214C6.26932 2 5.66791 2 5.18461 2.2987C4.7013 2.5974 4.43234 3.13531 3.89443 4.21114L2.49081 7.75929C2.16652 8.57905 1.88279 9.54525 2.42867 10.2375C2.79489 10.7019 3.36257 11 3.99991 11C5.10448 11 5.99991 10.1046 5.99991 9C5.99991 10.1046 6.89534 11 7.99991 11C9.10448 11 9.99991 10.1046 9.99991 9C9.99991 10.1046 10.8953 11 11.9999 11C13.1045 11 13.9999 10.1046 13.9999 9C13.9999 10.1046 14.8953 11 15.9999 11C17.1045 11 17.9999 10.1046 17.9999 9C17.9999 10.1046 18.8953 11 19.9999 11C20.6373 11 21.205 10.7019 21.5712 10.2375C22.1171 9.54525 21.8334 8.57905 21.5091 7.75929L20.1055 4.21114C19.5676 3.13531 19.2986 2.5974 18.8153 2.2987C18.332 2 17.7306 2 16.5278 2Z"/><path stroke-linecap="round" d="M9.5 21.5V18.5C9.5 17.5654 9.5 17.0981 9.70096 16.75C9.83261 16.522 10.022 16.3326 10.25 16.201C10.5981 16 11.0654 16 12 16C12.9346 16 13.4019 16 13.75 16.201C13.978 16.3326 14.1674 16.522 14.299 16.75C14.5 17.0981 14.5 17.5654 14.5 18.5V21.5"/></g></symbol>
+  <symbol id="i-tab-market-on" viewBox="0 0 24 24"><g fill="currentColor"><path d="M16.5276 2H7.47201C6.26919 2 5.66778 2 5.18448 2.2987C4.70117 2.5974 4.43221 3.13531 3.8943 4.21114L2.49068 7.75929C2.16639 8.57905 1.88266 9.54525 2.42854 10.2375C2.79476 10.7019 3.36244 11 3.99978 11C5.10435 11 5.99978 10.1046 5.99978 9C5.99978 10.1046 6.89522 11 7.99978 11C9.10435 11 9.99978 10.1046 9.99978 9C9.99978 10.1046 10.8952 11 11.9998 11C13.1044 11 13.9998 10.1046 13.9998 9C13.9998 10.1046 14.8952 11 15.9998 11C17.1044 11 17.9998 10.1046 17.9998 9C17.9998 10.1046 18.8952 11 19.9998 11C20.6371 11 21.2048 10.7019 21.5711 10.2375C22.117 9.54525 21.8333 8.57905 21.509 7.75929L20.1054 4.21114C19.5674 3.13531 19.2985 2.5974 18.8152 2.2987C18.3319 2 17.7305 2 16.5276 2Z"/><path fill-rule="evenodd" d="M20 21.25H22C22.4142 21.25 22.75 21.5858 22.75 22C22.75 22.4142 22.4142 22.75 22 22.75H2C1.58579 22.75 1.25 22.4142 1.25 22C1.25 21.5858 1.58579 21.25 2 21.25H4L4 12.5C4.74363 12.5 5.43309 12.2681 6 11.8727C6.56692 12.2681 7.25638 12.5 8 12.5C8.74363 12.5 9.43309 12.2681 10 11.8727C10.5669 12.2681 11.2564 12.5 12 12.5C12.7436 12.5 13.4331 12.2681 14 11.8727C14.5669 12.2681 15.2564 12.5 16 12.5C16.7436 12.5 17.4331 12.2681 18 11.8727C18.5669 12.2681 19.2564 12.5 20 12.5L20 21.25ZM9.5 21.25H14.5V18.5C14.5 17.5654 14.5 17.0981 14.299 16.75C14.1674 16.522 13.978 16.3326 13.75 16.2009C13.4019 16 12.9346 16 12 16C11.0654 16 10.5981 16 10.25 16.2009C10.022 16.3326 9.83261 16.522 9.70096 16.75C9.5 17.0981 9.5 17.5654 9.5 18.5V21.25Z" clip-rule="evenodd"/></g></symbol>
+  <symbol id="i-tab-gifts" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" d="M22 12H2"/><path stroke-linecap="round" d="M12 2V22"/><path stroke-linecap="round" d="M13 12C13 14.2091 14.7909 16 17 16"/><path stroke-linecap="round" d="M11 12C11 14.2091 9.20914 16 7 16"/><path d="M12 10.0352C12 8.54529 13.014 7.24659 14.4594 6.88524C16.0631 6.48431 17.5158 7.93697 17.1148 9.5407C16.7535 10.9861 15.4548 12.0001 13.9649 12.0001H12V10.0352Z"/><path d="M12.0001 10.0352C12.0001 8.54529 10.9861 7.24659 9.5407 6.88524C7.93698 6.48431 6.48431 7.93697 6.88524 9.5407C7.24659 10.9861 8.54529 12.0001 10.0352 12.0001H12.0001V10.0352Z"/><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z"/></g></symbol>
+  <symbol id="i-tab-gifts-on" viewBox="0 0 24 24"><g fill="currentColor"><path d="M11.2498 2C7.03145 2.00411 4.84888 2.07958 3.46423 3.46423C2.07958 4.84888 2.00411 7.03145 2 11.2498H6.91352C6.56255 10.8114 6.30031 10.2943 6.15731 9.72228C5.61906 7.56926 7.56926 5.61906 9.72228 6.15731C10.2943 6.30031 10.8114 6.56255 11.2498 6.91352V2Z"/><path d="M2 12.7498C2.00411 16.9681 2.07958 19.1506 3.46423 20.5353C4.84888 21.9199 7.03145 21.9954 11.2498 21.9995V14.1234C10.4701 15.6807 8.8598 16.7498 6.99976 16.7498C6.58555 16.7498 6.24976 16.414 6.24976 15.9998C6.24976 15.5856 6.58555 15.2498 6.99976 15.2498C8.53655 15.2498 9.82422 14.1831 10.1628 12.7498H2Z"/><path d="M12.7498 21.9995C16.9681 21.9954 19.1506 21.9199 20.5353 20.5353C21.9199 19.1506 21.9954 16.9681 21.9995 12.7498H13.8367C14.1753 14.1831 15.463 15.2498 16.9998 15.2498C17.414 15.2498 17.7498 15.5856 17.7498 15.9998C17.7498 16.414 17.414 16.7498 16.9998 16.7498C15.1397 16.7498 13.5294 15.6807 12.7498 14.1234V21.9995Z"/><path d="M21.9995 11.2498C21.9954 7.03145 21.9199 4.84888 20.5353 3.46423C19.1506 2.07958 16.9681 2.00411 12.7498 2V6.91352C13.1882 6.56255 13.7053 6.30031 14.2772 6.15731C16.4303 5.61906 18.3805 7.56926 17.8422 9.72228C17.6992 10.2943 17.437 10.8114 17.086 11.2498H21.9995Z"/><path d="M9.35847 7.61252C10.47 7.8904 11.2498 8.88911 11.2498 10.0348V11.2498H10.0348C8.88911 11.2498 7.8904 10.47 7.61252 9.35847C7.34891 8.30403 8.30403 7.34891 9.35847 7.61252Z"/><path d="M12.7498 10.0348V11.2498H13.9647C15.1104 11.2498 16.1091 10.47 16.387 9.35847C16.6506 8.30403 15.6955 7.34891 14.6411 7.61252C13.5295 7.8904 12.7498 8.88911 12.7498 10.0348Z"/></g></symbol>
+  <symbol id="i-tab-balance" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 8H10"/><path d="M20.8333 9H18.2308C16.4465 9 15 10.3431 15 12C15 13.6569 16.4465 15 18.2308 15H20.8333C20.9167 15 20.9583 15 20.9935 14.9979C21.5328 14.965 21.9623 14.5662 21.9977 14.0654C22 14.0327 22 13.994 22 13.9167V10.0833C22 10.006 22 9.96726 21.9977 9.9346C21.9623 9.43384 21.5328 9.03496 20.9935 9.00214C20.9583 9 20.9167 9 20.8333 9Z"/><path d="M20.965 9C20.8873 7.1277 20.6366 5.97975 19.8284 5.17157C18.6569 4 16.7712 4 13 4L10 4C6.22876 4 4.34315 4 3.17157 5.17157C2 6.34315 2 8.22876 2 12C2 15.7712 2 17.6569 3.17157 18.8284C4.34315 20 6.22876 20 10 20H13C16.7712 20 18.6569 20 19.8284 18.8284C20.6366 18.0203 20.8873 16.8723 20.965 15"/><path stroke-linecap="round" stroke-linejoin="round" d="M17.9912 12H18.0002"/></g></symbol>
+  <symbol id="i-tab-balance-on" viewBox="0 0 24 24"><g fill="currentColor" fill-rule="evenodd" clip-rule="evenodd"><path d="M21.1009 8.00353C21.0442 7.99996 20.9825 7.99998 20.9186 8L20.9026 8.00001H18.3941C16.3264 8.00001 14.5572 9.62757 14.5572 11.75C14.5572 13.8724 16.3264 15.5 18.3941 15.5H20.9026L20.9186 15.5C20.9825 15.5 21.0442 15.5001 21.1009 15.4965C21.9408 15.4434 22.6835 14.7862 22.746 13.8682C22.7501 13.808 22.75 13.7431 22.75 13.683L22.75 13.6667V9.83334L22.75 9.81702C22.75 9.75688 22.7501 9.69199 22.746 9.6318C22.6835 8.71381 21.9408 8.05657 21.1009 8.00353ZM18.1717 12.75C18.704 12.75 19.1355 12.3023 19.1355 11.75C19.1355 11.1977 18.704 10.75 18.1717 10.75C17.6394 10.75 17.2078 11.1977 17.2078 11.75C17.2078 12.3023 17.6394 12.75 18.1717 12.75Z"/><path d="M20.9179 17C21.067 16.9961 21.1799 17.1342 21.1394 17.2778C20.9387 17.9902 20.62 18.5975 20.1088 19.1088C19.3604 19.8571 18.4114 20.1892 17.239 20.3469C16.0998 20.5 14.6442 20.5 12.8064 20.5H10.6936C8.85583 20.5 7.40019 20.5 6.26098 20.3469C5.08856 20.1892 4.13961 19.8571 3.39124 19.1088C2.64288 18.3604 2.31076 17.4114 2.15314 16.239C1.99997 15.0998 1.99998 13.6442 2 11.8064V11.6936C1.99998 9.85583 1.99997 8.40019 2.15314 7.26098C2.31076 6.08856 2.64288 5.13961 3.39124 4.39124C4.13961 3.64288 5.08856 3.31076 6.26098 3.15314C7.40019 2.99997 8.85582 2.99998 10.6936 3L12.8064 3C14.6442 2.99998 16.0998 2.99997 17.239 3.15314C18.4114 3.31076 19.3604 3.64288 20.1088 4.39124C20.62 4.90252 20.9386 5.50974 21.1394 6.22218C21.1799 6.36575 21.067 6.50387 20.9179 6.5L18.394 6.50001C15.5574 6.50001 13.0571 8.74091 13.0571 11.75C13.0571 14.7591 15.5574 17 18.394 17L20.9179 17ZM5.75 7C5.33579 7 5 7.33579 5 7.75C5 8.16421 5.33579 8.5 5.75 8.5H9.75C10.1642 8.5 10.5 8.16421 10.5 7.75C10.5 7.33579 10.1642 7 9.75 7H5.75Z"/></g></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path fill="currentColor" d="M20.313 11.157a9.157 9.157 0 1 1-18.313 0a9.157 9.157 0 0 1 18.313 0"/><path fill="currentColor" fill-rule="evenodd" d="M18.838 18.838a.723.723 0 0 1 1.023 0l1.927 1.928a.723.723 0 0 1-1.022 1.022l-1.928-1.927a.723.723 0 0 1 0-1.023" clip-rule="evenodd"/></symbol>
+  <symbol id="i-collections" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.5C2.5 4.29086 4.29086 2.5 6.5 2.5C8.70914 2.5 10.5 4.29086 10.5 6.5C10.5 8.70914 8.70914 10.5 6.5 10.5C4.29086 10.5 2.5 8.70914 2.5 6.5Z"/><path d="M13.5 17.5C13.5 15.2909 15.2909 13.5 17.5 13.5C19.7091 13.5 21.5 15.2909 21.5 17.5C21.5 19.7091 19.7091 21.5 17.5 21.5C15.2909 21.5 13.5 19.7091 13.5 17.5Z"/><path d="M21.5 6.5C21.5 4.61438 21.5 3.67157 20.9142 3.08579C20.3284 2.5 19.3856 2.5 17.5 2.5C15.6144 2.5 14.6716 2.5 14.0858 3.08579C13.5 3.67157 13.5 4.61438 13.5 6.5C13.5 8.38562 13.5 9.32843 14.0858 9.91421C14.6716 10.5 15.6144 10.5 17.5 10.5C19.3856 10.5 20.3284 10.5 20.9142 9.91421C21.5 9.32843 21.5 8.38562 21.5 6.5Z"/><path d="M10.5 17.5C10.5 15.6144 10.5 14.6716 9.91421 14.0858C9.32843 13.5 8.38562 13.5 6.5 13.5C4.61438 13.5 3.67157 13.5 3.08579 14.0858C2.5 14.6716 2.5 15.6144 2.5 17.5C2.5 19.3856 2.5 20.3284 3.08579 20.9142C3.67157 21.5 4.61438 21.5 6.5 21.5C8.38562 21.5 9.32843 21.5 9.91421 20.9142C10.5 20.3284 10.5 19.3856 10.5 17.5Z"/></g></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M16 18L16 6M12 10.125L16 6L20 10.125"/><path d="M8 6L8 18M4 13.875L8 18L12 13.875"/></g></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9L12 15L5 9"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5L15 12L9 19"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 5L9 12L15 19"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM8.96963 8.96965C9.26252 8.67676 9.73739 8.67676 10.0303 8.96965L12 10.9393L13.9696 8.96967C14.2625 8.67678 14.7374 8.67678 15.0303 8.96967C15.3232 9.26256 15.3232 9.73744 15.0303 10.0303L13.0606 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0303 15.0303C9.73742 15.3232 9.26254 15.3232 8.96965 15.0303C8.67676 14.7374 8.67676 14.2625 8.96965 13.9697L10.9393 12L8.96963 10.0303C8.67673 9.73742 8.67673 9.26254 8.96963 8.96965Z" clip-rule="evenodd"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 11C6 8.17157 6 6.75736 6.87868 5.87868C7.75736 5 9.17157 5 12 5H15C17.8284 5 19.2426 5 20.1213 5.87868C21 6.75736 21 8.17157 21 11V16C21 18.8284 21 20.2426 20.1213 21.1213C19.2426 22 17.8284 22 15 22H12C9.17157 22 7.75736 22 6.87868 21.1213C6 20.2426 6 18.8284 6 16V11Z"/><path d="M6 19C4.34315 19 3 17.6569 3 16V10C3 6.22876 3 4.34315 4.17157 3.17157C5.34315 2 7.22876 2 11 2H15C16.6569 2 18 3.34315 18 5"/></g></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22ZM10.6935 15.8458L15.4137 13.059C16.1954 12.5974 16.1954 11.4026 15.4137 10.941L10.6935 8.15419C9.93371 7.70561 9 8.28947 9 9.21316V14.7868C9 15.7105 9.93371 16.2944 10.6935 15.8458Z" clip-rule="evenodd"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.5"><path d="M14.1625 18.4876L13.4417 19.2084C11.053 21.5971 7.18019 21.5971 4.79151 19.2084C2.40283 16.8198 2.40283 12.9469 4.79151 10.5583L5.51236 9.8374"/><path d="M9.8374 14.1625L14.1625 9.8374"/><path d="M9.8374 5.51236L10.5583 4.79151C12.9469 2.40283 16.8198 2.40283 19.2084 4.79151C21.5971 7.18019 21.5971 11.053 19.2084 13.4417L18.4876 14.1625"/></g></symbol>
+  <symbol id="i-extend" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8V12L14.5 14.5"/></g></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12C2 8.22876 2 6.34315 3.17157 5.17157C4.34315 4 6.22876 4 10 4H14C17.7712 4 19.6569 4 20.8284 5.17157C22 6.34315 22 8.22876 22 12V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V12Z"/><path stroke-linecap="round" d="M7 4V2.5"/><path stroke-linecap="round" d="M17 4V2.5"/><path stroke-linecap="round" d="M2.5 9H21.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 13H17.0001"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 13H12.0001"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 13H7.0001"/><path stroke-linecap="round" stroke-linejoin="round" d="M17 17.0234H17.0001"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 17.0234H12.0001"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 17.0234H7.0001"/></g></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M5.31171 10.7615C8.23007 5.58716 9.68925 3 12 3C14.3107 3 15.7699 5.58716 18.6883 10.7615L19.0519 11.4063C21.4771 15.7061 22.6897 17.856 21.5937 19.428C20.4978 21 17.7864 21 12.3637 21H11.6363C6.21356 21 3.50217 21 2.40626 19.428C1.31034 17.856 2.52291 15.7061 4.94805 11.4063L5.31171 10.7615ZM12 7.25C12.4142 7.25 12.75 7.58579 12.75 8V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V8C11.25 7.58579 11.5858 7.25 12 7.25ZM12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" clip-rule="evenodd"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12ZM16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" clip-rule="evenodd"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="M3.67981 13L3.67981 11.3333C3.67981 6.73096 7.4402 3 12.0789 3C15.1178 3 17.7799 4.60136 19.2545 7M2 11.3333L3.67981 13L5.35962 11.3333"/><path d="M20.3139 11V12.6667C20.3139 17.269 16.5391 21 11.8827 21C8.83213 21 6.15995 19.3986 4.67969 17M22.0001 12.6667L20.3139 11L18.6277 12.6667"/></g></symbol>
+  <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M18 15V6H9"/></symbol>
+  <symbol id="i-empty-gift" viewBox="0 0 24 24"><g fill="currentColor"><path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" opacity=".5"/><path fill-rule="evenodd" d="M6.91381 11.25H2.00024C2 11.4932 2 11.7431 2 12C2 12.2569 2 12.5068 2.00024 12.75H9.98737C10.0033 12.7502 10.0193 12.7503 10.0354 12.7503H10.163C9.82428 14.1835 8.53669 15.25 7 15.25C6.58579 15.25 6.25 15.5858 6.25 16C6.25 16.4142 6.58579 16.75 7 16.75C8.86003 16.75 10.4704 15.6809 11.25 14.1236V21.9998C11.4932 22 11.7431 22 12 22C12.2569 22 12.5068 22 12.75 21.9998V14.1236C13.5296 15.6809 15.14 16.75 17 16.75C17.4142 16.75 17.75 16.4142 17.75 16C17.75 15.5858 17.4142 15.25 17 15.25C15.4633 15.25 14.1757 14.1835 13.837 12.7503H13.9649C13.9809 12.7503 13.9969 12.7502 14.0129 12.75H21.9998C22 12.5068 22 12.2569 22 12C22 11.7431 22 11.4932 21.9998 11.25H17.0865C17.4373 10.8117 17.6995 10.2947 17.8425 9.7228C18.3807 7.56979 16.4305 5.61958 14.2775 6.15783C13.7055 6.30083 13.1884 6.56307 12.75 6.91404V2.00024C12.5068 2 12.2569 2 12 2C11.7431 2 11.4932 2 11.25 2.00024V6.91381C10.8117 6.56295 10.2947 6.3008 9.7228 6.15783C7.56979 5.61958 5.61958 7.56979 6.15783 9.7228C6.3008 10.2947 6.56296 10.8117 6.91381 11.25ZM11.25 11.25H9.99743C8.86764 11.233 7.88786 10.4582 7.61305 9.359C7.34943 8.30455 8.30455 7.34943 9.359 7.61305C10.4582 7.88785 11.233 8.86763 11.25 9.99741V11.25ZM14.0029 11.25H12.7503V10.0354L12.7502 10.0056C12.7636 8.87236 13.5394 7.88852 14.6413 7.61305C15.6957 7.34943 16.6509 8.30455 16.3872 9.359C16.1124 10.4582 15.1326 11.233 14.0029 11.25Z" clip-rule="evenodd"/></g></symbol>
+  <symbol id="i-empty-search" viewBox="0 0 24 24"><path fill="currentColor" d="M20.313 11.157a9.157 9.157 0 1 1-18.313 0a9.157 9.157 0 0 1 18.313 0" opacity=".5"/><path fill="currentColor" d="m17.1 18.122l3.666 3.666a.723.723 0 0 0 1.023-1.022L18.122 17.1a9 9 0 0 1-1.022 1.022"/></symbol>
+  <symbol id="i-empty-net" viewBox="0 0 24 24"><g fill="currentColor"><path d="M6.50001 18L6.50001 17.9105C6.49991 17.0449 6.49981 16.2512 6.58661 15.6056C6.6822 14.8946 6.90709 14.1432 7.52514 13.5251C8.14319 12.9071 8.89464 12.6822 9.6056 12.5866C10.2512 12.4998 11.0449 12.4999 11.9105 12.5H12.0895C12.9551 12.4999 13.7488 12.4998 14.3944 12.5866C15.1054 12.6822 15.8568 12.9071 16.4749 13.5251C17.0929 14.1432 17.3178 14.8946 17.4134 15.6056C17.4989 16.2417 17.5001 17.0215 17.5 17.8722C20.0726 17.3221 22 15.0599 22 12.3529C22 9.88113 20.393 7.78024 18.1551 7.01498C17.8371 4.19371 15.4159 2 12.4762 2C9.32028 2 6.7619 4.52827 6.7619 7.64706C6.7619 8.33687 6.88706 8.9978 7.11616 9.60887C6.8475 9.55673 6.56983 9.52941 6.28571 9.52941C3.91878 9.52941 2 11.4256 2 13.7647C2 16.1038 3.91878 18 6.28571 18L6.50001 18Z" opacity=".5"/><path fill-rule="evenodd" d="M12 22C10.1144 22 9.17157 22 8.58579 21.4142C8 20.8284 8 19.8856 8 18C8 16.1144 8 15.1716 8.58579 14.5858C9.17157 14 10.1144 14 12 14C13.8856 14 14.8284 14 15.4142 14.5858C16 15.1716 16 16.1144 16 18C16 19.8856 16 20.8284 15.4142 21.4142C14.8284 22 13.8856 22 12 22ZM10.6936 15.7508C10.4333 15.4905 10.0112 15.4905 9.75082 15.7508C9.49047 16.0112 9.49047 16.4333 9.75082 16.6936L11.0572 18L9.75082 19.3064C9.49047 19.5667 9.49047 19.9888 9.75082 20.2492C10.0112 20.5095 10.4333 20.5095 10.6936 20.2492L12 18.9428L13.3064 20.2492C13.5667 20.5095 13.9888 20.5095 14.2492 20.2492C14.5095 19.9888 14.5095 19.5667 14.2492 19.3064L12.9428 18L14.2492 16.6936C14.5095 16.4333 14.5095 16.0112 14.2492 15.7508C13.9888 15.4905 13.5667 15.4905 13.3064 15.7508L12 17.0572L10.6936 15.7508Z" clip-rule="evenodd"/></g></symbol>
+  <symbol id="i-wallet-big" viewBox="0 0 24 24"><g fill="currentColor"><path d="M4.8916 9.61431C4.8916 9.21193 5.21525 8.88574 5.61449 8.88574H9.46991C9.86916 8.88574 10.1928 9.21193 10.1928 9.61431C10.1928 10.0167 9.86916 10.3429 9.46991 10.3429H5.61449C5.21525 10.3429 4.8916 10.0167 4.8916 9.61431Z"/><path fill-rule="evenodd" d="M21.1884 10.0038C21.1262 9.99995 21.0584 9.99998 20.9881 10L20.9706 10H18.2149C15.9435 10 14 11.7361 14 14C14 16.2639 15.9435 18 18.2149 18H20.9706L20.9881 18C21.0584 18 21.1262 18 21.1884 17.9962C22.111 17.9397 22.927 17.2386 22.9956 16.2594C23.0001 16.1952 23 16.126 23 16.0619L23 16.0444V11.9556L23 11.9381C23 11.874 23.0001 11.8048 22.9956 11.7406C22.927 10.7614 22.111 10.0603 21.1884 10.0038ZM17.9706 15.0667C18.5554 15.0667 19.0294 14.5891 19.0294 14C19.0294 13.4109 18.5554 12.9333 17.9706 12.9333C17.3858 12.9333 16.9118 13.4109 16.9118 14C16.9118 14.5891 17.3858 15.0667 17.9706 15.0667Z" clip-rule="evenodd"/><path d="M21.1394 10.0015C21.1394 8.82091 21.0965 7.55447 20.3418 6.64658C20.2689 6.55894 20.1914 6.47384 20.1088 6.39124C19.3604 5.64288 18.4114 5.31076 17.239 5.15314C16.0998 4.99997 14.6442 4.99999 12.8064 5H10.6936C8.85583 4.99999 7.40019 4.99997 6.26098 5.15314C5.08856 5.31076 4.13961 5.64288 3.39124 6.39124C2.64288 7.13961 2.31076 8.08856 2.15314 9.26098C1.99997 10.4002 1.99999 11.8558 2 13.6936V13.8064C1.99999 15.6442 1.99997 17.0998 2.15314 18.239C2.31076 19.4114 2.64288 20.3604 3.39124 21.1088C4.13961 21.8571 5.08856 22.1892 6.26098 22.3469C7.40018 22.5 8.8558 22.5 10.6935 22.5H12.8064C14.6442 22.5 16.0998 22.5 17.239 22.3469C18.4114 22.1892 19.3604 21.8571 20.1088 21.1088C20.3133 20.9042 20.487 20.6844 20.6346 20.4486C21.0851 19.7291 21.1394 18.8473 21.1394 17.9985C21.0912 18 21.0404 18 20.9882 18L18.2149 18C15.9435 18 14 16.2639 14 14C14 11.7361 15.9435 10 18.2149 10L20.9881 10C21.0403 9.99999 21.0912 9.99997 21.1394 10.0015Z" opacity=".5"/><path d="M10.1013 2.57211L7.99988 3.99253L6.2666 5.15237C7.40496 4.99997 8.8588 4.99999 10.6935 5H12.8063C14.6441 4.99998 16.0997 4.99997 17.2389 5.15314C17.4681 5.18394 17.6887 5.22142 17.9009 5.26737L15.9999 4L13.8874 2.57211C12.7588 1.8093 11.2299 1.8093 10.1013 2.57211Z"/></g></symbol>
+  <symbol id="i-price-tag" viewBox="0 0 24 24"><g fill="currentColor"><path d="M17.9665 6.55812L16.1369 4.72848L16.1369 4.72848C14.5913 3.18295 13.8186 2.41018 12.816 2.12264C11.8134 1.83509 10.7485 2.08083 8.61875 2.57231L7.39057 2.85574C5.5988 3.26922 4.70292 3.47597 4.08944 4.08944C3.47597 4.70292 3.26922 5.5988 2.85574 7.39057L2.85574 7.39057L2.57231 8.61875C2.08083 10.7485 1.83509 11.8134 2.12264 12.816C2.41018 13.8186 3.18295 14.5914 4.72848 16.1369L6.55812 17.9665L6.55813 17.9665C9.24711 20.6555 10.5916 22 12.2623 22C13.933 22 15.2775 20.6555 17.9665 17.9665L17.9665 17.9665L17.9665 17.9665C20.6555 15.2775 22 13.933 22 12.2623C22 10.5916 20.6555 9.24711 17.9665 6.55813L17.9665 6.55812Z" opacity=".5"/><path d="M11.1469 14.3284C10.4739 13.6555 10.4796 12.6899 10.882 11.9247C10.6809 11.6325 10.7103 11.2295 10.9701 10.9697C11.2289 10.7108 11.63 10.6807 11.9219 10.8795C12.2617 10.6988 12.6351 10.6033 13.0073 10.6068C13.4215 10.6107 13.7541 10.9497 13.7502 11.3639C13.7462 11.7781 13.4073 12.1107 12.9931 12.1068C12.8162 12.1051 12.5837 12.1845 12.3843 12.3839C11.9968 12.7714 12.0987 13.1589 12.2075 13.2678C12.3164 13.3766 12.7039 13.4785 13.0914 13.091C13.8754 12.307 15.2291 12.0467 16.0966 12.9142C16.7696 13.5872 16.7639 14.5528 16.3614 15.318C16.5625 15.6102 16.5332 16.0132 16.2734 16.273C16.0145 16.5319 15.6133 16.5619 15.3214 16.3631C14.8645 16.6059 14.3448 16.6969 13.8492 16.595C13.4435 16.5117 13.1822 16.1152 13.2655 15.7094C13.3489 15.3037 13.7454 15.0424 14.1512 15.1257C14.3283 15.1622 14.6139 15.104 14.8592 14.8588C15.2467 14.4712 15.1448 14.0837 15.0359 13.9749C14.9271 13.866 14.5396 13.7641 14.1521 14.1517C13.368 14.9357 12.0143 15.1959 11.1469 14.3284Z"/><path d="M10.0211 10.2931C10.8022 9.51207 10.8022 8.24574 10.0211 7.46469C9.2401 6.68364 7.97377 6.68364 7.19272 7.46469C6.41167 8.24574 6.41167 9.51207 7.19272 10.2931C7.97377 11.0742 9.2401 11.0742 10.0211 10.2931Z"/></g></symbol>
+</svg>
+
+<!-- ══════════════ Yuklanish ══════════════ -->
 <div id="splash" class="splash">
-  <div class="splash-logo">
+  <div class="splash-mark">
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 2L2 8.5 12 22 22 8.5 12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-      <path d="M12 2v20M2 8.5h20" stroke="currentColor" stroke-width="1.2" opacity=".45"/>
+      <path d="M12 2.2L2.4 8.4 12 21.8l9.6-13.4L12 2.2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M12 2.2v19.6M2.4 8.4h19.2" stroke="currentColor" stroke-width="1" opacity=".45"/>
     </svg>
   </div>
-  <div class="splash-title">Gift Arenda</div>
+  <div class="splash-name">Gift Arenda</div>
   <div class="splash-bar"><i></i></div>
+</div>
+
+<!-- ══════════════ Telegramdan tashqarida ochilganda ══════════════ -->
+<div id="gate" class="gate" hidden>
+  <svg class="gate-ico"><use href="#i-warning"/></svg>
+  <h2 id="gate-title">Ilovani Telegram orqali oching</h2>
+  <p id="gate-text">Bu sahifa Telegram ilovasi ichida ishlaydi — botdagi «Gift Arenda» tugmasini bosing.</p>
+  <button class="btn btn-primary" id="gate-btn" type="button" hidden>Qayta urinish</button>
 </div>
 
 <!-- ══════════════ Ilova ══════════════ -->
 <div id="app" hidden>
 
-  <!-- ─── Yuqori panel ─── -->
   <header class="topbar">
     <div class="topbar-user">
       <div class="avatar" id="avatar"></div>
       <div class="topbar-meta">
-        <span class="topbar-hello" id="hello">Salom</span>
+        <span class="topbar-hello">Salom</span>
         <span class="topbar-name" id="user-name">—</span>
       </div>
     </div>
@@ -42,7 +84,7 @@
     </button>
   </header>
 
-  <!-- ═══════════ EKRAN: Market ═══════════ -->
+  <!-- ═══════════ Market ═══════════ -->
   <section class="screen is-active" data-screen="market">
     <div class="hero">
       <h1>Gift Arenda</h1>
@@ -51,52 +93,59 @@
 
     <div class="toolbar">
       <button class="chip chip-wide" id="collection-btn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" class="ico"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.7"/></svg>
+        <svg class="ico"><use href="#i-collections"/></svg>
         <span id="collection-label">Barcha kolleksiyalar</span>
-        <svg viewBox="0 0 24 24" fill="none" class="ico chev"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="ico ico-sm chip-chev"><use href="#i-chevron-down"/></svg>
       </button>
       <button class="chip" id="sort-btn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M7 20V4m0 16l-3.5-3.5M7 20l3.5-3.5M17 4v16m0-16l-3.5 3.5M17 4l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg class="ico"><use href="#i-sort"/></svg>
         <span id="sort-label">Arzon</span>
       </button>
     </div>
 
-    <div class="search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div class="search">
+      <svg class="ico"><use href="#i-search"/></svg>
       <input type="search" id="search-input" placeholder="Gift nomi bo'yicha qidirish" autocomplete="off" enterkeyhint="search" />
-      <button class="search-clear" id="search-clear" type="button" hidden aria-label="Tozalash">✕</button>
+      <button class="search-clear" id="search-clear" type="button" hidden aria-label="Tozalash">
+        <svg class="ico ico-sm"><use href="#i-close"/></svg>
+      </button>
     </div>
 
-    <div class="stale-note" id="stale-note" hidden>
-      Katalog vaqtincha yangilanmadi — narxlar biroz eskirgan bo'lishi mumkin.
+    <div class="banner" id="stale-note" hidden>
+      <svg class="ico"><use href="#i-refresh"/></svg>
+      <span id="stale-text"></span>
     </div>
 
     <div class="grid" id="market-grid"></div>
-    <div class="grid-sentinel" id="grid-sentinel"></div>
+    <div class="sentinel" id="grid-sentinel"></div>
   </section>
 
-  <!-- ═══════════ EKRAN: Gift detali ═══════════ -->
+  <!-- ═══════════ Gift detali ═══════════ -->
   <section class="screen" data-screen="detail">
     <div class="detail-hero">
       <div class="detail-img" id="detail-img"></div>
-      <div class="detail-head">
-        <span class="tag" id="detail-collection">—</span>
-        <h2 id="detail-name">—</h2>
-        <div class="detail-rate"><b id="detail-perday">0</b> so'm <span>/ kun</span></div>
+      <span class="tag" id="detail-collection">—</span>
+      <h2 id="detail-name">—</h2>
+      <div class="detail-rate">
+        <svg class="ico ico-sm"><use href="#i-price-tag"/></svg>
+        <b id="detail-perday">0</b> so'm <span>/ kun</span>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-row">
-        <span class="card-label">Ijara muddati</span>
+      <div class="card-head">
+        <span class="card-title">
+          <svg class="ico ico-sm"><use href="#i-calendar"/></svg>
+          Ijara muddati
+        </span>
         <span class="card-value"><b id="days-value">1</b> kun</span>
       </div>
-      <input type="range" class="slider" id="days-slider" min="1" max="30" value="1" />
+      <input type="range" class="slider" id="days-slider" min="1" max="30" value="1" aria-label="Ijara muddati" />
       <div class="slider-legend">
         <span id="days-min">1 kun</span>
         <span id="days-max">30 kun</span>
       </div>
-      <div class="quick-days" id="quick-days"></div>
+      <div class="quick" id="quick-days"></div>
     </div>
 
     <div class="card">
@@ -106,12 +155,12 @@
       <div class="hint" id="detail-hint"></div>
     </div>
 
-    <div class="sticky-action">
+    <div class="sticky">
       <button class="btn btn-primary" id="pay-btn" type="button">To'lov qilish</button>
     </div>
   </section>
 
-  <!-- ═══════════ EKRAN: Mening giftlarim ═══════════ -->
+  <!-- ═══════════ Mening giftlarim ═══════════ -->
   <section class="screen" data-screen="mine">
     <div class="hero">
       <h1>Mening giftlarim</h1>
@@ -120,58 +169,65 @@
     <div id="mine-list" class="mine-list"></div>
   </section>
 
-  <!-- ═══════════ EKRAN: Profilga ulash ═══════════ -->
+  <!-- ═══════════ Profilga ulash ═══════════ -->
   <section class="screen" data-screen="link">
     <div class="hero">
       <h1>Profilga ulash</h1>
-      <p id="link-subtitle">Giftni Telegram profilingizda ko'rsating</p>
+      <p id="link-subtitle">—</p>
     </div>
 
     <div class="card steps">
       <div class="step"><i>1</i><span><b>fragment.com</b> saytiga kiring va <b>TonConnect</b> orqali hamyoningizni ulang</span></div>
       <div class="step"><i>2</i><span>Chiqqan <code>tc://</code> havolasini nusxalang</span></div>
       <div class="step"><i>3</i><span>Havolani pastdagi maydonga joylashtiring va <b>Ulash</b> tugmasini bosing</span></div>
-      <div class="step"><i>4</i><span>Fragment profilida <b>My Assets → Gifts → Display on Telegram</b> ni yoqing</span></div>
+      <div class="step"><i>4</i><span>Fragment'da <b>My Assets → Gifts → Display on Telegram</b> ni yoqing</span></div>
     </div>
 
-    <a class="btn btn-ghost" id="video-btn" target="_blank" rel="noopener" hidden>
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.7"/><path d="M10 8.4v7.2l6-3.6-6-3.6Z" fill="currentColor"/></svg>
+    <a class="btn btn-line" id="video-btn" target="_blank" rel="noopener" hidden>
+      <svg class="ico"><use href="#i-play"/></svg>
       Video qo'llanma
     </a>
 
     <div class="card">
       <label class="field-label" for="tc-input">TonConnect havolasi</label>
       <div class="field">
-        <input type="text" id="tc-input" placeholder="tc://connect?v=2&id=…" autocomplete="off" spellcheck="false" />
-        <button class="field-btn" id="tc-paste" type="button">Qo'yish</button>
+        <input type="text" id="tc-input" placeholder="tc://connect?v=2&amp;id=…" autocomplete="off" spellcheck="false" />
+        <button class="field-btn" id="tc-paste" type="button">
+          <svg class="ico ico-sm"><use href="#i-copy"/></svg>
+          Qo'yish
+        </button>
       </div>
       <div class="hint" id="link-hint"></div>
     </div>
 
-    <div class="sticky-action">
+    <div class="sticky">
       <button class="btn btn-primary" id="link-btn" type="button">Ulash</button>
     </div>
   </section>
 
-  <!-- ═══════════ EKRAN: Uzaytirish ═══════════ -->
+  <!-- ═══════════ Uzaytirish ═══════════ -->
   <section class="screen" data-screen="extend">
     <div class="detail-hero">
       <div class="detail-img" id="extend-img"></div>
-      <div class="detail-head">
-        <span class="tag">Uzaytirish</span>
-        <h2 id="extend-name">—</h2>
-        <div class="detail-rate"><b id="extend-perday">0</b> so'm <span>/ kun</span></div>
+      <span class="tag">Uzaytirish</span>
+      <h2 id="extend-name">—</h2>
+      <div class="detail-rate">
+        <svg class="ico ico-sm"><use href="#i-price-tag"/></svg>
+        <b id="extend-perday">0</b> so'm <span>/ kun</span>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-row">
-        <span class="card-label">Qo'shimcha muddat</span>
+      <div class="card-head">
+        <span class="card-title">
+          <svg class="ico ico-sm"><use href="#i-extend"/></svg>
+          Qo'shimcha muddat
+        </span>
         <span class="card-value"><b id="extend-days-value">1</b> kun</span>
       </div>
-      <input type="range" class="slider" id="extend-slider" min="1" max="30" value="1" />
+      <input type="range" class="slider" id="extend-slider" min="1" max="30" value="1" aria-label="Qo'shimcha muddat" />
       <div class="slider-legend"><span>1 kun</span><span id="extend-max">30 kun</span></div>
-      <div class="quick-days" id="extend-quick"></div>
+      <div class="quick" id="extend-quick"></div>
     </div>
 
     <div class="card">
@@ -179,56 +235,50 @@
       <div class="hint" id="extend-hint"></div>
     </div>
 
-    <div class="sticky-action">
+    <div class="sticky">
       <button class="btn btn-primary" id="extend-btn" type="button">Uzaytirish</button>
     </div>
   </section>
 
-  <!-- ═══════════ EKRAN: Balans ═══════════ -->
+  <!-- ═══════════ Balans ═══════════ -->
   <section class="screen" data-screen="balance">
-    <div class="hero">
-      <h1>Balans</h1>
-      <p>Barcha xizmatlar uchun yagona hisob</p>
+    <div class="wallet">
+      <svg class="wallet-ico"><use href="#i-wallet-big"/></svg>
+      <div class="wallet-label">Joriy balans</div>
+      <div class="wallet-sum"><span id="balance-big">0</span> <i>so'm</i></div>
     </div>
 
-    <div class="balance-card">
-      <div class="balance-card-label">Joriy balans</div>
-      <div class="balance-card-sum"><span id="balance-big">0</span> <i>so'm</i></div>
-      <div class="balance-card-glow"></div>
+    <div class="topup">
+      <p>Balansni to'ldirish uchun botga qayting va <b>«💰 Balans → 💳 To'lov»</b> bo'limini oching.</p>
+      <button class="btn btn-primary" id="topup-btn" type="button">
+        Botga qaytish
+        <svg class="ico"><use href="#i-arrow-up-right"/></svg>
+      </button>
     </div>
-
-    <button class="btn btn-primary" id="topup-btn" type="button">Balansni to'ldirish</button>
-
-    <div class="card info">
-      Balansni botdagi <b>«💰 Balans → 💳 To'lov»</b> bo'limi orqali to'ldirasiz.
-      Bu balans <b>Stars</b>, <b>Premium</b>, <b>Gift</b> va <b>Gift Arenda</b> uchun umumiy.
-    </div>
-
-    <a class="card link-card" id="support-link" target="_blank" rel="noopener">
-      <span>Yordam kerakmi?</span>
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </a>
   </section>
 
-  <!-- ─── Pastki tab bar ─── -->
-  <nav class="tabbar" id="tabbar">
+  <!-- ═══════════ Pastki panel ═══════════ -->
+  <nav class="tabbar">
     <button class="tab is-active" data-tab="market" type="button">
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M4 8l1.6-4h12.8L20 8M4 8v11a1 1 0 001 1h14a1 1 0 001-1V8M4 8h16M9.5 12a2.5 2.5 0 005 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="ico tab-off"><use href="#i-tab-market"/></svg>
+      <svg class="ico tab-on"><use href="#i-tab-market-on"/></svg>
       <span>Market</span>
     </button>
     <button class="tab" data-tab="mine" type="button">
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><rect x="3" y="9" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3 9V8a2 2 0 012-2h14a2 2 0 012 2v1M12 6v14M12 6c-1.3 0-2.3-.9-2.3-2S10.7 2 12 2s2.3.9 2.3 2S13.3 6 12 6Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="ico tab-off"><use href="#i-tab-gifts"/></svg>
+      <svg class="ico tab-on"><use href="#i-tab-gifts-on"/></svg>
       <span>Giftlarim</span>
-      <i class="tab-badge" id="mine-badge" hidden></i>
+      <i class="tab-dot" id="mine-badge" hidden></i>
     </button>
     <button class="tab" data-tab="balance" type="button">
-      <svg viewBox="0 0 24 24" fill="none" class="ico"><path d="M12 2L2 8.5 12 22 22 8.5 12 2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      <svg class="ico tab-off"><use href="#i-tab-balance"/></svg>
+      <svg class="ico tab-on"><use href="#i-tab-balance-on"/></svg>
       <span>Balans</span>
     </button>
   </nav>
 
-  <!-- ─── Kolleksiya tanlash (bottom sheet) ─── -->
-  <div class="sheet-overlay" id="collection-sheet">
+  <!-- ═══════════ Kolleksiya varag'i ═══════════ -->
+  <div class="sheet-bg" id="collection-sheet">
     <div class="sheet">
       <div class="sheet-grab"></div>
       <h3>Kolleksiya</h3>
@@ -236,10 +286,9 @@
     </div>
   </div>
 
-  <!-- ─── Toast ─── -->
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>
