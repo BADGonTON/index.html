@@ -27,7 +27,7 @@ const ok = (label: string, cond: boolean, extra = "") => {
 const USER = { id: 700125, is_bot: false, first_name: "Shahboz", username: "shahboz" };
 const CHAT = { id: 700125, type: "private" as const, first_name: "Shahboz" };
 
-/** Migratsiyada premium emoji berilgan sovg'alar. */
+/** 009 migratsiyasidagi sovg'alar (yangi to'plam). */
 const SEEDED = [
   { id: "6028601630662853006", star_count: 50, emoji: "🍾" },
   { id: "5170521118301225164", star_count: 100, emoji: "💎" },
@@ -42,8 +42,19 @@ const SEEDED = [
   { id: "5170145012310081615", star_count: 15, emoji: "💝" },
 ];
 
-/** Telegram'ning eski to'plami — 002 migratsiyasida seed qilingan edi. */
-const OLD_ID = "6046178578163303744";
+/**
+ * 002 + 010 migratsiyasidagi sovg'alar (eski to'plam).
+ *
+ * Ular Telegram'ning "mavjud sovg'alar" ro'yxatida YO'Q, lekin baribir
+ * sotiladi va katalogda ko'rinishi kerak — `sendGift` gift ID bilan
+ * ishlaydi, ro'yxat bilan emas.
+ */
+const OLD_SEEDED = [
+  "6046178578163303744", "5974210632977745012", "6026193266406327981",
+  "5969796561943660080", "5935895822435615975", "5893356958802511476",
+  "5866352046986232958", "5956217000635139069", "5922558454332916696",
+  "5801108895304779062", "5800655655995968830",
+];
 
 /**
  * Bazada bor, lekin Telegram "mavjud" ro'yxatida YO'Q gift.
@@ -105,10 +116,16 @@ async function main(): Promise<void> {
   const dbGifts = await listGifts(true);
   const byId = new Map(dbGifts.map((g) => [g.id, g]));
 
-  ok("eski (o'lik) giftlar o'chirildi", !byId.has(OLD_ID), OLD_ID);
+  const missingOld = OLD_SEEDED.filter((id) => !byId.has(id));
+  ok("eski 11 ta gift joyida", missingOld.length === 0, missingOld.join(" "));
 
   const missing = SEEDED.filter((s) => !byId.has(s.id));
-  ok("11 ta giftning hammasi bazada", missing.length === 0, missing.map((m) => m.emoji).join(" "));
+  ok("yangi 11 ta gift ham bazada", missing.length === 0, missing.map((m) => m.emoji).join(" "));
+
+  ok("bazada jami 22 ta gift", dbGifts.length >= 22, `${dbGifts.length} ta`);
+
+  const oldNoPremium = OLD_SEEDED.filter((id) => !byId.get(id)?.premium_id);
+  ok("eski giftlarda ham premium emoji bor", oldNoPremium.length === 0, oldNoPremium.join(" "));
 
   const noPremium = SEEDED.filter((s) => !byId.get(s.id)?.premium_id);
   ok("har birida premium emoji ID bor", noPremium.length === 0,
@@ -200,8 +217,6 @@ async function main(): Promise<void> {
   ok("bitta gift ikki marta chiqmadi", new Set(seen).size === seen.length,
      `${new Set(seen).size} noyob / ${seen.length} ko'rsatilgan`);
 
-  ok("o'lik gift ro'yxatga tushmadi", !seen.includes(OLD_ID));
-
   ok("Telegram'ning YANGI sovg'asi ham bor", seen.includes("9999999999999999999"),
      "bazada yo'q gift ham ko'rsatilishi kerak");
 
@@ -212,19 +227,44 @@ async function main(): Promise<void> {
      labels.some((t) => t.includes(DB_ONLY.emoji)),
      labels.find((t) => t.includes(DB_ONLY.emoji)) ?? "yo'q");
 
-  ok("11 ta seed gift ham bor",
+  ok("yangi 11 ta gift ro'yxatda",
      SEEDED.every((s) => seen.includes(s.id)),
      SEEDED.filter((s) => !seen.includes(s.id)).map((s) => s.emoji).join(" ") || "hammasi");
 
+  ok("eski 11 ta gift ham ro'yxatda",
+     OLD_SEEDED.every((id) => seen.includes(id)),
+     OLD_SEEDED.filter((id) => !seen.includes(id)).join(" ") || "hammasi");
+
+  ok("katalogda 24 ta gift (22 baza + 1 Telegram + 1 test)",
+     seen.length === 24, `${seen.length} ta`);
+
   // Premium ID'si bor 11 tasi ikonka bilan, bazada yo'q gift esa o'z emojisi bilan
-  ok("premium giftlarda ikonka bor", withIcon === SEEDED.length, `${withIcon}/${SEEDED.length}`);
+  // 22 ta bazadagi giftning hammasida premium emoji bor
+  ok("22 ta giftda ham premium ikonka bor",
+     withIcon === SEEDED.length + OLD_SEEDED.length,
+     `${withIcon}/${SEEDED.length + OLD_SEEDED.length}`);
 
   const unicorn = labels.find((t) => t.includes("🦄"));
   ok("premium ID'siz gift o'z emojisi bilan chiqdi", Boolean(unicorn), unicorn ?? "yo'q");
 
   ok("premium giftlarning yozuvida emoji yo'q",
-     labels.filter((t) => /^\d+ ⭐️$/.test(t)).length === SEEDED.length,
+     labels.filter((t) => /^\d+ ⭐️$/.test(t)).length === SEEDED.length + OLD_SEEDED.length,
      labels.filter((t) => /^\d+ ⭐️$/.test(t)).length + " ta");
+
+  // ── FILTR: bir xil ID ikkala manbada bo'lsa BITTA yozuvga birlashadi ──
+  console.log("\n── Dublikat filtri ──");
+
+  const inBoth = SEEDED.map((s) => s.id); // bular ham bazada, ham Telegram'da
+  for (const id of inBoth) {
+    const count = seen.filter((x) => x === id).length;
+    if (count !== 1) fails++;
+  }
+  ok("ikkala manbada bor gift BIR MARTA chiqdi",
+     inBoth.every((id) => seen.filter((x) => x === id).length === 1),
+     `${inBoth.length} ta gift tekshirildi`);
+
+  const dupes = seen.filter((id, i) => seen.indexOf(id) !== i);
+  ok("umuman takrorlanish yo'q", dupes.length === 0, dupes.join(" ") || "toza");
 
   await pool.query("DELETE FROM users WHERE user_id = $1", [USER.id]);
   await pool.query("DELETE FROM gifts WHERE id = $1", [DB_ONLY.id]);

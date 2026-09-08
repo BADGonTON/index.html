@@ -1,35 +1,15 @@
 -- 009_gift_emoji.sql
 -- Gift katalogini tartibga solamiz.
 --
--- MUAMMO 1: ro'yxatda BIR XIL gift ikki marta ko'rinardi.
---   Katalog ikki manbadan yig'iladi — bazadagi giftlar va Telegram API
---   qaytaradigan giftlar. 002 migratsiyasidagi boshlang'ich ID'lar esa
---   Telegram'ning ESKI to'plamidan edi: ular endi mavjud emas, sotib
---   bo'lmaydi, lekin ro'yxatda "50 ⭐" bo'lib turaverardi. Natijada har bir
---   haqiqiy gift yonida bitta o'lik nusxa ko'rinardi.
---   Yechim: o'sha eski ID'larni o'chiramiz.
---
--- MUAMMO 2: Telegram API'dan kelgan giftda premium emoji YO'Q.
+-- MUAMMO: Telegram API'dan kelgan giftda premium emoji YO'Q.
 --   Shuning uchun ular oddiy emoji bilan chiqardi. Endi har bir gift uchun
 --   o'z premium emojisi bazada saqlanadi va API'dan kelgan gift shu ID bilan
 --   mos kelsa, o'sha premium emoji ishlatiladi.
 
--- Telegram'ning eski (endi mavjud bo'lmagan) sovg'alari
-DELETE FROM gifts WHERE id IN (
-    '6046178578163303744',
-    '5974210632977745012',
-    '6026193266406327981',
-    '5969796561943660080',
-    '5935895822435615975',
-    '5893356958802511476',
-    '5866352046986232958',
-    '5956217000635139069',
-    '5922558454332916696',
-    '5801108895304779062',
-    '5800655655995968830'
-);
-
--- Hozirgi sovg'alar: gift ID → emoji + premium emoji ID.
+-- Yangi sovg'alar: gift ID → emoji + premium emoji ID.
+--
+-- Bular 002 dagi 11 taning USTIGA qo'shiladi (ularniki ham o'z premium
+-- emojisi bilan bazada turibdi), ya'ni katalogda jami 22 ta gift bo'ladi.
 --
 -- `star_count` shu yerda ham turadi, lekin ROSTLOVCHI manba Telegram API:
 -- narx o'zgarsa, ro'yxat API'dagi qiymatni oladi (src/bot/handlers/gifts.ts).
