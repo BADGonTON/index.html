@@ -1,0 +1,51 @@
+# HozirOL — systemd xizmati
+#
+# O'rnatish:
+#   sudo cp deploy/hozirol.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now hozirol
+#
+# Nima beradi:
+#   • bot yiqilsa 3 soniyada O'ZI qayta ishga tushadi
+#   • server qayta yuklansa bot O'ZI ko'tariladi
+#   • loglar journald da: journalctl -u hozirol -f
+
+[Unit]
+Description=HozirOL — Telegram bot va Mini App
+Documentation=file:///root/hozirol/DEPLOY.md
+# Bot PostgreSQL'siz ishlay olmaydi — undan keyin ishga tushsin.
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/hozirol
+ExecStart=/usr/bin/node dist/index.js
+EnvironmentFile=/root/hozirol/.env
+Environment=NODE_ENV=production
+
+# HAR QANDAY to'xtashda qayta ishga tushadi — xato bilan ham, toza chiqishda ham.
+Restart=always
+RestartSec=3
+
+# Cheksiz qayta ishga tushish siklini to'xtatish: 5 daqiqada 10 martadan
+# ko'p yiqilsa, xizmat to'xtatiladi. Bu odatda sozlama xatosini bildiradi
+# (masalan .env noto'g'ri) — cheksiz aylanishdan ko'ra to'xtagani ma'qul.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+# To'g'ri o'chirish: index.ts SIGTERM ni ushlaydi va navbatdagi ishni
+# yakunlaydi. Unga 15 soniya beramiz.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hozirol
+
+# Xavfsizlik: process faqat o'z papkasiga yoza oladi.
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

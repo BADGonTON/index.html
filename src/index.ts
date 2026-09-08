@@ -60,8 +60,12 @@ async function main(): Promise<void> {
   startSweeper();
 
   const app = createServer(bot);
-  const server: Server = await new Promise((resolve) => {
+  const server: Server = await new Promise((resolve, reject) => {
     const s = app.listen(config.port, () => resolve(s));
+    // Port band bo'lsa `listen` xato QAYTARMAYDI — u 'error' hodisasini
+    // chiqaradi. Uni ushlamasak Node xom stek bilan yiqilardi va sabab
+    // ko'rinmasdi.
+    s.once("error", reject);
   });
   console.log(`✅ Server ${config.port}-portda`);
   if (config.publicUrl) console.log(`✅ Mini App: ${miniAppUrl()}`);
@@ -139,12 +143,39 @@ async function main(): Promise<void> {
   process.on("unhandledRejection", (reason) => {
     console.error("❌ Ushlanmagan Promise xatosi:", reason);
   });
+  // Ushlanmagan istisnodan keyin process qanday holatda qolganini bilib
+  // bo'lmaydi: ulanish ochiq qolgan, navbat yarim bajarilgan bo'lishi
+  // mumkin. Pul bilan ishlaydigan botda "yarim tirik" holatda davom etish
+  // yiqilishdan XAVFLIROQ — chunki nazoratchi (systemd/PM2) buni sezmaydi
+  // va qayta ishga tushirmaydi.
+  //
+  // Shuning uchun: xatoni yozamiz va CHIQAMIZ. Nazoratchi bir necha
+  // soniyada toza holatda qayta ishga tushiradi.
   process.on("uncaughtException", (err) => {
-    console.error("❌ Ushlanmagan istisno:", err);
+    console.error("❌ Ushlanmagan istisno — qayta ishga tushirish kerak:", err);
+    // Log yozilib ulgursin.
+    setTimeout(() => process.exit(1), 500);
   });
 }
 
 main().catch((err) => {
+  // Eng ko'p uchraydigan xato — port band. Sabab odatda oddiy: botning
+  // eski nusxasi hali ishlab turibdi. Xom stek o'rniga nima qilish
+  // kerakligini aytamiz.
+  if ((err as NodeJS.ErrnoException)?.code === "EADDRINUSE") {
+    console.error(
+      `\n❌ ${config.port}-port BAND — botning boshqa nusxasi ishlab turibdi.\n\n` +
+        `Kim band qilganini ko'rish:\n` +
+        `    sudo lsof -i :${config.port}\n\n` +
+        `Agar bot xizmat sifatida ishlayotgan bo'lsa (to'g'ri yo'l):\n` +
+        `    sudo systemctl restart hozirol\n\n` +
+        `Qo'lda ishga tushirilgan nusxani to'xtatish:\n` +
+        `    sudo fuser -k ${config.port}/tcp\n\n` +
+        `Batafsil: DEPLOY.md\n`
+    );
+    process.exit(1);
+  }
+
   console.error("\n❌ Ishga tushirishda kritik xato:\n", err);
   process.exit(1);
 });
