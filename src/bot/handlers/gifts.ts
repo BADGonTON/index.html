@@ -40,14 +40,54 @@ async function getTelegramGifts(ctx: MyContext): Promise<GiftRow[]> {
   }
 }
 
+/**
+ * Sotib olish mumkin bo'lgan sovg'alar ro'yxati.
+ *
+ * IKKALA MANBA ham qo'shiladi:
+ *
+ *   • BAZA — biz o'zimiz kiritgan giftlar. Ular Telegram'ning "mavjud"
+ *     ro'yxatida bo'lmasa ham sotib olinadi: `sendGift` gift ID bilan
+ *     ishlaydi, ro'yxat bilan emas. Shuning uchun bazadagi gift HECH QACHON
+ *     ro'yxatdan tushib qolmaydi.
+ *
+ *   • TELEGRAM API — biz kiritmagan yangi sovg'alar ham ko'rinsin.
+ *
+ * Bir xil gift ikki manbada bo'lsa BITTA yozuvga birlashadi (kalit — gift ID),
+ * shuning uchun ro'yxatda takror chiqmaydi.
+ *
+ * Nima qayerdan olinadi:
+ *   ko'rinish (emoji, premium emoji, nom) — BAZADAN;
+ *   narx — Telegram bilsa O'SHANDAN, aks holda bazadan.
+ *
+ * Narx nega Telegram'dan: `sendGift` bot hisobidan AYNAN Telegram
+ * belgilagan miqdorni yechadi. Bazadagi narx eskirgan bo'lsa, foydalanuvchi
+ * kam to'lab, farqni bot to'lab qolardi.
+ */
+function mergeGifts(dbGifts: GiftRow[], tgGifts: GiftRow[]): GiftRow[] {
+  const merged = new Map<string, GiftRow>();
+
+  // Avval baza — ko'rinish shundan.
+  for (const g of dbGifts) merged.set(g.id, g);
+
+  for (const tg of tgGifts) {
+    const db = merged.get(tg.id);
+    if (!db) {
+      merged.set(tg.id, tg);
+      continue;
+    }
+    // Ikkalasida ham bor: bazaning ko'rinishi + Telegram'ning narxi.
+    merged.set(tg.id, { ...db, star_count: tg.star_count });
+  }
+
+  return [...merged.values()];
+}
+
 async function buildGiftsPage(ctx: MyContext, page: number) {
   const [dbGifts, tgGifts] = await Promise.all([listGifts(true), getTelegramGifts(ctx)]);
 
-  const combined = new Map<string, GiftRow>();
-  for (const g of dbGifts) combined.set(g.id, g);
-  for (const g of tgGifts) if (!combined.has(g.id)) combined.set(g.id, g);
-
-  const allGifts = [...combined.values()];
+  const allGifts = mergeGifts(dbGifts, tgGifts).sort(
+    (a, b) => a.star_count - b.star_count || a.id.localeCompare(b.id)
+  );
   const totalPages = Math.max(1, Math.ceil(allGifts.length / config.itemsPerPage));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
