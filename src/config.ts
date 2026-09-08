@@ -130,14 +130,6 @@ export const config = {
 
   // ---------- Gift Arenda ----------
   /**
-   * Katalog AYLANMA tarzda yangilanadi: har siklda faqat bir nechta
-   * kolleksiya. 120 ta kolleksiyani har safar to'liq so'rash Marketapp'dan
-   * 429 (Too Many Requests) oladi — shuning uchun yuk vaqt bo'ylab tarqatiladi.
-   */
-  marketCycleSec: optionalInt("MARKET_CYCLE_SEC", 60),
-  /** Bitta siklda nechta kolleksiya yangilanadi (endi faqat zaxira yo'lda). */
-  marketBatch: optionalInt("MARKET_BATCH", 12),
-  /**
    * Butun katalog shu davrda bir marta to'liq qayta o'qiladi (soniya).
    *
    * `/v1/rent/gifts/` kolleksiya filtrisiz hamma giftni ~100 tadan sahifalab

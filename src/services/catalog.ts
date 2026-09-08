@@ -19,29 +19,31 @@ import { secToDays, pricePerDayUzs } from "./pricing";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- *  KATALOG — aylanma yangilash va server tomonda sahifalash
+ *  KATALOG — bitta to'liq aylanma va server tomonda sahifalash
  * ═══════════════════════════════════════════════════════════════════════════
  *
- * Haqiqiy hajm: ~120 kolleksiya, ~8 000 gift. Bu ikkita muammo tug'diradi,
- * ikkalasi ham shu faylda hal qilingan.
+ * Haqiqiy hajm: ~120 kolleksiya, ~8 000 gift. Bu uchta muammo tug'diradi,
+ * uchalasi ham shu faylda hal qilingan.
  *
  * 1) MARKETAPP 429 QAYTARADI.
- *    Avval 120 ta kolleksiya 6 tadan parallel, har 90 soniyada so'ralardi —
- *    Marketapp buni "Too Many Requests" deb rad etardi. Endi so'rovlar
- *    ketma-ket va vaqt bo'ylab tarqatilgan: har siklda faqat `marketBatch`
- *    ta ENG ESKI kolleksiya yangilanadi. 120 ta kolleksiya uchun to'liq
- *    aylanish ~10 daqiqa — gift narxlari uchun bu mutlaqo yetarli.
+ *    Avval har bir kolleksiya ALOHIDA so'ralardi — 120 ta so'rov, ustiga
+ *    parallel. Endi `/v1/rent/gifts/` kolleksiya filtrisiz, kursor bo'yicha
+ *    ~100 tadan sahifalab o'qiladi: butun katalog ~80 KETMA-KET so'rov.
+ *    So'rovlar orasidagi tanaffus 429 kelganda o'zi kengayadi va tinchlikda
+ *    o'zi torayadi — tizim Marketapp chegarasini o'zi topib oladi.
  *
- * 2) YIQILGAN KOLLEKSIYA MA'LUMOTNI O'CHIRIB YUBORARDI.
- *    Eski kodda xato bo'lgan kolleksiya BO'SH ro'yxat sifatida saqlanardi,
- *    ya'ni bitta 429 ishlaydigan giftlarni o'chirardi. Endi har bir
- *    kolleksiya mustaqil: muvaffaqiyatsiz urinishda faqat xato yoziladi,
- *    giftlarga umuman tegilmaydi.
+ * 2) YIQILGAN YANGILANISH MA'LUMOTNI O'CHIRIB YUBORARDI.
+ *    Endi yangi indeks faqat OQIM TO'LIQ TUGAGANDA almashtiriladi: aylanish
+ *    o'rtasida xato chiqsa, eski katalog joyida qoladi.
  *
  * 3) 8 000 GIFTNI BITTA JAVOBDA YUBORIB BO'LMAYDI (~2 MB).
- *    Shu sabab Mini App endi sahifalab oladi: `queryGifts()` xotiradagi
- *    indeksdan filtrlab, saralab, 60 tadan qaytaradi. Indeks oldindan
- *    tayyorlangani uchun bu millisekundlar ichida bajariladi.
+ *    Shu sabab Mini App sahifalab oladi: `queryGifts()` xotiradagi indeksdan
+ *    filtrlab, saralab, 60 tadan qaytaradi.
+ *
+ * BANDLIK: xarid oldidan `verifyGiftAvailable()` (yoki to'plam uchun
+ * `verifyGiftsAvailable()`) aynan kerakli kolleksiyani bitta so'rov bilan
+ * yangilaydi, xariddan keyin esa gift indeksdan DARHOL olib tashlanadi —
+ * "to'lov o'tdi, lekin gift mavjud emas" degan holat shunday yopilgan.
  */
 
 export interface CatalogGift {
