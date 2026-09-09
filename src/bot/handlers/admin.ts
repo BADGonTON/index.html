@@ -24,6 +24,8 @@ import {
   ADMIN_BROADCAST_DONE,
   ADMIN_SET_TON_RATE,
   ADMIN_SET_SERVICE_FEE,
+  ADMIN_SET_EXTEND_MIN_DAYS,
+  ADMIN_SET_EXTEND_FEE,
   ADMIN_RENT_STATS,
 } from "../texts";
 import { adminKb, adminBackKb, broadcastConfirmKb, giftAdminListKb } from "../keyboards";
@@ -43,6 +45,10 @@ import {
   getServiceFeeUzs,
   setTonRateUzs,
   setServiceFeeUzs,
+  getExtendMinDays,
+  setExtendMinDays,
+  getExtendFeeUzs,
+  setExtendFeeUzs,
 } from "../../services/pricing";
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
@@ -163,6 +169,32 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
         adminBackKb()
       );
       ctx.session.step = STEP.ADMIN_SET_SERVICE_FEE;
+      await ctx.answerCallbackQuery();
+    })
+  );
+
+  bot.callbackQuery(
+    "admin_extend_min_days",
+    adminOnly(async (ctx) => {
+      await sendTracked(
+        ctx,
+        fmt(ADMIN_SET_EXTEND_MIN_DAYS, { days: getExtendMinDays() }),
+        adminBackKb()
+      );
+      ctx.session.step = STEP.ADMIN_SET_EXTEND_MIN_DAYS;
+      await ctx.answerCallbackQuery();
+    })
+  );
+
+  bot.callbackQuery(
+    "admin_extend_fee",
+    adminOnly(async (ctx) => {
+      await sendTracked(
+        ctx,
+        fmt(ADMIN_SET_EXTEND_FEE, { fee: getExtendFeeUzs().toLocaleString("ru-RU") }),
+        adminBackKb()
+      );
+      ctx.session.step = STEP.ADMIN_SET_EXTEND_FEE;
       await ctx.answerCallbackQuery();
     })
   );
@@ -422,6 +454,27 @@ export async function handleAdminSetServiceFeeText(ctx: MyContext): Promise<void
     ctx,
     setServiceFeeUzs,
     (v) => `✅ Xizmat haqi yangilandi: <b>${v.toLocaleString("ru-RU")} so'm</b>`,
+    0
+  );
+}
+
+export async function handleAdminSetExtendMinDaysText(ctx: MyContext): Promise<void> {
+  await handleNumericSetting(
+    ctx,
+    setExtendMinDays,
+    (v) => `✅ Uzaytirishning eng kam muddati: <b>${v} kun</b>`,
+    1
+  );
+}
+
+export async function handleAdminSetExtendFeeText(ctx: MyContext): Promise<void> {
+  await handleNumericSetting(
+    ctx,
+    setExtendFeeUzs,
+    (v) =>
+      v === 0
+        ? "✅ Uzaytirish endi <b>xizmat haqisiz</b>"
+        : `✅ Uzaytirish xizmat haqi: <b>${v.toLocaleString("ru-RU")} so'm</b>`,
     0
   );
 }

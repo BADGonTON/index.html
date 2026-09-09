@@ -24,6 +24,8 @@ import {
 import {
   getTonRateUzs,
   getServiceFeeUzs,
+  getExtendMinDays,
+  getExtendFeeUzs,
   bundleQuote,
   BUNDLE_MIN_DAYS,
   BUNDLE_SIZES,
@@ -93,6 +95,9 @@ export function createApiRouter(): Router {
       pricing: {
         ton_rate_uzs: getTonRateUzs(),
         service_fee_uzs: getServiceFeeUzs(),
+        // Uzaytirish alohida narxlanadi: eng kam muddat va o'z xizmat haqi.
+        extend_min_days: getExtendMinDays(),
+        extend_fee_uzs: getExtendFeeUzs(),
       },
       settings: {
         profile_link_video_url: guideVideoUrl(),
@@ -436,8 +441,15 @@ export function createApiRouter(): Router {
       res.status(400).json({ error: "Bu ijarani hozir uzaytirib bo'lmaydi" });
       return;
     }
-    if (!Number.isFinite(days) || days < 1 || days > 365) {
-      res.status(400).json({ error: "Kun soni 1 dan 365 gacha bo'lishi kerak" });
+    // Eng kam muddat: har bir uzaytirish blokcheynga alohida tranzaksiya
+    // yuboradi va uning komissiyasi muddatga bog'liq emas. 1 kunlik
+    // uzaytirishda komissiya ijara narxidan oshib ketardi.
+    const minDays = getExtendMinDays();
+    if (!Number.isFinite(days) || days < minDays || days > 365) {
+      res.status(400).json({
+        error: `Uzaytirish kamida ${minDays} kun bo'lishi kerak (365 kungacha)`,
+        min_days: minDays,
+      });
       return;
     }
 

@@ -13,14 +13,47 @@ const NANO = 1_000_000_000;
 let tonRateUzs = 20_000; // 1 TON necha so'm
 let serviceFeeUzs = 2_000; // har bir ijara uchun bir martalik xizmat haqi
 
+/**
+ * Uzaytirishning ENG KAM muddati (kun).
+ *
+ * Nega kerak: har bir uzaytirish blokcheynga alohida tranzaksiya yuboradi
+ * va uning komissiyasi (gas) muddatga bog'liq emas — 1 kunga uzaytirish
+ * ham, 30 kunga uzaytirish ham bir xil turadi. 1 kunlik uzaytirishda
+ * tranzaksiya haqi ijara narxidan oshib ketishi mumkin, ya'ni har bir
+ * bunday amal ZARAR keltiradi.
+ *
+ * Shuning uchun uzaytirish kamida shu muddatga bo'ladi.
+ */
+let extendMinDays = 7;
+
+/**
+ * Uzaytirish uchun xizmat haqi.
+ *
+ * Blokcheyn komissiyasini qoplaydi. Yangi ijaradagi `serviceFeeUzs` dan
+ * alohida turadi — uzaytirish arzonroq amal, chunki gift allaqachon
+ * profilga ulangan.
+ */
+let extendFeeUzs = 1_000;
+
 export async function loadPricing(): Promise<void> {
-  const [rate, fee] = await Promise.all([getSetting("ton_rate_som"), getSetting("service_fee_som")]);
+  const [rate, fee, minDays, extFee] = await Promise.all([
+    getSetting("ton_rate_som"),
+    getSetting("service_fee_som"),
+    getSetting("extend_min_days"),
+    getSetting("extend_fee_som"),
+  ]);
 
   if (rate === null) await setSetting("ton_rate_som", tonRateUzs);
   else tonRateUzs = Math.max(1, parseInt(rate, 10) || tonRateUzs);
 
   if (fee === null) await setSetting("service_fee_som", serviceFeeUzs);
   else serviceFeeUzs = Math.max(0, parseInt(fee, 10) || 0);
+
+  if (minDays === null) await setSetting("extend_min_days", extendMinDays);
+  else extendMinDays = Math.max(1, parseInt(minDays, 10) || extendMinDays);
+
+  if (extFee === null) await setSetting("extend_fee_som", extendFeeUzs);
+  else extendFeeUzs = Math.max(0, parseInt(extFee, 10) || 0);
 }
 
 export function getTonRateUzs(): number {
@@ -39,6 +72,24 @@ export async function setTonRateUzs(value: number): Promise<void> {
 export async function setServiceFeeUzs(value: number): Promise<void> {
   serviceFeeUzs = value;
   await setSetting("service_fee_som", value);
+}
+
+export function getExtendMinDays(): number {
+  return extendMinDays;
+}
+
+export async function setExtendMinDays(value: number): Promise<void> {
+  extendMinDays = Math.max(1, value);
+  await setSetting("extend_min_days", extendMinDays);
+}
+
+export function getExtendFeeUzs(): number {
+  return extendFeeUzs;
+}
+
+export async function setExtendFeeUzs(value: number): Promise<void> {
+  extendFeeUzs = Math.max(0, value);
+  await setSetting("extend_fee_som", extendFeeUzs);
 }
 
 // ---------------------------------------------------------------------------
@@ -68,9 +119,14 @@ export function totalCostUzs(pricePerDayNano: string | number, days: number): nu
   return baseCostUzs(pricePerDayNano, days) + serviceFeeUzs;
 }
 
-/** Uzaytirishda xizmat haqi olinmaydi. */
+/**
+ * Uzaytirish narxi = kunlik × kun + uzaytirish xizmat haqi.
+ *
+ * Xizmat haqi blokcheyn komissiyasini qoplaydi: har bir uzaytirish
+ * alohida tranzaksiya, uning narxi esa muddatga bog'liq emas.
+ */
 export function extendCostUzs(pricePerDayNano: string | number, days: number): number {
-  return baseCostUzs(pricePerDayNano, days);
+  return baseCostUzs(pricePerDayNano, days) + extendFeeUzs;
 }
 
 /** Balans shu gift uchun necha kunga yetadi (xizmat haqini hisobga olib). */
@@ -82,11 +138,13 @@ export function daysAffordable(pricePerDayNano: string | number, balanceUzs: num
   return Math.floor(remaining / perDay);
 }
 
-/** Uzaytirish uchun balans necha kunga yetadi. */
+/** Uzaytirish uchun balans necha kunga yetadi (xizmat haqini hisobga olib). */
 export function daysAffordableExtend(pricePerDayNano: string | number, balanceUzs: number): number {
   const perDay = pricePerDayUzs(pricePerDayNano);
   if (perDay <= 0) return 0;
-  return Math.floor(balanceUzs / perDay);
+  const remaining = balanceUzs - extendFeeUzs;
+  if (remaining <= 0) return 0;
+  return Math.floor(remaining / perDay);
 }
 
 export function secToDays(sec: number | string): number {

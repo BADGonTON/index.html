@@ -14,6 +14,10 @@ import {
   BUNDLE_MARKUP_PCT,
   getServiceFeeUzs,
   getTonRateUzs,
+  extendCostUzs,
+  getExtendMinDays,
+  getExtendFeeUzs,
+  daysAffordableExtend,
 } from "../src/services/pricing";
 import {
   userFacingRentError,
@@ -140,6 +144,46 @@ const already = userFacingRentError(RAW_TOO_LATE);
 ok("eski yozuv tozalanadi", sanitizeStoredRentError(RAW_TOO_LATE) === already);
 ok("tayyor jumlaga tegilmaydi", sanitizeStoredRentError(already) === already, already);
 ok("bo'sh xato null qoladi", sanitizeStoredRentError(null) === null);
+
+// ── Uzaytirish: eng kam kun va xizmat haqi ──
+//
+// Har bir uzaytirish blokcheynga alohida tranzaksiya yuboradi va uning
+// komissiyasi muddatga bog'liq emas. Shu sabab qisqa uzaytirish zarar
+// keltiradi — eng kam muddat va xizmat haqi shuni qoplaydi.
+
+console.log("\n── Uzaytirish narxi ──");
+
+const extFee = getExtendFeeUzs();
+const minExt = getExtendMinDays();
+
+ok("eng kam muddat 1 kundan katta", minExt >= 7, `${minExt} kun`);
+ok("xizmat haqi belgilangan", extFee > 0, `${extFee} so'm`);
+
+// 1000 so'm/kunlik gift
+const perDayNano = nanoForUzsPerDay(1000);
+
+const ext7 = extendCostUzs(perDayNano, 7);
+ok("uzaytirishda xizmat haqi qo'shiladi", ext7 === 1000 * 7 + extFee, `${ext7}`);
+
+const ext14 = extendCostUzs(perDayNano, 14);
+ok("xizmat haqi BIR MARTA olinadi", ext14 - ext7 === 1000 * 7,
+   `7 kun=${ext7}, 14 kun=${ext14}`);
+
+// Uzoq muddatda xizmat haqi sezilmaydi, qisqa muddatda esa sezilarli —
+// aynan shu qisqa uzaytirishni foydasiz qiladi.
+const shareWeek = (extFee / ext7) * 100;
+const shareMonth = (extFee / extendCostUzs(perDayNano, 30)) * 100;
+ok("uzoq muddatda haq ulushi kichrayadi", shareMonth < shareWeek,
+   `${shareWeek.toFixed(1)}% → ${shareMonth.toFixed(1)}%`);
+
+// Balans hisoblashda ham xizmat haqi hisobga olinishi kerak, aks holda
+// foydalanuvchiga "yetadi" deb ko'rsatib, keyin rad etardik.
+ok("balans hisobi xizmat haqini hisobga oladi",
+   daysAffordableExtend(perDayNano, 1000 * 7 + extFee) === 7,
+   String(daysAffordableExtend(perDayNano, 1000 * 7 + extFee)));
+
+ok("faqat xizmat haqiga yetadigan balansda 0 kun",
+   daysAffordableExtend(perDayNano, extFee) === 0);
 
 console.log(fails ? `\n❌ ${fails} ta test yiqildi` : "\n🎉 To'plam va xato testlari o'tdi");
 process.exit(fails ? 1 : 0);

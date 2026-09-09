@@ -151,6 +151,8 @@ export function adminKb(maintenance = false): InlineKeyboard {
   add(kb, BTN.ADMIN_PRICE, "admin_price").primary().row();
   add(kb, BTN.ADMIN_TON_RATE, "admin_ton_rate").primary();
   add(kb, BTN.ADMIN_SERVICE_FEE, "admin_service_fee").primary().row();
+  add(kb, BTN.ADMIN_EXTEND_MIN_DAYS, "admin_extend_min_days").primary();
+  add(kb, BTN.ADMIN_EXTEND_FEE, "admin_extend_fee").primary().row();
   add(kb, BTN.ADMIN_GIFT_ADD, "admin_gift_add").success();
   add(kb, BTN.ADMIN_GIFT_LIST, "admin_gift_list").primary().row();
   add(kb, BTN.ADMIN_TG_ADD, "admin_tg_add").success();

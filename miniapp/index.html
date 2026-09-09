@@ -356,12 +356,17 @@
         </span>
         <span class="card-value"><b id="extend-days-value">1</b> kun</span>
       </div>
-      <input type="range" class="slider" id="extend-slider" min="1" max="30" value="1" aria-label="Qo'shimcha muddat" />
-      <div class="slider-legend"><span>1 kun</span><span id="extend-max">30 kun</span></div>
+      <input type="range" class="slider" id="extend-slider" min="7" max="30" value="7" aria-label="Qo'shimcha muddat" />
+      <div class="slider-legend">
+        <span id="extend-min">7 kun</span>
+        <span id="extend-max">30 kun</span>
+      </div>
       <div class="quick" id="extend-quick"></div>
     </div>
 
     <div class="card">
+      <div class="sum-row"><span>Ijara narxi</span><span id="extend-base">0 so'm</span></div>
+      <div class="sum-row" id="extend-fee-row"><span>Xizmat haqi</span><span id="extend-fee">0 so'm</span></div>
       <div class="sum-row sum-total"><span>Jami</span><span id="extend-total">0 so'm</span></div>
       <div class="hint" id="extend-hint"></div>
     </div>

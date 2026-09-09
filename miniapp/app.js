@@ -794,20 +794,26 @@ async function submitLink() {
 
 function openExtend(rental) {
   state.rental = rental;
-  state.extendDays = 1;
+
+  // Uzaytirish ENG KAM muddatdan boshlanadi: har bir uzaytirish
+  // blokcheynga alohida tranzaksiya yuboradi va uning komissiyasi
+  // muddatga bog'liq emas.
+  const minDays = state.pricing.extend_min_days || 1;
+  state.extendDays = minDays;
 
   $('extend-name').textContent = rental.nft_name;
   $('extend-perday').textContent = fmtNum(rental.price_per_day_uzs);
   mountImage($('extend-img'), rental.image_url);
 
-  const maxDays = Math.max(1, Math.min(365, rental.extend_affordable_days || 1));
+  const maxDays = Math.max(minDays, Math.min(365, rental.extend_affordable_days || minDays));
   const slider = $('extend-slider');
-  slider.min = 1;
+  slider.min = minDays;
   slider.max = maxDays;
-  slider.value = 1;
+  slider.value = minDays;
+  $('extend-min').textContent = `${minDays} kun`;
   $('extend-max').textContent = `${maxDays} kun`;
 
-  buildQuickDays($('extend-quick'), 1, maxDays, (d) => {
+  buildQuickDays($('extend-quick'), minDays, maxDays, (d) => {
     slider.value = d;
     updateExtend();
   });
@@ -821,11 +827,19 @@ function updateExtend() {
   const rental = state.rental;
   if (!rental) return;
 
-  const days = Number($('extend-slider').value);
+  const minDays = state.pricing.extend_min_days || 1;
+  const days = Math.max(minDays, Number($('extend-slider').value));
   state.extendDays = days;
 
-  const total = rental.price_per_day_uzs * days;   // uzaytirishda xizmat haqi yo'q
+  // Server bilan BIR XIL formula: kunlik × kun + uzaytirish xizmat haqi.
+  const fee = state.pricing.extend_fee_uzs || 0;
+  const base = rental.price_per_day_uzs * days;
+  const total = base + fee;
+
   $('extend-days-value').textContent = days;
+  $('extend-base').textContent = fmtSom(base);
+  $('extend-fee').textContent = fmtSom(fee);
+  $('extend-fee-row').hidden = fee === 0;
   $('extend-total').textContent = fmtSom(total);
   syncQuickDays($('extend-quick'), days);
 

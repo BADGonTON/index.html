@@ -687,6 +687,8 @@ export const BTN = {
   MY_GIFTS: "🎁 Mening giftlarim",
   ADMIN_TON_RATE: "💵 TON kursi",
   ADMIN_SERVICE_FEE: "🧾 Xizmat haqi",
+  ADMIN_EXTEND_MIN_DAYS: "📆 Uzaytirish: eng kam kun",
+  ADMIN_EXTEND_FEE: "🧾 Uzaytirish: xizmat haqi",
   ADMIN_RENT_STATS: "📊 Arenda statistikasi",
 } as const;
 
@@ -746,6 +748,37 @@ export const LOG_RENT_FAILED = `❌ <b>IJARA XATOSI</b>
 💵 {uzs} so'm qaytarildi
 ⚠️ <code>{error}</code>
 🕒 {datetime}`;
+
+/**
+ * Uzaytirishning eng kam muddati.
+ *
+ * Har bir uzaytirish blokcheynga alohida tranzaksiya yuboradi va uning
+ * komissiyasi muddatga bog'liq emas — shuning uchun juda qisqa muddatga
+ * uzaytirish zarar keltiradi.
+ */
+export const ADMIN_SET_EXTEND_MIN_DAYS = `📆 <b>Uzaytirish: eng kam kun</b>
+
+Hozirgi qiymat: <b>{days} kun</b>
+
+Har bir uzaytirish blokcheynga alohida tranzaksiya yuboradi. Uning
+komissiyasi muddatga bog'liq emas, ya'ni 1 kunga uzaytirishda ham,
+30 kunga uzaytirishda ham bir xil to'lanadi.
+
+Shu sabab eng kam muddat past bo'lsa, har bir qisqa uzaytirish zarar
+keltiradi.
+
+Yangi qiymatni raqam bilan yuboring (masalan <code>7</code>):`;
+
+export const ADMIN_SET_EXTEND_FEE = `🧾 <b>Uzaytirish: xizmat haqi</b>
+
+Hozirgi qiymat: <b>{fee} so'm</b>
+
+Bu haq har bir uzaytirishdan bir marta olinadi va blokcheyn
+komissiyasini qoplaydi. Yangi ijaradagi xizmat haqidan alohida turadi.
+
+<code>0</code> yozsangiz — uzaytirish haqsiz bo'ladi.
+
+Yangi qiymatni raqam bilan yuboring (masalan <code>1000</code>):`;
 
 export const ADMIN_SET_TON_RATE = `💱 <b>TON kursi</b>
 

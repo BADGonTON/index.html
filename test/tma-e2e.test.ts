@@ -158,6 +158,49 @@ async function main() {
   const rentals = await call("/api/rentals", { initData });
   ok("ijaralar ro'yxati 200", rentals.status === 200 && Array.isArray(rentals.json?.rentals));
 
+  // ── Uzaytirishning eng kam muddati ──
+  //
+  // Har bir uzaytirish blokcheynga alohida tranzaksiya yuboradi va uning
+  // komissiyasi muddatga bog'liq emas — 1 kunlik uzaytirish zarar keltiradi.
+  // Server buni QABUL QILMASLIGI kerak, klientdagi slayderga ishonib
+  // bo'lmaydi.
+  const bootPricing = boot.json?.pricing ?? {};
+  ok("bootstrap uzaytirish sozlamalarini yuboradi",
+     Number(bootPricing.extend_min_days) >= 1 && bootPricing.extend_fee_uzs !== undefined,
+     `min=${bootPricing.extend_min_days} haq=${bootPricing.extend_fee_uzs}`);
+
+  const { pool: dbPool } = await import("../src/db/pool");
+  const { rows: rentRows } = await dbPool.query<{ id: number }>(
+    `INSERT INTO rentals
+       (user_id, nft_address, nft_name, collection_name, collection_address,
+        duration_sec, price_per_day_nano, paid_uzs, status, end_time, created_at, updated_at)
+     VALUES ($1,'EQtest','Test Gift','Tests','EQcol',604800,'1000000000',5000,'linked',
+             $2, $3, $3)
+     RETURNING id`,
+    [900001, Math.floor(Date.now() / 1000) + 604800, Math.floor(Date.now() / 1000)]
+  );
+  const rentalId = rentRows[0].id;
+
+  const tooShort = await call(`/api/rentals/${rentalId}/extend`, {
+    method: "POST",
+    initData,
+    body: { days: 1 },
+  });
+  ok("1 kunlik uzaytirish RAD ETILDI", tooShort.status === 400,
+     `${tooShort.status} — ${tooShort.json?.error ?? ""}`);
+  ok("xato eng kam muddatni aytadi",
+     Number(tooShort.json?.min_days) === Number(bootPricing.extend_min_days),
+     String(tooShort.json?.min_days));
+
+  const zero = await call(`/api/rentals/${rentalId}/extend`, {
+    method: "POST",
+    initData,
+    body: { days: 0 },
+  });
+  ok("0 kun ham rad etildi", zero.status === 400);
+
+  await dbPool.query("DELETE FROM rentals WHERE id = $1", [rentalId]);
+
   // Boshqa foydalanuvchi nomidan imzo — o'z ma'lumotini olishi kerak, begonani emas
   const otherInit = sign({ user: { id: 900002, first_name: "Boshqa" } }, config.botToken, new Date());
   const otherBoot = await call("/api/bootstrap", { initData: otherInit });
