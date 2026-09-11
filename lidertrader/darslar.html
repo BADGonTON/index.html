@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O'quv yo'li — LiderTrader</title>
+<meta name="description" content="Blokcheyn, blok, chain, coin, token, NFT, DeFi, grafik tahlili va risk-menejment: qadama-qadam darslar o'zbek tilida.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <span class="mark">LT</span>
+      <span>Lider<span class="lt-accent">Trader</span></span>
+    </a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-label="Menyu">&#9776;</button>
+    <ul class="nav-links">
+      <li><a href="index.html">Bosh sahifa</a></li>
+      <li><a href="darslar.html">O'quv yo'li</a></li>
+      <li><a href="kurslar.html">Kurslar</a></li>
+      <li><a href="terminal.html">Terminal</a></li>
+      <li><a href="haqida.html">Biz haqimizda</a></li>
+      <li><a href="aloqa.html">Aloqa</a></li>
+      <li><a class="btn btn-primary btn-sm" href="aloqa.html#royxat">Ro'yxatdan o'tish</a></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+  <section class="hero" style="padding:56px 0 36px">
+    <div class="wrap">
+      <span class="eyebrow">O'quv yo'li</span>
+      <h1>Noldan murakkabgacha: 8 modul</h1>
+      <p class="lead">Darslarni tartib bilan o'qing. Har bir mavzu ostida &laquo;Amaliy topshiriq&raquo; bor &mdash; uni bajarmasdan keyingi darsga o'tish foydasiz, chunki treyding bilim emas, ko'nikma.</p>
+    </div>
+  </section>
+
+  <section class="section plain">
+    <div class="wrap">
+
+      <article id="modul-1" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-start">1-modul &middot; Boshlang'ich &middot; Bepul</span>
+          <h2 style="margin-top:12px">Blokcheyn nima?</h2>
+          <p>Eng boshidan boshlaymiz. Bu modulni tushunmasdan &laquo;kripto&raquo; haqida gapirish &mdash; mashinani ko'rmasdan haydashni o'rganishga o'xshaydi.</p>
+        </div>
+
+        <details class="acc" open>
+          <summary>1.1. Blok nima?</summary>
+          <p><strong>Blok</strong> &mdash; bu yozuvlar to'plami solingan &laquo;sahifa&raquo;. Uning ichida: shu davrda amalga oshgan tranzaksiyalar ro'yxati, vaqt belgisi, va ikkita muhim raqam bor &mdash; blokning o'z <em>hash</em>i va oldingi blokning hashi.</p>
+          <p>Hash &mdash; ma'lumotdan hisoblanadigan uzun raqamli barmoq izi. Ma'lumotda bitta harf o'zgarsa, hash butunlay boshqacha bo'lib ketadi. Shu sabab blok ichidagi yozuvni sezdirmasdan o'zgartirib bo'lmaydi.</p>
+          <p><strong>Amaliy topshiriq:</strong> istalgan blok-explorer saytida (masalan, ochiq tarmoq explorer'ida) bitta blokni oching va uning raqami, vaqti, tranzaksiyalar soni va hashini daftaringizga yozib oling.</p>
+        </details>
+
+        <details class="acc">
+          <summary>1.2. Chain (zanjir) nima va nega buzib bo'lmaydi?</summary>
+          <p>Har bir blok o'zidan oldingi blokning hashini ichida saqlaydi. Shunday qilib bloklar <strong>zanjir</strong>ga bog'lanadi: 100-blokni o'zgartirsangiz, uning hashi o'zgaradi &mdash; demak 101-blokdagi &laquo;oldingi hash&raquo; to'g'ri kelmay qoladi, 101 ham buziladi, keyin 102... Bitta yozuvni o'zgartirish uchun undan keyingi <em>barcha</em> bloklarni qaytadan hisoblash kerak bo'ladi.</p>
+          <p>Bu &mdash; blokcheyndagi &laquo;o'zgarmaslik&raquo; (immutability) sirining butun mohiyati. Sehr yo'q: shunchaki matematik bog'liqlik.</p>
+        </details>
+
+        <details class="acc">
+          <summary>1.3. Markazlashmaganlik (decentralization) nima degani?</summary>
+          <p>Bankda reestr bitta joyda turadi &mdash; bankning serverida. Blokcheynda esa xuddi shu reestrning nusxasi minglab kompyuterlarda (node'larda) turadi. Yangi blok qo'shilishi uchun tarmoq a'zolari uning qoidaga mos ekaniga <em>kelishishi</em> kerak.</p>
+          <p>Bundan kelib chiqadigan ikkita amaliy natija: (1) tarmoqni bitta odam to'xtata olmaydi; (2) sizning tranzaksiyangizni ham hech kim orqaga qaytarib bera olmaydi &mdash; noto'g'ri manzilga yuborilgan pul qaytmaydi. Bu erkinlik emas, <strong>javobgarlik</strong>.</p>
+        </details>
+
+        <details class="acc">
+          <summary>1.4. Konsensus: PoW va PoS</summary>
+          <p><strong>Proof of Work (PoW)</strong> &mdash; bloklarni qo'shish huquqi hisoblash quvvati sarflagan mayner'ga beriladi (Bitcoin shunday ishlaydi). <strong>Proof of Stake (PoS)</strong> &mdash; huquq tarmoqqa o'z tangasini garov (stake) qo'ygan validator'ga beriladi (Ethereum 2022-yildan shunday).</p>
+          <p>Farqi sizga nima beradi? Tarmoqning tezligi, komissiya narxi va energiya sarfi shundan kelib chiqadi. Loyihani baholayotganda &laquo;bu qanday konsensusda ishlaydi?&raquo; degan savol birinchi o'nlikda turadi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>1.5. Modul yakuni: nazorat savollari</summary>
+          <ul>
+            <li>Blok ichida nima saqlanadi? Kamida 4 element sanab bering.</li>
+            <li>Nega bitta eski yozuvni o'zgartirish amalda imkonsiz?</li>
+            <li>Node bilan mayner o'rtasidagi farq nimada?</li>
+            <li>Tranzaksiyani orqaga qaytarish mumkinmi? Javobingizni asoslang.</li>
+          </ul>
+        </details>
+      </article>
+
+      <article id="modul-2" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-start">2-modul &middot; Boshlang'ich</span>
+          <h2 style="margin-top:12px">Coin va token</h2>
+          <p>Bu ikki so'zni aralashtirish &mdash; yangi boshlovchilarning eng ko'p uchraydigan xatosi. Va aynan shu xato ustiga ko'p firibgarlik qurilgan.</p>
+        </div>
+
+        <details class="acc">
+          <summary>2.1. Coin: o'z blokcheyni bor tanga</summary>
+          <p><strong>Coin</strong> &mdash; o'z blokcheynida yashaydigan asosiy aktiv: BTC Bitcoin tarmog'ida, ETH Ethereum'da, TON esa TON tarmog'ida. Coin tarmoqning &laquo;yoqilg'isi&raquo;: komissiya shu tangada to'lanadi, validatorlar shu tangada mukofot oladi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>2.2. Token: boshqaning blokcheynida yaratilgan aktiv</summary>
+          <p><strong>Token</strong> &mdash; mavjud blokcheyn ustida smart-kontrakt orqali chiqarilgan aktiv (ERC-20, BEP-20, Jetton va h.k.). Token chiqarish uchun tarmoq qurish shart emas &mdash; bir necha daqiqa va bir necha dollar komissiya kifoya.</p>
+          <p><strong>Shuning uchun:</strong> &laquo;bizning o'z tangamiz bor&raquo; degan gap o'z-o'zidan hech narsani isbotlamaydi. Har qanday odam bugun kechqurun 420 milliard birlik token chiqarib, unga chiroyli nom qo'yishi mumkin. Qiymat tokenning mavjudligidan emas, ortidagi haqiqiy foydalanishdan keladi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>2.3. Supply: emissiya, burn, inflyatsiya</summary>
+          <p><em>Total supply</em> &mdash; jami chiqarilgan miqdor; <em>circulating supply</em> &mdash; bozorda aylanayotgan qism; <em>max supply</em> &mdash; eng yuqori chegara. Loyiha jamoasi qo'lida turgan qism qancha? Qulflanganmi (vesting), qachon ochiladi?</p>
+          <p><strong>Amaliy topshiriq:</strong> istalgan ikkita tokenning supply taqsimotini yozib chiqing va o'zingizga savol bering: agar jamoa qo'lidagi 40% bir kunda bozorga tushsa, narx nima bo'ladi?</p>
+        </details>
+
+        <details class="acc">
+          <summary>2.4. Stablecoin qanday ishlaydi?</summary>
+          <p>Stablecoin &mdash; qiymati biror valyutaga (odatda dollarga) bog'lab turilgan token. Ba'zilari real zaxira bilan ta'minlangan, ba'zilari algoritmik. Tarixda algoritmik stablecoin'larning yirik qulashlari bo'lgan &mdash; &laquo;stable&raquo; so'zi kafolat emas, dizayn maqsadi.</p>
+        </details>
+      </article>
+
+      <article id="modul-3" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-start">3-modul &middot; Boshlang'ich</span>
+          <h2 style="margin-top:12px">Hamyon va xavfsizlik</h2>
+          <p>Kripto o'rganishda eng ko'p pul yo'qotiladigan joy &mdash; bozor emas, xavfsizlik. Bu modul amaliy va majburiy.</p>
+        </div>
+
+        <details class="acc">
+          <summary>3.1. Ochiq kalit, yopiq kalit, manzil</summary>
+          <p><strong>Yopiq kalit (private key)</strong> &mdash; aktivni harakatlantirish huquqi. <strong>Ochiq kalit</strong> va undan kelib chiqadigan <strong>manzil</strong> &mdash; pul qabul qilish uchun ulashiladigan qator. Manzilni istagancha tarqatsangiz bo'ladi; yopiq kalitni esa hech kimga, hech qachon.</p>
+        </details>
+
+        <details class="acc">
+          <summary>3.2. Seed-fraza: 12 so'z = butun hamyoningiz</summary>
+          <p>Seed-fraza (12 yoki 24 so'z) yopiq kalitlarni tiklash uchun ishlatiladi. Uni bilgan odam hamyoningizni to'liq egallaydi. Qoidalar: qog'ozga yozing, skrinshot qilmang, bulutga saqlamang, messenjerda yubormang, hech qanday &laquo;qo'llab-quvvatlash xizmati&raquo;ga aytmang &mdash; haqiqiy xizmat undan hech qachon so'ramaydi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>3.3. Custodial va non-custodial</summary>
+          <p>Birjadagi hisob &mdash; <em>custodial</em>: kalit birjada, siz esa faqat yozuvga egasiz. O'z hamyoningiz &mdash; <em>non-custodial</em>: kalit sizda, javobgarlik ham sizda. &laquo;Not your keys, not your coins&raquo; degan gap shundan.</p>
+        </details>
+
+        <details class="acc">
+          <summary>3.4. Tranzaksiya, komissiya (gas), tasdiqlash</summary>
+          <p>Tranzaksiya tarmoqqa yuborilib, blokka tushgach tasdiqlangan hisoblanadi. Komissiya tarmoq bandligiga qarab o'zgaradi. Manzilni har doim boshi va oxiri bo'yicha tekshirib ko'ring &mdash; buferni almashtiruvchi viruslar aynan shunga hisoblangan.</p>
+          <p><strong>Amaliy topshiriq:</strong> test tarmog'ida (testnet) hamyon yarating va o'zingizga kichik test tranzaksiyasi yuboring. Real pul bilan emas &mdash; avval testnetda.</p>
+        </details>
+
+        <details class="acc">
+          <summary>3.5. Ruxsatnomalar (approve) va ularni bekor qilish</summary>
+          <p>DeFi ilovasiga ulanganda siz kontraktga tokenlaringizni sarflash <em>ruxsati</em>ni berasiz. Cheksiz ruxsat bergan bo'lsangiz, kontrakt keyinchalik hamyoningizni bo'shatib olishi mumkin. Ruxsatlarni vaqti-vaqti bilan ko'rib chiqib, keraksizini bekor qilish (revoke) odat bo'lishi kerak.</p>
+        </details>
+      </article>
+
+      <article id="modul-4" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-mid">4-modul &middot; O'rta</span>
+          <h2 style="margin-top:12px">Smart-kontrakt va NFT</h2>
+          <p>Endi asos qurildi &mdash; ustiga qurilma qo'yamiz.</p>
+        </div>
+
+        <details class="acc">
+          <summary>4.1. Smart-kontrakt nima?</summary>
+          <p>Smart-kontrakt &mdash; blokcheynga joylangan programma. U shartni bajaradi: &laquo;agar shu manzildan shuncha kelsa, shuni qaytar&raquo;. Kodi odatda ochiq va o'zgartirilmaydi. Lekin <em>ochiq</em> degani <em>xavfsiz</em> degani emas: kod ichida g'ayrioddiy qoidalar yozilgan bo'lishi mumkin (masalan, sotishni faqat yaratuvchiga ruxsat berish).</p>
+        </details>
+
+        <details class="acc">
+          <summary>4.2. NFT aslida nimani saqlaydi?</summary>
+          <p>NFT (non-fungible token) &mdash; takrorlanmas identifikatorli token. Muhim nuqta: rasm odatda blokcheynda <em>emas</em>, tashqi saqlashda (IPFS yoki oddiy serverda) turadi, blokcheynda esa unga havola (metadata) yozilgan bo'ladi. Server o'chsa, &laquo;rasm&raquo; yo'qoladi &mdash; token qoladi.</p>
+          <p>Ya'ni NFT sotib olish avtomatik ravishda mualliflik huquqini bermaydi. Nima sotib olganingizni tushunish uchun kontrakt va litsenziya shartlarini o'qish kerak.</p>
+        </details>
+
+        <details class="acc">
+          <summary>4.3. Mint, royalty, marketplace</summary>
+          <p>Mint &mdash; NFT yaratish; royalty &mdash; keyingi har bir sotuvdan mualliflga ketadigan ulush (ko'p bozorlarda majburiy emas); marketplace &mdash; savdo maydoni. Savdo hajmi ko'pincha sun'iy shishirilishi mumkin: bir odam o'zidan o'ziga sotib &laquo;qizg'in bozor&raquo; ko'rinishini yasaydi (wash trading).</p>
+        </details>
+
+        <details class="acc">
+          <summary>4.4. NFT bozoridagi tipik illyuziyalar</summary>
+          <ul>
+            <li>&laquo;Floor price ko'tarilib bormoqda&raquo; &mdash; lekin real xaridorlar 3 kishi.</li>
+            <li>&laquo;Utility bo'ladi&raquo; &mdash; hozircha rejasi yo'q.</li>
+            <li>&laquo;Mashhur odam oldi&raquo; &mdash; reklama shartnomasi bilan.</li>
+          </ul>
+        </details>
+      </article>
+
+      <article id="modul-5" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-mid">5-modul &middot; O'rta</span>
+          <h2 style="margin-top:12px">DeFi, DEX va likvidlik</h2>
+        </div>
+
+        <details class="acc">
+          <summary>5.1. CEX va DEX</summary>
+          <p>CEX (markazlashgan birja) &mdash; buyruqlar kitobi kompaniya serverida, hisob ro'yxatdan o'tish bilan. DEX (markazlashmagan birja) &mdash; savdo smart-kontrakt orqali, hamyonni ulab. DEX'da har qanday token listing'siz savdoga chiqishi mumkin &mdash; qulaylik ham, xavf ham shunda.</p>
+        </details>
+
+        <details class="acc">
+          <summary>5.2. Likvidlik puli va slippage</summary>
+          <p>DEX'da narxni ikki aktivning puldagi nisbati belgilaydi. Pul kichik bo'lsa, sizning buyrug'ingiz narxni siljitib yuboradi &mdash; bu <strong>slippage</strong>. Likvidligi 3 000 dollarlik tokenda 1 000 dollarga kirsangiz, narxni o'zingiz ko'tarib, keyin o'zingiz tushirib chiqasiz.</p>
+        </details>
+
+        <details class="acc">
+          <summary>5.3. Likvidlik qulfi (lock) nega muhim?</summary>
+          <p>Likvidlikni pulga qo'ygan odam uni qaytarib olib ketishi mumkin &mdash; o'shanda tokenni sotib bo'lmaydi (&laquo;rug pull&raquo;). Shuning uchun jamoalar likvidlikni ma'lum muddatga qulflaydi va buni tekshirish mumkin. Qulflanmagan likvidlik &mdash; jiddiy ogohlantirish belgisi. Buni 8-modulda Terminal simulyatorida ko'rasiz.</p>
+        </details>
+
+        <details class="acc">
+          <summary>5.4. Staking, lending, impermanent loss</summary>
+          <p>Staking &mdash; tangani garovga qo'yib mukofot olish; lending &mdash; qarzga berish; impermanent loss &mdash; likvidlik pulida narx nisbati o'zgarishi hisobiga kelib chiqadigan nisbiy yo'qotish. &laquo;Yillik 900% APY&raquo; deyilgan joyda daromad qayerdan kelayotganini so'rash kerak: agar javob &laquo;yangi kelganlarning puli&raquo; bo'lsa, bu piramida.</p>
+        </details>
+      </article>
+
+      <article id="modul-6" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-mid">6-modul &middot; O'rta</span>
+          <h2 style="margin-top:12px">Bozor va grafik tahlili</h2>
+        </div>
+
+        <details class="acc">
+          <summary>6.1. Sham (candlestick) grafigini o'qish</summary>
+          <p>Har bir sham to'rtta raqamni ko'rsatadi: ochilish, yopilish, eng yuqori va eng past narx. Tanasi va soyasi bozordagi kurashni ko'rsatadi. Grafikni o'qish &mdash; kelajakni ko'rish emas, hozirgi holatni tavsiflash.</p>
+        </details>
+
+        <details class="acc">
+          <summary>6.2. Trend, daraja, hajm</summary>
+          <p>Trend &mdash; narxning umumiy yo'nalishi; qo'llab-quvvatlash va qarshilik &mdash; narx qayta-qayta to'xtagan zonalar; hajm &mdash; harakat ortidagi qiziqish. Uchtasi bir-birini tasdiqlasa, signal ishonchliroq bo'ladi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>6.3. Timeframe va kontekst</summary>
+          <p>5 daqiqalik grafikdagi &laquo;o'sish&raquo; kunlik grafikda tushish ichidagi kichik sakrash bo'lishi mumkin. Qoida: avval katta timeframe'da kontekstni aniqlang, keyin kichigida kirish nuqtasini izlang.</p>
+        </details>
+
+        <details class="acc">
+          <summary>6.4. Foreks va kripto: farqlar</summary>
+          <p>Foreks &mdash; valyuta juftliklari, ish vaqti seanslarga bog'langan, likvidlik yuqori, leverage katta. Kripto &mdash; 24/7, volatillik yuqori, aktiv sifati juda xilma-xil. Ikkisida ham leverage yo'qotishni xuddi shuncha tezlashtiradi &mdash; foydani tezlashtirgani kabi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>6.5. Indikatorlar: foydasi va chegarasi</summary>
+          <p>Moving average, RSI, MACD &mdash; narx tarixidan hisoblangan yordamchi vositalar. Ular bozorni <em>oldindan bilmaydi</em>. 7 ta indikatorni birga qo'yish tahlil emas, chalkashlik. Bitta-ikkitasini tanlab, qanday ishlashini chuqur bilish yaxshiroq.</p>
+        </details>
+      </article>
+
+      <article id="modul-7" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-pro">7-modul &middot; Murakkab</span>
+          <h2 style="margin-top:12px">Risk-menejment va psixologiya</h2>
+          <p>Bu modul dasturning yuragi. Ko'pchilik grafikni emas, o'zini boshqara olmaganidan yo'qotadi.</p>
+        </div>
+
+        <details class="acc">
+          <summary>7.1. Pozitsiya hajmini hisoblash</summary>
+          <p>Avval stop-loss joyini belgilang, keyin hajmni hisoblang &mdash; teskarisi emas. Formula: <code>hajm = (kapital &times; risk %) / (kirish narxi &minus; stop narxi)</code>. Bitta savdoda kapitalning 1&ndash;2 foizidan ko'pini riskka qo'ymaslik &mdash; sanoat standarti.</p>
+        </details>
+
+        <details class="acc">
+          <summary>7.2. R-multiple va kutilma (expectancy)</summary>
+          <p>1R &mdash; bitta savdodagi rejalashtirilgan yo'qotish. Natijani dollarda emas, R'da yuritish odat bo'lsin. 40% savdo g'alaba, lekin o'rtacha +2R bo'lsa, tizim foydali; 80% g'alaba, lekin ba'zi yo'qotish &minus;10R bo'lsa &mdash; zararli.</p>
+        </details>
+
+        <details class="acc">
+          <summary>7.3. Savdo kundaligi</summary>
+          <p>Har bir savdo uchun yozib qo'yiladi: sabab, kirish, stop, maqsad, natija, hissiyot. Bir oydan keyin kundalik sizga eng ko'p pulni qaysi <em>xatti-harakat</em> yo'qotayotganini ko'rsatadi. Bu &mdash; eng arzon ustoz.</p>
+        </details>
+
+        <details class="acc">
+          <summary>7.4. Drawdown va to'xtash qoidalari</summary>
+          <p>Oldindan yozing: &laquo;kunlik yo'qotish 3R ga yetsa, terminalni yopaman&raquo;, &laquo;oylik drawdown 10% bo'lsa, hajmni yarimlataman&raquo;. Qoidani yo'qotish paytida emas, tinch paytda yozish kerak.</p>
+        </details>
+
+        <details class="acc">
+          <summary>7.5. Hissiyotlar: tilt, FOMO, qasos-savdo</summary>
+          <p>FOMO &mdash; &laquo;ketib qolaman&raquo; qo'rquvi bilan rejasiz kirish; qasos-savdo &mdash; yo'qotganni darhol qaytarish urinishi, odatda hajmni oshirib. Ikkisi ham hisobni tezda bo'shatadi. Yechim intizom emas, <em>tizim</em>: yozilgan qoida va to'xtash chegarasi.</p>
+        </details>
+      </article>
+
+      <article id="modul-8" style="margin-bottom:48px">
+        <div class="section-head">
+          <span class="badge badge-pro">8-modul &middot; Murakkab</span>
+          <h2 style="margin-top:12px">Firibgarlik sxemalarini aniqlash</h2>
+          <p>Oxirgi modul amaliy: ChainShield Terminal simulyatorida ishlaymiz.</p>
+        </div>
+
+        <details class="acc">
+          <summary>8.1. Honeypot kontrakt</summary>
+          <p>Sotib olish ishlaydi, sotish esa ishlamaydi &mdash; chunki kod ichida sotishni bloklovchi shart bor. Grafikda narx faqat o'sib boradi (hech kim sota olmaydi), bu esa yangi xaridorlarni yanada ko'proq jalb qiladi. Tekshirish yo'li: kontrakt kodini va boshqa hamyonlarning sotish tranzaksiyalari bor-yo'qligini ko'rish.</p>
+        </details>
+
+        <details class="acc">
+          <summary>8.2. Yashirin soliq va o'zgartiriladigan qoidalar</summary>
+          <p>Kontrakt yaratuvchisiga soliq foizini keyinchalik o'zgartirish imkonini bersa (masalan, 2% dan 40% ga), bu aslida o'z-o'zidan tuzoq. Xuddi shunday: to'xtatish (pause), blacklist va cheksiz mint funksiyalari.</p>
+        </details>
+
+        <details class="acc">
+          <summary>8.3. &laquo;VIP signal&raquo; iqtisodiyoti</summary>
+          <p>Sxema oddiy: yuzta odamga qarama-qarshi signal yuboriladi, g'alaba chiqqan yarmiga skrinshot ko'rsatiladi, yo'qotgani o'chiriladi. Kanal daromadi savdodan emas, <em>abonentlardan</em> keladi. Terminal sahifasidagi grafik shu farqni ko'rsatadi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>8.4. P2P va &laquo;yechib bo'lmaydigan balans&raquo; tuzog'i</summary>
+          <p>Soxta platformada balans raqami shunchaki HTML matn bo'lishi mumkin &mdash; ortida hech qanday aktiv yo'q. Pul kirishi haqiqiy, chiqishi esa &laquo;soliq to'lang&raquo;, &laquo;verifikatsiya&raquo;, &laquo;muzlatildi&raquo; bahonalari bilan cheksiz kechiktiriladi. Terminal sahifasidagi oqim simulyatsiyasi shu bosqichlarni ko'rsatadi.</p>
+        </details>
+
+        <details class="acc">
+          <summary>8.5. Amaliy topshiriq: 10 nuqtali tekshiruv ro'yxati</summary>
+          <ul>
+            <li>Kontrakt kodi ochiq va tasdiqlanganmi (verified)?</li>
+            <li>Likvidlik qulflanganmi, muddati qancha?</li>
+            <li>Egalik huquqi (owner) topshirilganmi yoki bitta hamyondami?</li>
+            <li>Eng katta 10 hamyon jami necha foizga ega?</li>
+            <li>Sotish tranzaksiyalari mavjudmi?</li>
+            <li>Soliq foizi o'zgartirilishi mumkinmi?</li>
+            <li>Mint funksiyasi ochiqmi?</li>
+            <li>Jamoa ochiq yuzi bormi, tarixi tekshiriladimi?</li>
+            <li>Daromad qayerdan kelmoqda &mdash; mahsulotdan yoki yangi kelganlardan?</li>
+            <li>Shoshiltirish bormi (&laquo;faqat bugun&raquo;, &laquo;30 daqiqa qoldi&raquo;)?</li>
+          </ul>
+          <p>Uchta va undan ko'p javob salbiy bo'lsa &mdash; kirmaslik eng arzon qaror.</p>
+        </details>
+
+        <div class="hero-actions" style="margin-top:20px">
+          <a class="btn btn-primary" href="terminal.html">ChainShield Terminalda mashq qilish</a>
+        </div>
+      </article>
+
+      <div class="cta">
+        <h2>Dasturni ustoz bilan o'tishni xohlaysizmi?</h2>
+        <p>Kurslarda har modul oxirida tekshiriladigan topshiriq va jonli savol-javob bor.</p>
+        <div class="hero-actions" style="justify-content:center">
+          <a class="btn btn-primary" href="kurslar.html">Kurslarni ko'rish</a>
+          <a class="btn btn-ghost" href="aloqa.html#royxat">Ro'yxatdan o'tish</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <h4>Lider<span style="color:#f5c542">Trader</span></h4>
+        <p>Blokcheyn va bozorlarni noldan, qadama-qadam o'rgatadigan onlayn ta'lim maktabi.</p>
+      </div>
+      <div>
+        <h4>Ta'lim</h4>
+        <ul>
+          <li><a href="darslar.html">O'quv yo'li</a></li>
+          <li><a href="darslar.html#modul-1">Blokcheyn asoslari</a></li>
+          <li><a href="darslar.html#modul-4">NFT</a></li>
+          <li><a href="kurslar.html">Kurslar</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Vositalar</h4>
+        <ul>
+          <li><a href="terminal.html">ChainShield Terminal</a></li>
+          <li><a href="darslar.html#modul-8">Firibgarlikni aniqlash</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Bog'lanish</h4>
+        <ul>
+          <li><a href="haqida.html">Biz haqimizda</a></li>
+          <li><a href="aloqa.html">Aloqa</a></li>
+          <li><a href="https://t.me/lidertrader" target="_blank" rel="noopener">Telegram kanal</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="risk"><strong>Ogohlantirish:</strong> Sayt faqat ta'lim maqsadida ishlaydi va investitsiya maslahati emas. Terminal sahifasidagi barcha ma'lumotlar &mdash; <em>simulyatsiya</em>, ya'ni o'qitish uchun to'qilgan namuna, real bozor yoki real shartnoma ma'lumotlari emas. Kripto va foreks savdosi yuqori risk bilan bog'liq: mablag'ingizni yo'qotishingiz mumkin. Hech kim foyda kafolatlab bermaydi.</p>
+    <div class="foot-bottom">
+      <span>&copy; <span data-year>2026</span> LiderTrader. Ta'lim loyihasi.</span>
+      <span>Toshkent &middot; info@lidertrader.uz</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>
