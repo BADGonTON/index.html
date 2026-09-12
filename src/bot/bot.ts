@@ -5,6 +5,7 @@ import { config } from "../config";
 import { MyContext, initialSession } from "./session";
 import { createPgSessionStorage } from "../db/repo/sessions";
 import { bindLogger } from "../services/logger";
+import { unreachableKind, describeTgError } from "../services/tgErrors";
 
 import { offerGate, registerOfferHandlers } from "./handlers/offer";
 import { maintenanceGate, registerMaintenanceHandlers } from "./handlers/maintenance";
@@ -66,9 +67,28 @@ export function createBot(): Bot<MyContext> {
   registerTgProfileHandlers(bot);
   registerTextRouter(bot);
 
+  // Xato BIR QATOR bo'lib yoziladi.
+  //
+  // Ilgari bu yerda xato obyektining o'zi bosilardi — Node esa u bilan
+  // birga butun `ctx` ni ham yozardi: bitta xato yuzlab qator. Loglar
+  // o'qib bo'lmas holga kelib, haqiqiy muammolar ko'rinmay qolgandi.
+  //
+  // Foydalanuvchi botni bloklagani (403) esa umuman xato emas — unda
+  // tuzatadigan narsa yo'q, shuning uchun alohida, qisqa qator bilan
+  // belgilab o'tiladi.
   bot.catch((err) => {
     const from = err.ctx?.from?.id;
-    console.error(`❌ Bot xatosi${from ? ` (user ${from})` : ""}:`, err.error);
+    const who = from ? ` (user ${from})` : "";
+    const kind = unreachableKind(err.error);
+    if (kind) {
+      console.warn(
+        `ℹ️  Xabar yetib bormadi${who}: ${
+          kind === "blocked" ? "botni bloklagan" : "botga hech qachon yozmagan"
+        }`
+      );
+      return;
+    }
+    console.error(`❌ Bot xatosi${who}: ${describeTgError(err.error)}`);
   });
 
   return bot;

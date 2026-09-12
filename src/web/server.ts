@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import express, { Express } from "express";
 import compression from "compression";
 import { webhookCallback } from "grammy";
+import { describeTgError } from "../services/tgErrors";
 import type { Bot } from "grammy";
 import { config } from "../config";
 import { MyContext } from "../bot/session";
@@ -113,17 +114,34 @@ export function createServer(bot: Bot<MyContext>): Express {
   //  Telegram webhook (JSON parser'dan OLDIN — grammY o'zi o'qiydi)
   // ---------------------------------------------------------------------
   if (config.botMode === "webhook") {
+    const handleTelegram = webhookCallback(bot, "express", {
+      // Telegram javobni kutib turadi va javob kelmaguncha o'sha chatning
+      // KEYINGI yangilanishini yubormaydi. Shu sabab chek 55 soniya emas,
+      // 10 soniya: uzoq ish (broadcast, blokcheyn, tashqi API) baribir
+      // fonda bajariladi, webhook esa tez bo'shaydi.
+      timeoutMilliseconds: 10_000,
+      secretToken: config.webhookSecret,
+    });
+
+    // TELEGRAM HAR DOIM 200 OLADI — hatto yangilanishni qayta ishlashda
+    // xato bo'lsa ham.
+    //
+    // Aks holda Telegram javobni "yetkazib bo'lmadi" deb hisoblaydi va
+    // O'SHA yangilanishni har daqiqada QAYTA yuboradi. Xato takrorlanadi,
+    // navbat tiqiladi va shu chatning boshqa xabarlari — hatto /start ham
+    // — umuman yetib kelmaydi. Aynan shu "bot javob bermayapti" va
+    // "Read timeout expired" xatolarini keltirib chiqargan edi.
+    //
+    // Yo'qolgan bitta yangilanish tiqilib qolgan navbatdan afzal.
     app.post(
       `/tg/${config.webhookSecret}`,
       express.json({ limit: "1mb" }),
-      webhookCallback(bot, "express", {
-        // Telegram javobni kutib turadi va javob kelmaguncha o'sha chatning
-        // KEYINGI yangilanishini yubormaydi. Shu sabab chek 55 soniya emas,
-        // 10 soniya: uzoq ish (broadcast, blokcheyn, tashqi API) baribir
-        // fonda bajariladi, webhook esa tez bo'shaydi.
-        timeoutMilliseconds: 10_000,
-        secretToken: config.webhookSecret,
-      })
+      (req, res) => {
+        Promise.resolve(handleTelegram(req, res)).catch((err) => {
+          console.error("❌ Webhook xatosi:", describeTgError(err));
+          if (!res.headersSent) res.status(200).end();
+        });
+      }
     );
   }
 

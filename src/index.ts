@@ -14,6 +14,7 @@ import { startRentWorker, stopRentWorker } from "./worker/rentWorker";
 import { startSweeper, stopSweeper } from "./worker/sweeper";
 import { getWalletAddress } from "./services/wallet";
 import { reportTelegramChecks, installMenuButton } from "./services/telegramCheck";
+import { isUnreachable, describeTgError } from "./services/tgErrors";
 
 /**
  * Butun platformaning kirish nuqtasi.
@@ -141,7 +142,15 @@ async function main(): Promise<void> {
   // Ushlanmagan xatolar butun processni yiqitmasligi kerak — lekin ular
   // albatta ko'rinishi shart, aks holda muammo sezilmay qoladi.
   process.on("unhandledRejection", (reason) => {
-    console.error("❌ Ushlanmagan Promise xatosi:", reason);
+    // Foydalanuvchi botni bloklagani (403) xato emas — bir qatorlik
+    // eslatma yetarli. Qolganlari ham BIR QATOR bo'lib yoziladi: xato
+    // obyektini butunlay bosish loglarni yuzlab qator bilan to'ldirib,
+    // haqiqiy muammolarni ko'rinmas qilib qo'yardi.
+    if (isUnreachable(reason)) {
+      console.warn("ℹ️  Xabar yetib bormadi:", describeTgError(reason));
+      return;
+    }
+    console.error("❌ Ushlanmagan Promise xatosi:", describeTgError(reason));
   });
   // Ushlanmagan istisnodan keyin process qanday holatda qolganini bilib
   // bo'lmaydi: ulanish ochiq qolgan, navbat yarim bajarilgan bo'lishi

@@ -1,4 +1,4 @@
-import { Bot, GrammyError } from "grammy";
+import { Bot } from "grammy";
 import { MyContext } from "../session";
 import { renderMenu, sendTracked } from "../ui";
 import { isAdmin } from "../../config";
@@ -53,25 +53,8 @@ import {
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
 import { runTelegramChecks, formatChecksForTelegram } from "../../services/telegramCheck";
+import { unreachableKind, describeTgError } from "../../services/tgErrors";
 
-
-/**
- * Yetib bormagan xabar sababini AJRATADI.
- *
- * Ilgari har qanday xato "bloklagan" deb hisoblanardi — shuning uchun
- * eski bazadan ko'chirilgan, botga hech qachon /start bermagan
- * foydalanuvchilar ham "bloklagan" bo'lib ko'rinardi. Telegram bu ikkisini
- * turli javob bilan ajratadi.
- */
-function broadcastFailureKind(err: unknown): "blocked" | "no_chat" | "other" {
-  if (!(err instanceof GrammyError)) return "other";
-  const d = err.description.toLowerCase();
-  if (d.includes("blocked by the user")) return "blocked";
-  if (d.includes("user is deactivated")) return "blocked";
-  if (d.includes("can't initiate conversation")) return "no_chat";
-  if (d.includes("chat not found")) return "no_chat";
-  return "other";
-}
 
 /**
  * Broadcast'ning o'zi — fon jarayoni.
@@ -107,7 +90,7 @@ async function runBroadcast(
         success++;
         continue;
       }
-      switch (broadcastFailureKind(r.reason)) {
+      switch (unreachableKind(r.reason) ?? "other") {
         case "blocked":
           blocked++;
           break;
@@ -116,7 +99,7 @@ async function runBroadcast(
           break;
         default:
           other++;
-          if (!firstOtherError) firstOtherError = String((r.reason as Error)?.message ?? r.reason);
+          if (!firstOtherError) firstOtherError = describeTgError(r.reason);
       }
     }
 
