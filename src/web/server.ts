@@ -117,8 +117,11 @@ export function createServer(bot: Bot<MyContext>): Express {
       `/tg/${config.webhookSecret}`,
       express.json({ limit: "1mb" }),
       webhookCallback(bot, "express", {
-        // Telegram 60 soniya kutadi; biz undan oldinroq javob beramiz.
-        timeoutMilliseconds: 55_000,
+        // Telegram javobni kutib turadi va javob kelmaguncha o'sha chatning
+        // KEYINGI yangilanishini yubormaydi. Shu sabab chek 55 soniya emas,
+        // 10 soniya: uzoq ish (broadcast, blokcheyn, tashqi API) baribir
+        // fonda bajariladi, webhook esa tez bo'shaydi.
+        timeoutMilliseconds: 10_000,
         secretToken: config.webhookSecret,
       })
     );

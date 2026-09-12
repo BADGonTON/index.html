@@ -513,7 +513,8 @@ export const ADMIN_BROADCAST_DONE = `${e(I.PARTY, "🎉")} <b>Xabar yuborish yak
 
 ${e(I.CHART, "📊")} Jami <b>{total}</b> foydalanuvchi
 ${e(I.CHECK, "✅")} Yuborildi <b>{success}</b>
-${e(I.CROSS, "❌")} Yuborilmadi (bloklagan) <b>{failed}</b>`;
+${e(I.CROSS, "❌")} Yetib bormadi <b>{failed}</b>
+{breakdown}`;
 
 export const LOG_STARS_SUCCESS = `${e(I.STAR, "⭐")} <b>STARS SOTIB OLINDI</b>
 

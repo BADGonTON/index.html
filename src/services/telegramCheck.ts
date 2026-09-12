@@ -250,7 +250,9 @@ async function checkWebhook(api: Api): Promise<CheckResult[]> {
             info.last_error_message.includes("502") ||
             info.last_error_message.includes("Bad Gateway")
               ? "nginx botga ulana olmayapti — bot ishlayaptimi (pm2 status) va PORT to'g'rimi?"
-              : "SSL sertifikat va nginx sozlamasini tekshiring",
+              : /timeout/i.test(info.last_error_message)
+                ? "Bot javobni juda uzoq kutdirgan (SSL emas). Uzoq ishni fonga chiqaring — loglarni ko'ring"
+                : "SSL sertifikat va nginx sozlamasini tekshiring",
         });
       }
     }

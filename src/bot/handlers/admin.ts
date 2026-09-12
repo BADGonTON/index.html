@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, GrammyError } from "grammy";
 import { MyContext } from "../session";
 import { renderMenu, sendTracked } from "../ui";
 import { isAdmin } from "../../config";
@@ -53,6 +53,98 @@ import {
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
 import { runTelegramChecks, formatChecksForTelegram } from "../../services/telegramCheck";
+
+
+/**
+ * Yetib bormagan xabar sababini AJRATADI.
+ *
+ * Ilgari har qanday xato "bloklagan" deb hisoblanardi — shuning uchun
+ * eski bazadan ko'chirilgan, botga hech qachon /start bermagan
+ * foydalanuvchilar ham "bloklagan" bo'lib ko'rinardi. Telegram bu ikkisini
+ * turli javob bilan ajratadi.
+ */
+function broadcastFailureKind(err: unknown): "blocked" | "no_chat" | "other" {
+  if (!(err instanceof GrammyError)) return "other";
+  const d = err.description.toLowerCase();
+  if (d.includes("blocked by the user")) return "blocked";
+  if (d.includes("user is deactivated")) return "blocked";
+  if (d.includes("can't initiate conversation")) return "no_chat";
+  if (d.includes("chat not found")) return "no_chat";
+  return "other";
+}
+
+/**
+ * Broadcast'ning o'zi — fon jarayoni.
+ *
+ * Foydalanuvchilarni SAHIFALAB o'qiymiz: 200 000 ta ID ni bir vaqtda RAMga
+ * yuklamaymiz. Har sekundda BROADCAST_BATCH ta xabar yuboriladi, shu tufayli
+ * Telegram limitiga urilmaymiz.
+ */
+async function runBroadcast(
+  ctx: MyContext,
+  fromChatId: number,
+  messageId: number,
+  total: number
+): Promise<void> {
+  let cursor = 0;
+  let success = 0;
+  let blocked = 0;
+  let noChat = 0;
+  let other = 0;
+  let firstOtherError = "";
+
+  for (;;) {
+    const batch = await getUserIdsAfter(cursor, BROADCAST_BATCH);
+    if (batch.length === 0) break;
+    cursor = batch[batch.length - 1];
+
+    const results = await Promise.allSettled(
+      batch.map((userId) => ctx.api.copyMessage(userId, fromChatId, messageId))
+    );
+
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        success++;
+        continue;
+      }
+      switch (broadcastFailureKind(r.reason)) {
+        case "blocked":
+          blocked++;
+          break;
+        case "no_chat":
+          noChat++;
+          break;
+        default:
+          other++;
+          if (!firstOtherError) firstOtherError = String((r.reason as Error)?.message ?? r.reason);
+      }
+    }
+
+    await new Promise((r) => setTimeout(r, BROADCAST_PAUSE_MS));
+  }
+
+  const failed = blocked + noChat + other;
+
+  // Sabablar ro'yxati: faqat nol bo'lmaganlari ko'rinadi.
+  const lines: string[] = [];
+  if (blocked) lines.push(`   • Botni bloklagan: <b>${blocked}</b>`);
+  if (noChat) lines.push(`   • Botga hech qachon yozmagan: <b>${noChat}</b>`);
+  if (other) lines.push(`   • Boshqa xato: <b>${other}</b>`);
+  const breakdown = lines.join("\n");
+
+  await ctx.api
+    .sendMessage(ctx.chat!.id, fmt(ADMIN_BROADCAST_DONE, { total, success, failed, breakdown }), {
+      parse_mode: "HTML",
+    })
+    .catch(() => {});
+
+  await sendLog(
+    `📢 Broadcast yakunlandi. Jami ${total} | ✅ ${success} | ❌ ${failed}` +
+      (blocked ? ` | bloklagan ${blocked}` : "") +
+      (noChat ? ` | yozmagan ${noChat}` : "") +
+      (other ? ` | boshqa ${other}: ${firstOtherError}` : "")
+  );
+}
 
 /** Broadcast: Telegram soniyasiga ~30 xabarga ruxsat beradi. 25/s xavfsiz tezlik. */
 const BROADCAST_BATCH = 25;
@@ -322,28 +414,14 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
       await renderMenu(ctx, fmt(ADMIN_BROADCAST_STARTED, { total }));
       await ctx.answerCallbackQuery();
 
-      // Foydalanuvchilarni SAHIFALAB o'qiymiz — 200 000 ta ID ni bir vaqtda
-      // RAMga yuklamaymiz. Har sekundda BROADCAST_BATCH ta xabar yuboriladi,
-      // shu tufayli Telegram limitiga urilmaymiz.
-      let cursor = 0;
-      let success = 0;
-      let failed = 0;
-
-      for (;;) {
-        const batch = await getUserIdsAfter(cursor, BROADCAST_BATCH);
-        if (batch.length === 0) break;
-        cursor = batch[batch.length - 1];
-
-        const results = await Promise.allSettled(
-          batch.map((userId) => ctx.api.copyMessage(userId, broadcastChatId, broadcastMessageId))
-        );
-        for (const r of results) r.status === "fulfilled" ? success++ : failed++;
-
-        await new Promise((r) => setTimeout(r, BROADCAST_PAUSE_MS));
-      }
-
-      await ctx.reply(fmt(ADMIN_BROADCAST_DONE, { total, success, failed }), { parse_mode: "HTML" });
-      await sendLog(`📢 Broadcast yakunlandi. Jami ${total} | ✅ ${success} | ❌ ${failed}`);
+      // Yuborishning O'ZI webhook so'rovi ichida BAJARILMAYDI.
+      //
+      // Telegram webhook'ga javob kelguncha o'sha chatning keyingi
+      // yangilanishini yubormaydi. Broadcast esa minutlab davom etishi
+      // mumkin — shunda Telegram "Read timeout expired" deb so'rovni
+      // uzadi va O'SHA callback'ni QAYTA yuboradi: broadcast ikkinchi
+      // marta ishlab ketardi. Shu sabab fonga chiqaramiz.
+      void runBroadcast(ctx, broadcastChatId, broadcastMessageId, total);
     })
   );
 
