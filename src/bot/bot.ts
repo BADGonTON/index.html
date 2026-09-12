@@ -22,10 +22,18 @@ import { registerTextRouter } from "./handlers/textRouter";
 export function createBot(): Bot<MyContext> {
   const bot = new Bot<MyContext>(config.botToken);
 
-  // Telegram limitlari (bir chatga ~1 xabar/s, umumiy ~30 xabar/s) avtomatik
-  // hurmat qilinadi — chiqadigan har bir xabar shu navbatdan o'tadi va
-  // 429 (Too Many Requests) xatosi umuman bo'lmaydi.
-  bot.api.config.use(apiThrottler());
+  // Telegram limitlari avtomatik hurmat qilinadi — chiqadigan har bir
+  // xabar shu navbatdan o'tadi va 429 (Too Many Requests) chiqmaydi.
+  //
+  // `out.minTime` — BITTA chatga chaqiruvlar orasidagi eng kam vaqt.
+  // Kutubxonaning standart qiymati 1000 ms edi, ya'ni sekundiga 1 ta.
+  // Tugma bosilganda bot ko'pincha ikki ish qiladi (eski xabarni o'chirish
+  // va yangisini chiqarish) — ikkinchisi TO'LIQ bir soniya kutar edi va
+  // bot sekin tuyulardi. 250 ms sekundiga 4 ta chaqiruvga yo'l beradi;
+  // shaxsiy chatlar uchun Telegram bunga bemalol chidaydi.
+  //
+  // Umumiy 30 chaqiruv/sekund chegarasi o'zgarmaydi — u Telegramniki.
+  bot.api.config.use(apiThrottler({ out: { maxConcurrent: 1, minTime: 250 } }));
 
   // Turli foydalanuvchilar PARALLEL, bitta foydalanuvchi esa KETMA-KET
   // qayta ishlanadi — FSM bosqichlari aralashib ketmasligi uchun.
