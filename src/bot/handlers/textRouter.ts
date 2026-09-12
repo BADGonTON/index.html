@@ -66,6 +66,17 @@ const ROUTES: Record<string, StepHandler> = {
   [STEP.ADMIN_TG_ADD_CODE]: (_bot, ctx) => handleAdminTgCodeText(ctx),
 };
 
+/**
+ * Foydalanuvchi xabari O'CHIRILMAYDIGAN bosqichlar.
+ *
+ * Broadcast xabarni `copyMessage` bilan ko'chiradi — ya'ni ASL xabar
+ * chatda turishi SHART. Uni o'chirib yuborsak, "Yuborish" bosilganda
+ * Telegram har bir foydalanuvchi uchun
+ * `400: message to copy not found` qaytaradi va xabar hech kimga
+ * yetib bormaydi.
+ */
+const KEEP_USER_MESSAGE = new Set<string>([STEP.ADMIN_BROADCAST_WAIT]);
+
 export function registerTextRouter(bot: Bot<MyContext>): void {
   bot.on("message:text", async (ctx) => {
     const step = ctx.session.step;
@@ -85,6 +96,10 @@ export function registerTextRouter(bot: Bot<MyContext>): void {
     // Foydalanuvchi yozgan qiymat (summa, username, kod) chatda qolmasin —
     // shunda ekranda faqat BITTA, tahrirlanadigan bot xabari turadi.
     // O'chirish bilan javob berish PARALLEL ketadi: kutish yo'q.
+    if (KEEP_USER_MESSAGE.has(step)) {
+      await handler(bot, ctx);
+      return;
+    }
     await Promise.all([deleteUserMessage(ctx), handler(bot, ctx)]);
   });
 }

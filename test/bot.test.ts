@@ -28,6 +28,9 @@ const ok = (label: string, cond: boolean, extra = "") => {
 const USER = { id: 700123, is_bot: false, first_name: "Shahboz", username: "shahboz" };
 const CHAT = { id: 700123, type: "private" as const, first_name: "Shahboz" };
 
+const ADMIN = { id: 700999, is_bot: false, first_name: "Admin", username: "admin" };
+const ADMIN_CHAT = { id: 700999, type: "private" as const, first_name: "Admin" };
+
 /** Yozib olingan API chaqiruvi. */
 interface Call {
   method: string;
@@ -71,12 +74,47 @@ function callbackUpdate(data: string, msgId: number): Update {
   } as Update;
 }
 
+function adminTextUpdate(text: string): Update {
+  return {
+    update_id: updateId++,
+    message: {
+      message_id: messageId++,
+      date: Math.floor(Date.now() / 1000),
+      chat: ADMIN_CHAT,
+      from: ADMIN,
+      text,
+      entities: text.startsWith("/")
+        ? [{ type: "bot_command" as const, offset: 0, length: text.split(" ")[0].length }]
+        : undefined,
+    },
+  } as Update;
+}
+
+function adminCallbackUpdate(data: string, msgId: number): Update {
+  return {
+    update_id: updateId++,
+    callback_query: {
+      id: String(updateId),
+      from: ADMIN,
+      chat_instance: "1",
+      data,
+      message: { message_id: msgId, date: Math.floor(Date.now() / 1000), chat: ADMIN_CHAT, text: "…" },
+    },
+  } as Update;
+}
+
 /** Klaviaturadagi barcha tugmalar (bir tekis ro'yxat). */
 function buttons(payload: any): any[] {
   return (payload?.reply_markup?.inline_keyboard ?? []).flat();
 }
 
 async function main(): Promise<void> {
+  // Broadcast bosqichi uchun ALOHIDA admin kerak: asosiy USER oddiy
+  // foydalanuvchi bo'lib qolishi shart, aks holda texnik ishlar testi
+  // ma'nosini yo'qotadi (adminlarga texnik ishlar ta'sir qilmaydi).
+  // `config` import paytida o'qiladi — shuning uchun importlardan OLDIN.
+  process.env.ADMIN_IDS = String(ADMIN.id);
+
   const { runMigrations } = await import("../src/db/migrate");
   const { pool, closePool } = await import("../src/db/pool");
   const { createBot } = await import("../src/bot/bot");
@@ -89,6 +127,8 @@ async function main(): Promise<void> {
   // urinadi va test "yangi foydalanuvchi" holatini sinamaydi.
   await pool.query("DELETE FROM users WHERE user_id = $1", [USER.id]);
   await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(USER.id)]);
+  await pool.query("DELETE FROM users WHERE user_id = $1", [ADMIN.id]);
+  await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(ADMIN.id)]);
 
   const bot = createBot();
 
@@ -280,6 +320,50 @@ async function main(): Promise<void> {
      sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")),
      sent.map((c) => c.method).join(", "));
 
+  // ── 10. Broadcast: ASL XABAR CHATDA QOLISHI SHART ──
+  //
+  // Broadcast xabarni `copyMessage` bilan ko'chiradi. Matn bosqichlarida
+  // bot foydalanuvchi xabarini odatda o'chiradi — lekin bu yerda
+  // o'chirsa, "Yuborish" bosilganda Telegram har bir foydalanuvchi uchun
+  // `400: message to copy not found` qaytaradi va xabar HECH KIMGA
+  // yetib bormaydi. Aynan shu nosozlik bo'lgan edi: 155 dan 0 ta yetdi.
+  console.log("\n── Broadcast ──");
+
+  // Admin ham ofertadan o'tadi — darvoza hamma uchun bir xil.
+  await bot.handleUpdate(adminTextUpdate("/start"));
+  let adminMsgId = (take().find((c) => c.method === "sendMessage")?.result as any)?.message_id ?? 1;
+  await bot.handleUpdate(adminCallbackUpdate("offer_accept", adminMsgId));
+  take();
+
+  await bot.handleUpdate(adminCallbackUpdate("admin_broadcast", adminMsgId));
+  take();
+
+  const draft = adminTextUpdate("Assalomu alaykum, yangilik bor!");
+  const draftId = draft.message!.message_id;
+  await bot.handleUpdate(draft);
+  sent = take();
+
+  ok("asl xabar O'CHIRILMADI",
+     !sent.some((c) => c.method === "deleteMessage" && c.payload?.message_id === draftId),
+     sent.map((c) => c.method).join(", "));
+  ok("tasdiq so'raldi",
+     sent.some((c) => /Davom etasizmi/.test(c.payload?.text ?? "")),
+     sent.map((c) => c.method).join(", "));
+
+  // Boshqa bosqichlarda esa o'chirish AVVALGIDEK ishlaydi.
+  await bot.handleUpdate(adminCallbackUpdate("broadcast_cancel", adminMsgId));
+  take();
+  await bot.handleUpdate(adminCallbackUpdate("pay", adminMsgId));
+  take();
+  const amount = adminTextUpdate("50000");
+  const amountId = amount.message!.message_id;
+  await bot.handleUpdate(amount);
+  sent = take();
+  ok("boshqa bosqichda xabar avvalgidek o'chiriladi",
+     sent.some((c) => c.method === "deleteMessage" && c.payload?.message_id === amountId),
+     sent.map((c) => c.method).join(", "));
+
+  await pool.query("DELETE FROM users WHERE user_id = $1", [ADMIN.id]);
   await pool.query("DELETE FROM users WHERE user_id = $1", [USER.id]);
   await closePool();
 
