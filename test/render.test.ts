@@ -169,9 +169,8 @@ async function main() {
       max_ads: 50,
       markup_pct: 15,
       min_topup_uzs: 2_000,
-      min_ton: 0.1,
       ton_rate_uzs: 20_000,
-      cpm: { base: 0.1, premium_emoji: 0.15, photo: 0.18, video: 0.2, userpic_multiplier: 1.3, estimate: true },
+      cpm: { base: 2_000, premium_emoji: 3_000, photo: 3_600, video: 4_000, userpic_multiplier: 1.3, estimate: true },
       text_limit: 160,
       title_limit: 128,
       formatter_bot: "https://t.me/AdsMarkdownBot",
@@ -529,7 +528,7 @@ async function main() {
       value: document.getElementById("ad-cpm").value,
       hint: document.getElementById("cpm-hint").textContent
     }))()`) as any;
-    ok("CPM premium emoji bo'yicha 0.15", cpm.value === "0.15", cpm.value);
+    ok("narx premium emoji bo'yicha 3 000 so'm", cpm.value === "3000", cpm.value);
     ok("sabab tushuntirildi", /premium emoji/.test(cpm.hint), cpm.hint);
 
     // ── Narx hisobi ──
@@ -541,12 +540,13 @@ async function main() {
       return {
         fee: document.getElementById("q-fee").textContent,
         total: document.getElementById("q-total").textContent,
-        ton: document.getElementById("q-ton").textContent
+        hasTonRow: Boolean(document.getElementById("q-ton"))
       };
     })()`) as any;
     ok("narx hisobi chiqdi", quote !== null);
     ok("jami \u2014 kiritilgan summa", (quote?.total ?? "").replace(/\s/g, "").startsWith("50000"), quote?.total);
     ok("xizmat haqi 6 522", (quote?.fee ?? "").replace(/\s/g, "").startsWith("6522"), quote?.fee);
+    ok("narx hisobida TON qatori yo'q", quote?.hasTonRow === false);
 
     // ── Natija ekrani: ko'rinish va tasdiqlash ──
     await page.click("#wiz-next");
@@ -617,9 +617,25 @@ async function main() {
     }))()`) as any;
     ok("sarflangan summa", profile.spent.replace(/\s/g, "") === "120000", profile.spent);
     ok("ustama ko'rsatildi", profile.markup === "15%", profile.markup);
-    ok("eng kam summa TON bilan", /TON/.test(profile.min), profile.min);
+    ok("eng kam summa so'mda", /so'm/.test(profile.min) && !/TON/.test(profile.min), profile.min);
     ok("TON kursi qatori OLIB TASHLANDI", profile.hasRate === false);
     ok("qaytarilgan summa qatori qo'shildi", profile.hasRefunded === true);
+
+    // ── TON so'zi reklama bo'limida UMUMAN bo'lmasligi kerak ──
+    //
+    // Foydalanuvchi so'mda o'ylaydi. TON faqat Telegram API si uchun
+    // kerak va ichkarida qoladi.
+    const tonLeak: string[] = [];
+    for (const tab of ["ads-create", "ads-mine", "ads-stats", "ads-profile"]) {
+      await page.click(`[data-tab="${tab}"]`);
+      await page.waitForTimeout(500);
+      const found = await page.evaluate(`(() => {
+        var s = document.querySelector(".screen.is-active");
+        return s && /TON/.test(s.innerText) ? s.innerText.match(/.{0,30}TON.{0,20}/)[0] : "";
+      })()`) as string;
+      if (found) tonLeak.push(`${tab}: ${found}`);
+    }
+    ok("TON so'zi hech qayerda yo'q", tonLeak.length === 0, tonLeak.join(" | "));
 
     // Gift Arendaga qaytish    // Gift Arendaga qaytish
     await page.click('[data-switch="gift"]');

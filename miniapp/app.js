@@ -1611,10 +1611,6 @@ function adsApi(path, options) {
   return api(`/ads${path}`, options);
 }
 
-function tonFmt(n) {
-  return `${Number(n).toFixed(2)} TON`;
-}
-
 function statusPill(status) {
   const [label, cls] = STATUS_LABELS[status] || [status, 'st-stopped'];
   return `<i class="st ${cls}">${escapeHtml(label)}</i>`;
@@ -1908,6 +1904,8 @@ function neededCpm() {
   const cpm = AD.cfg?.cpm;
   if (!cpm) return 0;
 
+  // Hammasi SO'MDA. Serverdagi hisob bilan bir xil bo'lishi kerak,
+  // aks holda ekranda "yetarli" deb turib, server rad etardi.
   const text = analyzeText($('ad-text').value);
   let base = text.emoji > 0 ? cpm.premium_emoji : cpm.base;
 
@@ -1916,7 +1914,7 @@ function neededCpm() {
   else if (AD.media?.kind === 'photo') multiplier *= cpm.photo / cpm.base;
   if ($('ad-userpic').checked) multiplier *= cpm.userpic_multiplier || 1;
 
-  return Math.ceil(base * multiplier * 100) / 100;
+  return Math.ceil((base * multiplier) / 100) * 100;
 }
 
 function syncCpmHint() {
@@ -1931,7 +1929,7 @@ function syncCpmHint() {
   if ($('ad-userpic').checked) reasons.push('kanal rasmi');
 
   $('cpm-hint').textContent =
-    `Eng kami ${needed} TON` +
+    `Eng kami ${fmtSom(needed)}` +
     (reasons.length ? ` — ${reasons.join(', ')} narxni oshirdi.` : '.') +
     ' Bu taxminiy baho: aniq chegarani Telegram o\'zi qo\'yadi.';
 }
@@ -1945,13 +1943,10 @@ function syncQuote() {
 
   const budgetUzs = Math.round((total * 100) / (100 + cfg.markup_pct));
   const feeUzs = total - budgetUzs;
-  const ton = Math.floor((budgetUzs / cfg.ton_rate_uzs) * 100) / 100;
-
   $('q-pct').textContent = String(cfg.markup_pct);
   $('q-budget').textContent = fmtSom(budgetUzs);
   $('q-fee').textContent = fmtSom(feeUzs);
   $('q-total').textContent = fmtSom(total);
-  $('q-ton').textContent = tonFmt(ton);
   box.hidden = false;
 }
 
@@ -2040,7 +2035,7 @@ function validateStep(step) {
     }
     const cpm = Number($('ad-cpm').value) || 0;
     const needed = neededCpm();
-    if (cpm < needed) return `CPM kamida ${needed} TON bo'lishi kerak.`;
+    if (cpm < needed) return `1000 ko'rsatish narxi kamida ${fmtSom(needed)} bo'lishi kerak.`;
   }
 
   return null;
@@ -2088,7 +2083,6 @@ function renderSummary() {
   const cfg = AD.cfg;
   const budget = Math.floor(Number($('ad-budget').value) || 0);
   const budgetUzs = Math.round((budget * 100) / (100 + cfg.markup_pct));
-  const ton = Math.floor((budgetUzs / cfg.ton_rate_uzs) * 100) / 100;
   const s = AD.sel;
 
   const targetText = {
@@ -2112,8 +2106,8 @@ function renderSummary() {
     ['Kimga', `${TARGET_INFO[AD.target][0]} — ${targetText || '—'}`],
     ['Media', AD.media ? (AD.media.kind === 'photo' ? 'Rasm' : 'Video') : 'Yo\'q'],
     ['Jadval', $('ad-sched-on').checked ? 'Tanlangan soatlarda' : 'Doimiy'],
-    ['CPM', tonFmt(Number($('ad-cpm').value) || 0)],
-    ['Byudjet', `${tonFmt(ton)} · ${fmtSom(budgetUzs)}`],
+    ['1000 ko\'rsatish', fmtSom(Number($('ad-cpm').value) || 0)],
+    ['Byudjet', fmtSom(budgetUzs)],
     ['Xizmat haqi', fmtSom(budget - budgetUzs)],
   ];
 
@@ -2165,7 +2159,7 @@ function collectAdPayload() {
     promote_url: $('ad-url').value.trim(),
     placement: AD.placement,
     target: collectTarget(),
-    cpm: Number($('ad-cpm').value) || 0,
+    cpm_uzs: Number($('ad-cpm').value) || 0,
     budget_uzs: Math.floor(Number($('ad-budget').value) || 0),
     impression_frequency: Number($('ad-freq').value) || 1,
     show_userpic: $('ad-userpic').checked,
@@ -2174,7 +2168,7 @@ function collectAdPayload() {
   };
 
   const daily = Number($('ad-daily').value);
-  if (Number.isFinite(daily) && daily > 0) payload.daily_budget_limit = daily;
+  if (Number.isFinite(daily) && daily > 0) payload.daily_budget_limit_uzs = daily;
 
   if (!$('ad-website-wrap').hidden) {
     payload.website_name = $('ad-website').value.trim();
@@ -2377,8 +2371,8 @@ function renderAdDetail() {
   $('add-clicks').textContent = fmtNum(ad.clicks);
   $('add-ctr').textContent = `${ad.ctr}%`;
   $('add-spent').textContent = fmtSom(ad.spent_uzs);
-  $('add-budget').textContent = `${fmtSom(ad.budget_uzs)} · ${tonFmt(ad.budget_ton)}`;
-  $('add-cpm').textContent = tonFmt(ad.cpm_ton);
+  $('add-budget').textContent = fmtSom(ad.budget_uzs);
+  $('add-cpm').textContent = fmtSom(ad.cpm_uzs);
 
   $('add-decline').hidden = ad.status !== 'declined';
   $('add-decline-text').textContent = ad.decline_reason
@@ -2546,7 +2540,7 @@ async function renderAdsProfile() {
     $('adp-balance').textContent = fmtSom(cfg.balance_uzs);
     $('adp-count').textContent = `${cfg.ads_count} / ${cfg.max_ads}`;
     $('adp-markup').textContent = `${cfg.markup_pct}%`;
-    $('adp-min').textContent = `${fmtSom(cfg.min_topup_uzs)} (${cfg.min_ton} TON)`;
+    $('adp-min').textContent = fmtSom(cfg.min_topup_uzs);
 
     const refunded = AD.items.reduce((sum, a) => sum + (a.refunded_uzs || 0), 0);
     $('adp-refunded').textContent = fmtSom(refunded);
@@ -2577,7 +2571,7 @@ function renderAdsHistory(items) {
         <i class="st ${t.status === 'done' ? 'st-active' : t.status === 'pending' ? 'st-review' : 'st-declined'}">${LABELS[t.status] || t.status}</i>
       </div>
       <p class="ad-card-text">
-        ${tonFmt(t.ton)} byudjetga · xizmat haqi ${fmtSom(t.fee_uzs)}<br>
+        Byudjetga ${fmtSom(t.uzs - t.fee_uzs)} · xizmat haqi ${fmtSom(t.fee_uzs)}<br>
         ${when.toLocaleDateString('ru-RU')} ${when.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
       </p>`;
     box.appendChild(row);

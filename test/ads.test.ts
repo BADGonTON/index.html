@@ -261,30 +261,44 @@ async function main(): Promise<void> {
   // bor. Shuning uchun bu baho, lekin u har doim OSHISHI kerak.
   console.log("\n── Eng kam CPM ──");
 
-  const cpmBase = pricing.minCpmTon({});
-  const cpmEmoji = pricing.minCpmTon({ premiumEmoji: true });
-  const cpmPhoto = pricing.minCpmTon({ photo: true });
-  const cpmVideo = pricing.minCpmTon({ video: true });
+  const cpmBase = pricing.minCpmUzs({});
+  const cpmEmoji = pricing.minCpmUzs({ premiumEmoji: true });
+  const cpmPhoto = pricing.minCpmUzs({ photo: true });
+  const cpmVideo = pricing.minCpmUzs({ video: true });
 
-  ok("asos 0.1 TON", cpmBase === 0.1, String(cpmBase));
-  ok("premium emoji 0.15 TON", cpmEmoji === 0.15, String(cpmEmoji));
+  // Foydalanuvchi SO'MDA ko'radi — TON faqat Telegram API si uchun.
+  ok("asos so'mda", cpmBase === 2_000, String(cpmBase));
+  ok("premium emoji qimmatroq", cpmEmoji > cpmBase, `${cpmBase} → ${cpmEmoji}`);
   ok("rasm qimmatroq", cpmPhoto > cpmBase, `${cpmBase} → ${cpmPhoto}`);
   ok("video rasmdan qimmat", cpmVideo > cpmPhoto, `${cpmPhoto} → ${cpmVideo}`);
   ok("kanal rasmi yana oshiradi",
-     pricing.minCpmTon({ userpic: true }) > cpmBase,
-     String(pricing.minCpmTon({ userpic: true })));
+     pricing.minCpmUzs({ userpic: true }) > cpmBase,
+     String(pricing.minCpmUzs({ userpic: true })));
   ok("emoji + video eng qimmat",
-     pricing.minCpmTon({ premiumEmoji: true, video: true }) > cpmVideo,
-     String(pricing.minCpmTon({ premiumEmoji: true, video: true })));
+     pricing.minCpmUzs({ premiumEmoji: true, video: true }) > cpmVideo,
+     String(pricing.minCpmUzs({ premiumEmoji: true, video: true })));
+
+  // So'm → TON o'girish YUQORIGA yaxlitlanadi: pastga yaxlitlasak
+  // Telegramning eng kam chegarasidan pastga tushib qolardik.
+  ok("so'm → TON yuqoriga yaxlitlanadi",
+     pricing.uzsToTon(2_000) >= 2_000 / pricing.getTonRateUzs(),
+     String(pricing.uzsToTon(2_000)));
 
   // ── Eng kam summa TON dan hisoblanadi ──
   console.log("\n── Eng kam summa ──");
 
   await pricing.setAdsMinTon(0.1);
   const minUzs = pricing.getAdsMinTopupUzs();
-  ok("0.1 TON so'mga o'girildi", minUzs === Math.ceil((0.1 * pricing.getTonRateUzs()) / 1000) * 1000,
-     `${minUzs} so'm`);
+  ok("eng kam summa so'mda chiqadi", minUzs > 0, `${minUzs} so'm`);
   ok("yuqoriga yaxlitlandi", minUzs >= 0.1 * pricing.getTonRateUzs(), String(minUzs));
+
+  // ── Javobda TON maydonlari BO'LMASLIGI kerak ──
+  //
+  // Mini App so'mda ishlaydi. Javobga TON tushib qolsa, ertaga kimdir
+  // uni ekranga chiqarib qo'yadi.
+  ok("narx hisobida TON yo'q",
+     !Object.keys(pricing.adsQuote(50_000)).some((k) => k === "ton"),
+     Object.keys(pricing.adsQuote(50_000)).join(","));
 
   // ── Server ──
   const app = createServer({} as never);
@@ -333,7 +347,7 @@ async function main(): Promise<void> {
     text: "Eng yaxshi takliflar",
     promote_url: "https://t.me/example",
     placement: "channel_post",
-    cpm: 0.5,
+    cpm_uzs: 15_000,
     budget_uzs: 50_000,
     target: { type: "channels", language_codes: ["uz"] },
   };

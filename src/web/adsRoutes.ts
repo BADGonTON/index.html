@@ -37,12 +37,12 @@ import { userFacingAdsError, adsErrorForLog } from "../services/adsErrors";
 import {
   getAdsMarkupPct,
   getAdsMinTopupUzs,
-  getAdsMinTon,
-  getAdsMinCpmBaseTon,
   getTonRateUzs,
   adsQuote,
   tonToUzs,
+  uzsToTon,
   minCpmTon,
+  minCpmUzs,
 } from "../services/pricing";
 import { checkAdText, hasPremiumEmoji, AD_TEXT_LIMIT, AD_TITLE_LIMIT } from "../services/adText";
 import { getBalance, tryDeductBalance, refundBalance } from "../db/repo/users";
@@ -109,10 +109,10 @@ function serializeAd(row: AdRow) {
     placement: row.placement,
     status: row.status,
     decline_reason: row.decline_reason,
-    cpm_ton: row.cpm_ton,
-    budget_ton: row.budget_ton,
+    // Foydalanuvchi HAMMA joyda so'mda ishlaydi — TON faqat Telegram
+    // API si talab qilgani uchun ichkarida qoladi va tashqariga chiqmaydi.
+    cpm_uzs: tonToUzs(row.cpm_ton),
     budget_uzs: tonToUzs(row.budget_ton),
-    spent_ton: row.spent_ton,
     spent_uzs: tonToUzs(row.spent_ton),
     views: row.views,
     clicks: row.clicks,
@@ -122,7 +122,6 @@ function serializeAd(row: AdRow) {
     created_at: row.created_at,
     synced_at: row.synced_at,
     refund_state: row.refund_state,
-    refunded_ton: row.refunded_ton,
     refunded_uzs: tonToUzs(row.refunded_ton),
   };
 }
@@ -330,7 +329,11 @@ function parseAdFields(body: Record<string, unknown>, forEdit: boolean) {
   const placement = String(body.placement ?? "channel_post") as AdPlacement;
   if (!PLACEMENTS.includes(placement)) throw new BadInput("Joylashuv noto'g'ri");
 
-  const cpm = Number(body.cpm);
+  // CPM va kunlik limit foydalanuvchidan SO'MDA keladi va shu yerda
+  // bir marta TON ga o'giriladi — Telegram API si boshqa birlikni
+  // qabul qilmaydi. Mini App TON ni umuman ko'rmaydi.
+  const cpmUzs = Number(body.cpm_uzs);
+  const cpm = Number.isFinite(cpmUzs) && cpmUzs > 0 ? uzsToTon(cpmUzs) : NaN;
   if (!forEdit && (!Number.isFinite(cpm) || cpm <= 0)) {
     throw new BadInput("CPM narxini kiriting");
   }
@@ -347,9 +350,15 @@ function parseAdFields(body: Record<string, unknown>, forEdit: boolean) {
       userpic: Boolean(body.show_userpic),
     });
     if (cpm < needed) {
+      const neededUzs = minCpmUzs({
+        premiumEmoji: hasPremiumEmoji(text),
+        photo: Boolean(body.photo_id),
+        video: Boolean(body.video_id),
+        userpic: Boolean(body.show_userpic),
+      });
       throw new BadInput(
-        `Bu reklama uchun CPM kamida ${needed} TON bo'lishi kerak ` +
-          `(premium emoji, rasm va video narxni oshiradi).`
+        `Bu reklama uchun CPM kamida ${neededUzs.toLocaleString("ru-RU")} so'm ` +
+          `bo'lishi kerak (premium emoji, rasm va video narxni oshiradi).`
       );
     }
   }
@@ -364,12 +373,16 @@ function parseAdFields(body: Record<string, unknown>, forEdit: boolean) {
   const button = body.button ? String(body.button) : undefined;
   if (button && !BUTTONS.includes(button)) throw new BadInput("Tugma turi noto'g'ri");
 
-  const dailyLimit = body.daily_budget_limit === undefined
+  // Kunlik limit IXTIYORIY va uning eng kam chegarasi YO'Q —
+  // Telegram hujjatida shunday: "If 0, the limit is not applied.
+  // Defaults to 0." Ya'ni 0 bo'lsa limit qo'llanmaydi.
+  const dailyUzs = body.daily_budget_limit_uzs === undefined
     ? undefined
-    : Number(body.daily_budget_limit);
-  if (dailyLimit !== undefined && (!Number.isFinite(dailyLimit) || dailyLimit < 0)) {
+    : Number(body.daily_budget_limit_uzs);
+  if (dailyUzs !== undefined && (!Number.isFinite(dailyUzs) || dailyUzs < 0)) {
     throw new BadInput("Kunlik limit noto'g'ri");
   }
+  const dailyLimit = dailyUzs === undefined || dailyUzs === 0 ? dailyUzs : uzsToTon(dailyUzs);
 
   // Sana: hozirgidan keyin va 365 kundan uzoq emas (Telegram talabi).
   const parseDate = (value: unknown, field: string): number | undefined => {
@@ -483,17 +496,15 @@ export function createAdsRouter(): Router {
         max_ads: MAX_ADS_PER_USER,
         markup_pct: getAdsMarkupPct(),
         min_topup_uzs: getAdsMinTopupUzs(),
-        min_ton: getAdsMinTon(),
-        ton_rate_uzs: getTonRateUzs(),
 
-        // Eng kam CPM. Telegram aniq raqamni API orqali BERMAYDI —
-        // hujjatda faqat foizlar bor, shuning uchun bu BAHO. Telegram
-        // baribir rad etsa, uning o'z sababi ko'rsatiladi.
+        // Eng kam CPM — SO'MDA. Telegram aniq raqamni API orqali
+        // BERMAYDI: hujjatda faqat qo'shimcha foizlar bor, shuning uchun
+        // bu BAHO. Telegram baribir rad etsa, uning o'z sababi chiqadi.
         cpm: {
-          base: getAdsMinCpmBaseTon(),
-          premium_emoji: minCpmTon({ premiumEmoji: true }),
-          photo: minCpmTon({ photo: true }),
-          video: minCpmTon({ video: true }),
+          base: minCpmUzs({}),
+          premium_emoji: minCpmUzs({ premiumEmoji: true }),
+          photo: minCpmUzs({ photo: true }),
+          video: minCpmUzs({ video: true }),
           userpic_multiplier: 1.3,
           estimate: true,
         },
@@ -574,7 +585,12 @@ export function createAdsRouter(): Router {
     guard(async (req, res) => {
       const uzs = Math.floor(Number(req.query.uzs));
       if (!Number.isFinite(uzs) || uzs <= 0) throw new BadInput("Summani kiriting");
-      res.json(adsQuote(uzs));
+      const quote = adsQuote(uzs);
+      res.json({
+        total_uzs: quote.total_uzs,
+        budget_uzs: quote.budget_uzs,
+        fee_uzs: quote.fee_uzs,
+      });
     })
   );
 
@@ -937,7 +953,6 @@ export function createAdsRouter(): Router {
         res.json({
           ok: true,
           refund: true,
-          refund_ton: unspent,
           refund_uzs: tonToUzs(unspent),
           wait_min: Math.round(REFUND_COOLDOWN_SEC / 60),
         });
@@ -978,7 +993,6 @@ export function createAdsRouter(): Router {
           views: s.views,
           clicks: s.clicks,
           actions: s.actions,
-          spent_ton: s.spent_budget,
           spent_uzs: tonToUzs(s.spent_budget),
         })),
       });
@@ -999,7 +1013,6 @@ export function createAdsRouter(): Router {
           id: t.id,
           ad_id: t.ad_id,
           uzs: t.uzs,
-          ton: t.ton,
           fee_uzs: t.fee_uzs,
           status: t.status,
           created_at: t.created_at,

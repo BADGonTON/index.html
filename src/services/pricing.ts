@@ -361,3 +361,27 @@ export function adsQuote(totalUzs: number): AdsQuote {
 export function tonToUzs(ton: number): number {
   return Math.round(ton * tonRateUzs);
 }
+
+/**
+ * So'mni TON ga o'giradi.
+ *
+ * Foydalanuvchi HAMMA joyda so'mda ishlaydi — TON faqat Telegram API si
+ * talab qilgani uchun, chegarada bir marta ishlatiladi.
+ *
+ * Yuqoriga yaxlitlanadi: Telegram byudjet va CPM uchun 2 xona qabul
+ * qiladi, pastga yaxlitlasak eng kam chegaradan pastga tushib qolardik.
+ */
+export function uzsToTon(uzs: number): number {
+  return Math.ceil((uzs / tonRateUzs) * 100) / 100;
+}
+
+/** Eng kam CPM — SO'MDA (foydalanuvchi shu birlikni ko'radi). */
+export function minCpmUzs(opts: MinCpmInput = {}): number {
+  // Yuqoriga, YUZGA yaxlitlaymiz.
+  //
+  // Mingga yaxlitlash rasm (3 600) va video (4 000) narxini tenglashtirib
+  // qo'yardi — foydalanuvchi videoning qimmatroq ekanini ko'rmasdi.
+  // Yuqoriga yaxlitlash esa Telegram chegarasidan pastga tushmaslikni
+  // kafolatlaydi.
+  return Math.ceil((minCpmTon(opts) * tonRateUzs) / 100) * 100;
+}

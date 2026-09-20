@@ -785,16 +785,14 @@ Yangi qiymatni raqam bilan yuboring (masalan <code>15</code>):`;
 
 export const ADMIN_SET_ADS_MIN_TOPUP = `💳 <b>Reklama: eng kam summa</b>
 
-Hozirgi qiymat: <b>{ton} TON</b>
+Hozirgi qiymat: <b>{uzs} so'm</b>
 
 Reklama yaratish va byudjetni oshirish uchun eng kam summa.
-So'mda emas, TON da saqlanadi — kurs o'zgarganda chegara
-Telegramning talabidan pastga tushib qolmasligi uchun.
 
-Eng kam CPM asosi: <b>{cpm} TON</b> (rasm, video va premium emoji
-qo'shilganda avtomatik oshadi).
+Eng kam CPM (1000 ko'rsatish narxi) shu summadan ALOHIDA hisoblanadi
+va rasm, video hamda premium emoji qo'shilganda avtomatik oshadi.
 
-Yangi qiymatni kasr bilan yuboring (masalan <code>0.1</code>):`;
+Yangi qiymatni raqam bilan yuboring (masalan <code>5000</code>):`;
 
 export const ADMIN_SET_EXTEND_FEE = `🧾 <b>Uzaytirish: xizmat haqi</b>
 

@@ -53,11 +53,8 @@ import {
   setExtendFeeUzs,
   getAdsMarkupPct,
   setAdsMarkupPct,
-  getAdsMinTon,
   setAdsMinTon,
   getAdsMinTopupUzs,
-  getAdsMinCpmBaseTon,
-  setAdsMinCpmBaseTon,
 } from "../../services/pricing";
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
@@ -301,7 +298,7 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
     adminOnly(async (ctx) => {
       await sendTracked(
         ctx,
-        fmt(ADMIN_SET_ADS_MIN_TOPUP, { ton: getAdsMinTon(), cpm: getAdsMinCpmBaseTon() }),
+        fmt(ADMIN_SET_ADS_MIN_TOPUP, { uzs: getAdsMinTopupUzs().toLocaleString("ru-RU") }),
         adminBackKb()
       );
       ctx.session.step = STEP.ADMIN_SET_ADS_MIN_TOPUP;
@@ -585,24 +582,26 @@ export async function handleAdminSetAdsMarkupText(ctx: MyContext): Promise<void>
 }
 
 /**
- * Eng kam summa TON da kiritiladi (masalan `0.1`), so'mda emas — kurs
- * o'zgarganda chegara Telegramning talabidan pastga tushib qolmasin.
+ * Eng kam summa SO'MDA kiritiladi.
+ *
+ * Ichkarida esa TON da saqlanadi: kurs o'zgarganda chegara Telegramning
+ * o'z talabidan pastga tushib qolmasligi kerak. Foydalanuvchi ham, admin
+ * ham TON ni ko'rmaydi — u faqat Telegram API si uchun.
  */
 export async function handleAdminSetAdsMinTopupText(ctx: MyContext): Promise<void> {
-  const raw = (ctx.message?.text ?? "").trim().replace(",", ".");
-  const value = parseFloat(raw);
+  const raw = (ctx.message?.text ?? "").replace(/[\s,]/g, "");
+  const value = parseInt(raw, 10);
 
   if (!Number.isFinite(value) || value <= 0) {
     await sendTracked(ctx, ADMIN_INVALID_FORMAT, adminBackKb());
     return;
   }
 
-  await setAdsMinTon(value);
+  await setAdsMinTon(value / getTonRateUzs());
   ctx.session.step = undefined;
   await sendTracked(
     ctx,
-    `✅ Reklamaga eng kam summa: <b>${getAdsMinTon()} TON</b>` +
-      ` ≈ ${getAdsMinTopupUzs().toLocaleString("ru-RU")} so'm`,
+    `✅ Reklamaga eng kam summa: <b>${getAdsMinTopupUzs().toLocaleString("ru-RU")} so'm</b>`,
     adminBackKb()
   );
 }

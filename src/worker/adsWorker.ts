@@ -158,7 +158,7 @@ async function processRefunds(): Promise<void> {
         await sendLog(
           `⚠️ <b>REKLAMA PULI QAYTMADI</b>\n\n` +
             `Reklama <code>${row.id}</code> · foydalanuvchi <code>${row.user_id}</code>\n` +
-            `Byudjet: ${row.budget_ton} TON\n` +
+            `Byudjet: ${tonToUzs(row.budget_ton).toLocaleString("ru-RU")} so'm\n` +
             `Sabab: ${escapeHtml(message)}\n\n` +
             `Qo'lda hal qilish kerak.`
         );
@@ -207,9 +207,8 @@ async function refundOne(row: AdRow): Promise<void> {
     await notifyUser(
       row.user_id,
       `♻️ <b>Pul qaytarildi</b>\n\n` +
-        `<b>${escapeHtml(row.title)}</b> reklamasidan\n` +
-        `sarflanmagan <b>${remaining} TON</b> qaytarildi.\n\n` +
-        `Balansingizga <b>${refundUzs.toLocaleString("ru-RU")} so'm</b> qo'shildi.`
+        `<b>${escapeHtml(row.title)}</b> reklamasidan sarflanmagan\n` +
+        `<b>${refundUzs.toLocaleString("ru-RU")} so'm</b> balansingizga qaytarildi.`
     );
   }
 
@@ -225,7 +224,7 @@ async function refundOne(row: AdRow): Promise<void> {
   }
 
   await sendLog(
-    `♻️ Reklama #${row.id} puli qaytarildi: ${remaining} TON ` +
-      `(${refundUzs.toLocaleString("ru-RU")} so'm) → <code>${row.user_id}</code>`
+    `♻️ Reklama #${row.id} puli qaytarildi: ` +
+      `${refundUzs.toLocaleString("ru-RU")} so'm → <code>${row.user_id}</code>`
   );
 }
