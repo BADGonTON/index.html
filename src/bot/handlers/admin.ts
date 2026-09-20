@@ -53,8 +53,11 @@ import {
   setExtendFeeUzs,
   getAdsMarkupPct,
   setAdsMarkupPct,
+  getAdsMinTon,
+  setAdsMinTon,
   getAdsMinTopupUzs,
-  setAdsMinTopupUzs,
+  getAdsMinCpmBaseTon,
+  setAdsMinCpmBaseTon,
 } from "../../services/pricing";
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
@@ -298,7 +301,7 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
     adminOnly(async (ctx) => {
       await sendTracked(
         ctx,
-        fmt(ADMIN_SET_ADS_MIN_TOPUP, { uzs: getAdsMinTopupUzs().toLocaleString("ru-RU") }),
+        fmt(ADMIN_SET_ADS_MIN_TOPUP, { ton: getAdsMinTon(), cpm: getAdsMinCpmBaseTon() }),
         adminBackKb()
       );
       ctx.session.step = STEP.ADMIN_SET_ADS_MIN_TOPUP;
@@ -581,12 +584,26 @@ export async function handleAdminSetAdsMarkupText(ctx: MyContext): Promise<void>
   );
 }
 
+/**
+ * Eng kam summa TON da kiritiladi (masalan `0.1`), so'mda emas — kurs
+ * o'zgarganda chegara Telegramning talabidan pastga tushib qolmasin.
+ */
 export async function handleAdminSetAdsMinTopupText(ctx: MyContext): Promise<void> {
-  await handleNumericSetting(
+  const raw = (ctx.message?.text ?? "").trim().replace(",", ".");
+  const value = parseFloat(raw);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    await sendTracked(ctx, ADMIN_INVALID_FORMAT, adminBackKb());
+    return;
+  }
+
+  await setAdsMinTon(value);
+  ctx.session.step = undefined;
+  await sendTracked(
     ctx,
-    setAdsMinTopupUzs,
-    (v) => `✅ Reklamaga eng kam summa: <b>${v.toLocaleString("ru-RU")} so'm</b>`,
-    0
+    `✅ Reklamaga eng kam summa: <b>${getAdsMinTon()} TON</b>` +
+      ` ≈ ${getAdsMinTopupUzs().toLocaleString("ru-RU")} so'm`,
+    adminBackKb()
   );
 }
 

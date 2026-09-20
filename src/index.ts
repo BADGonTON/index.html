@@ -12,6 +12,7 @@ import { startCatalogRefresher, stopCatalogRefresher } from "./services/catalog"
 import { startTxWorker, stopTxWorker, recoverStuckTxs } from "./worker/txWorker";
 import { startRentWorker, stopRentWorker } from "./worker/rentWorker";
 import { startSweeper, stopSweeper } from "./worker/sweeper";
+import { startAdsWorker, stopAdsWorker } from "./worker/adsWorker";
 import { getWalletAddress } from "./services/wallet";
 import { reportTelegramChecks, installMenuButton } from "./services/telegramCheck";
 import { isUnreachable, describeTgError } from "./services/tgErrors";
@@ -59,6 +60,9 @@ async function main(): Promise<void> {
   startTxWorker(bot.api).catch((err) => console.error("❌ Stars worker to'xtadi:", err));
   startRentWorker().catch((err) => console.error("❌ Arenda worker to'xtadi:", err));
   startSweeper();
+  // Reklama holatini yangilaydi va sarflanmagan byudjetni qaytaradi.
+  // TG_ADS_TOKEN bo'lmasa o'zi ishga tushmaydi.
+  startAdsWorker();
 
   const app = createServer(bot);
   const server: Server = await new Promise((resolve, reject) => {
@@ -126,6 +130,7 @@ async function main(): Promise<void> {
     stopTxWorker();
     stopRentWorker();
     stopSweeper();
+  stopAdsWorker();
     stopCatalogRefresher();
 
     if (runner?.isRunning()) await runner.stop().catch(() => {});

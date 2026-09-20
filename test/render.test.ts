@@ -168,8 +168,14 @@ async function main() {
       ads_count: 1,
       max_ads: 50,
       markup_pct: 15,
-      min_topup_uzs: 50_000,
+      min_topup_uzs: 2_000,
+      min_ton: 0.1,
       ton_rate_uzs: 20_000,
+      cpm: { base: 0.1, premium_emoji: 0.15, photo: 0.18, video: 0.2, userpic_multiplier: 1.3, estimate: true },
+      text_limit: 160,
+      title_limit: 128,
+      formatter_bot: "https://t.me/AdsMarkdownBot",
+      refund_wait_min: 11,
       placements: ["channel_post", "bot_banner", "search_result", "video_banner"],
       buttons: ["subscribe", "view", "learn_more"],
     },
@@ -410,12 +416,14 @@ async function main() {
         giftBarHidden: gift.hidden,
         adsBarHidden: ads.hidden,
         screen: screen ? screen.dataset.screen : "",
-        formVisible: !document.getElementById("ads-form").hidden,
+        wizVisible: !document.getElementById("wiz").hidden,
         gateVisible: !document.getElementById("ads-gate").hidden,
-        sections: document.querySelectorAll("#ads-form .acc").length,
-        placements: document.querySelectorAll("#ad-placement button").length,
-        targets: document.querySelectorAll("#ad-target-type button").length,
-        schedCells: document.querySelectorAll("#ad-sched button").length,
+        steps: document.querySelectorAll("#wiz .wstep").length,
+        stepLabel: document.getElementById("wiz-step").textContent,
+        stepTitle: document.getElementById("wiz-title").textContent,
+        visibleSteps: [].slice.call(document.querySelectorAll("#wiz .wstep"))
+          .filter(function (n) { return !n.hidden; }).length,
+        formatterBot: document.getElementById("ad-format-bot").getAttribute("href"),
         tabs: [].slice.call(document.querySelectorAll("#tabbar-ads .tab")).map(function (t) {
           return t.querySelector("span").textContent.trim();
         })
@@ -425,38 +433,165 @@ async function main() {
     ok("reklama ekrani ochildi", world.screen === "ads-create", world.screen);
     ok("gift paneli yashirildi", world.giftBarHidden === true);
     ok("reklama paneli ko'rindi", world.adsBarHidden === false);
-    ok("forma chiqdi (xato ekrani emas)", world.formVisible && !world.gateVisible);
-    ok("olti bo'lim bor", world.sections === 6, String(world.sections));
-    ok("to'rt joylashuv", world.placements === 4, String(world.placements));
-    ok("to'rt targeting turi", world.targets === 4, String(world.targets));
-    ok("jadval 7×24", world.schedCells === 168, String(world.schedCells));
+    ok("wizard chiqdi (xato ekrani emas)", world.wizVisible && !world.gateVisible);
+    ok("to'qqiz bosqich bor", world.steps === 9, String(world.steps));
+    ok("faqat BITTA bosqich ko'rinadi", world.visibleSteps === 1, String(world.visibleSteps));
+    ok("birinchi bosqich \u2014 Matn", world.stepLabel === "1 / 9" && world.stepTitle === "Matn",
+       `${world.stepLabel} ${world.stepTitle}`);
+    ok("formatlovchi bot havolasi bor",
+       String(world.formatterBot).includes("AdsMarkdownBot"), world.formatterBot);
     ok(
-      "panel: Reklama / Reklamalarim / Profil / Gift Arenda",
-      world.tabs.join(" | ") === "Reklama | Reklamalarim | Profil | Gift Arenda",
+      "panel: Reklama / Reklamalarim / Statistika / Profil / Gift Arenda",
+      world.tabs.join(" | ") === "Reklama | Reklamalarim | Statistika | Profil | Gift Arenda",
       world.tabs.join(" | ")
     );
 
-    // Narx hisobi: ustama summaning ICHIDAN olinishi ekranda ham
-    // shunday ko'rinishi kerak — aks holda foydalanuvchi bir narx
-    // ko'rib, boshqasini to'lardi.
+    // ── Premium emoji: 160 belgi chegarasi ──
+    //
+    // Emoji matnda uzun yozuv bo'lib turadi, lekin BITTA belgi deb
+    // sanalishi kerak. Aks holda 10 ta emoji qo'ygan odamga 160 o'rniga
+    // 50 belgi qolardi.
+    await page.fill("#ad-text", "Salom ![\u{1F381}](tg://emoji?id=5170233102089322756) dunyo");
+    await page.waitForTimeout(200);
+    const counted = await page.evaluate(`(() => ({
+      count: document.getElementById("ad-text-count").textContent,
+      emoji: document.getElementById("ad-text-emoji").textContent,
+      emojiShown: !document.getElementById("ad-text-emoji").hidden
+    }))()`) as any;
+    ok("emoji bitta belgi deb sanaldi", counted.count === "13", counted.count);
+    ok("emoji soni ko'rsatildi", counted.emojiShown && counted.emoji === "1 premium emoji",
+       counted.emoji);
+
+    // ── Bosqichdan o'tish: bo'sh sarlavha to'xtatadi ──
+    await page.click("#wiz-next");
+    await page.waitForTimeout(250);
+    const blocked = await page.evaluate(`(() => ({
+      error: document.getElementById("wiz-error").hidden
+        ? "" : document.getElementById("wiz-error").textContent,
+      step: document.getElementById("wiz-step").textContent
+    }))()`) as any;
+    ok("sarlavhasiz o'tkazmadi", blocked.step === "1 / 9", blocked.step);
+    ok("sabab aytildi", /[Ss]arlavha/.test(blocked.error), blocked.error);
+
+    // Sarlavha yozilgach o'tadi
+    await page.fill("#ad-title", "Bahorgi aksiya");
+    await page.click("#wiz-next");
+    await page.waitForTimeout(250);
+    let step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
+    ok("ikkinchi bosqichga o'tdi", step === "2 / 9", String(step));
+
+    // ── Tashqi havola sayt nomini so'raydi ──
+    await page.fill("#ad-url", "https://example.com");
+    await page.waitForTimeout(200);
+    const external = await page.evaluate(
+      `(() => !document.getElementById("ad-website-wrap").hidden)()`
+    ) as boolean;
+    ok("tashqi havolada sayt nomi so'raldi", external === true);
+
+    // Telegram havolasida so'ralmaydi
+    await page.fill("#ad-url", "https://t.me/example");
+    await page.waitForTimeout(200);
+    const internal = await page.evaluate(
+      `(() => document.getElementById("ad-website-wrap").hidden)()`
+    ) as boolean;
+    ok("Telegram havolasida so'ralmadi", internal === true);
+
+    // ── Targeting bosqichigacha: 2 → 6 ──
+    for (let i = 0; i < 4; i++) {
+      await page.click("#wiz-next");
+      await page.waitForTimeout(180);
+    }
+    step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
+    ok("targeting bosqichiga yetdi", step === "6 / 9", String(step));
+
+    // Targeting tanlanmasa o'tkazmasligi kerak.
+    await page.click("#wiz-next");
+    await page.waitForTimeout(250);
+    const noTarget = await page.evaluate(`(() => ({
+      step: document.getElementById("wiz-step").textContent,
+      error: document.getElementById("wiz-error").hidden
+        ? "" : document.getElementById("wiz-error").textContent
+    }))()`) as any;
+    ok("targetingsiz o'tkazmadi", noTarget.step === "6 / 9", noTarget.step);
+    ok("sabab aytildi", /til|mavzu|kanal/i.test(noTarget.error), noTarget.error);
+
+    // Til tanlaymiz \u2014 endi o'tadi.
+    await page.click("#tgt-ch-langs .pick");
+    await page.waitForTimeout(150);
+    for (let i = 0; i < 2; i++) {
+      await page.click("#wiz-next");
+      await page.waitForTimeout(180);
+    }
+    step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
+    ok("byudjet bosqichiga yetdi", step === "8 / 9", String(step));
+
+    const cpm = await page.evaluate(`(() => ({
+      value: document.getElementById("ad-cpm").value,
+      hint: document.getElementById("cpm-hint").textContent
+    }))()`) as any;
+    ok("CPM premium emoji bo'yicha 0.15", cpm.value === "0.15", cpm.value);
+    ok("sabab tushuntirildi", /premium emoji/.test(cpm.hint), cpm.hint);
+
+    // ── Narx hisobi ──
     await page.fill("#ad-budget", "50000");
     await page.waitForTimeout(250);
     const quote = await page.evaluate(`(() => {
       var box = document.getElementById("ad-quote");
       if (box.hidden) return null;
       return {
-        budget: document.getElementById("q-budget").textContent,
         fee: document.getElementById("q-fee").textContent,
         total: document.getElementById("q-total").textContent,
         ton: document.getElementById("q-ton").textContent
       };
     })()`) as any;
     ok("narx hisobi chiqdi", quote !== null);
-    ok("jami — kiritilgan summa", (quote?.total ?? "").replace(/\s/g, "").startsWith("50000"), quote?.total);
-    ok("xizmat haqi ko'rsatildi", (quote?.fee ?? "").replace(/\s/g, "").startsWith("6522"), quote?.fee);
-    ok("TON hisoblandi", /TON/.test(quote?.ton ?? ""), quote?.ton);
+    ok("jami \u2014 kiritilgan summa", (quote?.total ?? "").replace(/\s/g, "").startsWith("50000"), quote?.total);
+    ok("xizmat haqi 6 522", (quote?.fee ?? "").replace(/\s/g, "").startsWith("6522"), quote?.fee);
 
-    // Reklamalarim
+    // ── Natija ekrani: ko'rinish va tasdiqlash ──
+    await page.click("#wiz-next");
+    await page.waitForTimeout(350);
+    const final = await page.evaluate(`(() => ({
+      step: document.getElementById("wiz-step").textContent,
+      navHidden: document.getElementById("wiz-nav").hidden,
+      previewText: document.getElementById("pv-text").textContent,
+      previewBtn: document.getElementById("pv-btn").textContent,
+      rows: document.querySelectorAll("#pv-summary .kv").length,
+      hasConfirm: Boolean(document.getElementById("wiz-confirm")),
+      hasEdit: Boolean(document.getElementById("wiz-edit")),
+      hasCancel: Boolean(document.getElementById("wiz-cancel"))
+    }))()`) as any;
+
+    ok("natija ekraniga yetdi", final.step === "9 / 9", final.step);
+    ok("pastki boshqaruv yashirildi", final.navHidden === true);
+    ok("ko'rinishda emoji ODDIY holda chiqdi",
+       final.previewText === "Salom \u{1F381} dunyo", final.previewText);
+    ok("tugma yozuvi bor", final.previewBtn.length > 0, final.previewBtn);
+    ok("xulosa jadvali to'ldi", final.rows >= 8, String(final.rows));
+    ok("tasdiqlash / tahrirlash / bekor qilish bor",
+       final.hasConfirm && final.hasEdit && final.hasCancel);
+
+    // Tahrirlash birinchi bosqichga qaytaradi
+    await page.click("#wiz-edit");
+    await page.waitForTimeout(250);
+    step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
+    ok("tahrirlash 1-bosqichga qaytardi", step === "1 / 9", String(step));
+
+    // ── Statistika bo'limi ──
+    await page.click('[data-tab="ads-stats"]');
+    await page.waitForTimeout(600);
+    const stats = await page.evaluate(`(() => ({
+      screen: document.querySelector(".screen.is-active").dataset.screen,
+      options: document.querySelectorAll("#adst-pick option").length,
+      ranges: document.querySelectorAll("#adst-range button").length,
+      subtitle: document.getElementById("adst-subtitle").textContent
+    }))()`) as any;
+    ok("statistika bo'limi ochildi", stats.screen === "ads-stats", stats.screen);
+    ok("reklama tanlash ro'yxati to'ldi", stats.options === 1, String(stats.options));
+    ok("davr tugmalari bor", stats.ranges === 4, String(stats.ranges));
+    ok("tanlangan reklama ko'rsatildi", stats.subtitle === "Bahorgi aksiya", stats.subtitle);
+
+    // ── Reklamalarim ──
     await page.click('[data-tab="ads-mine"]');
     await page.waitForTimeout(600);
     const mine = await page.evaluate(`(() => {
@@ -464,28 +599,29 @@ async function main() {
       return {
         cards: document.querySelectorAll("#ads-list .ad-card").length,
         title: card ? card.querySelector(".ad-card-title").textContent.trim() : "",
-        status: card ? card.querySelector(".st").textContent.trim() : "",
-        views: document.getElementById("ads-views").textContent
+        status: card ? card.querySelector(".st").textContent.trim() : ""
       };
     })()`) as any;
     ok("reklama kartochkasi chizildi", mine.cards === 1, String(mine.cards));
-    ok("sarlavha to'g'ri", mine.title === "Bahorgi aksiya", mine.title);
     ok("holat o'zbekcha", mine.status === "Faol", mine.status);
-    ok("umumiy ko'rishlar", mine.views.replace(/\s/g, "") === "12400", mine.views);
 
-    // Profil
+    // ── Profil: TON kursi OLIB TASHLANGAN ──
     await page.click('[data-tab="ads-profile"]');
     await page.waitForTimeout(600);
     const profile = await page.evaluate(`(() => ({
       spent: document.getElementById("adp-spent").textContent,
       markup: document.getElementById("adp-markup").textContent,
-      history: document.querySelectorAll("#adp-history .ad-card").length
+      min: document.getElementById("adp-min").textContent,
+      hasRate: Boolean(document.getElementById("adp-rate")),
+      hasRefunded: Boolean(document.getElementById("adp-refunded"))
     }))()`) as any;
     ok("sarflangan summa", profile.spent.replace(/\s/g, "") === "120000", profile.spent);
     ok("ustama ko'rsatildi", profile.markup === "15%", profile.markup);
-    ok("to'lovlar tarixi", profile.history === 1, String(profile.history));
+    ok("eng kam summa TON bilan", /TON/.test(profile.min), profile.min);
+    ok("TON kursi qatori OLIB TASHLANDI", profile.hasRate === false);
+    ok("qaytarilgan summa qatori qo'shildi", profile.hasRefunded === true);
 
-    // Gift Arendaga qaytish
+    // Gift Arendaga qaytish    // Gift Arendaga qaytish
     await page.click('[data-switch="gift"]');
     await page.waitForTimeout(500);
     const back = await page.evaluate(`(() => ({

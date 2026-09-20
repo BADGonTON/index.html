@@ -44,17 +44,35 @@ let extendFeeUzs = 1_000;
  */
 let adsMarkupPct = 15;
 
-/** Reklamaga eng kam to'ldirish summasi (so'm). */
-let adsMinTopupUzs = 50_000;
+/**
+ * Reklamaga eng kam to'ldirish — TON da.
+ *
+ * Nega so'mda emas: Telegram byudjetni TON da oladi va uning o'z eng kam
+ * chegarasi bor. So'mda saqlasak, kurs o'zgargan kuni chegara Telegramning
+ * talabidan pastga tushib qolardi va reklama yaratilmasdi.
+ */
+let adsMinTon = 0.1;
+
+/**
+ * Eng kam CPM (1000 ko'rsatish narxi, TON).
+ *
+ * Telegram aniq raqamni API orqali BERMAYDI — hujjatda faqat "eng kam
+ * qiymat hisob valyutasi va reklama parametrlariga bog'liq" deyilgan.
+ * Lekin o'sha hujjat qo'shimcha narxlarni FOIZDA aytadi, shuning uchun
+ * baho shu foizlardan yig'iladi. Telegram baribir rad etsa, uning O'Z
+ * sababi ko'rsatiladi — bu baho taxmin ekani yashirilmaydi.
+ */
+let adsMinCpmTon = 0.1;
 
 export async function loadPricing(): Promise<void> {
-  const [rate, fee, minDays, extFee, adsMarkup, adsMinTopup] = await Promise.all([
+  const [rate, fee, minDays, extFee, adsMarkup, adsMinTonRaw, adsMinCpmRaw] = await Promise.all([
     getSetting("ton_rate_som"),
     getSetting("service_fee_som"),
     getSetting("extend_min_days"),
     getSetting("extend_fee_som"),
     getSetting("ads_markup_pct"),
-    getSetting("ads_min_topup"),
+    getSetting("ads_min_ton"),
+    getSetting("ads_min_cpm_ton"),
   ]);
 
   if (rate === null) await setSetting("ton_rate_som", tonRateUzs);
@@ -72,8 +90,11 @@ export async function loadPricing(): Promise<void> {
   if (adsMarkup === null) await setSetting("ads_markup_pct", adsMarkupPct);
   else adsMarkupPct = Math.max(0, parseInt(adsMarkup, 10) || 0);
 
-  if (adsMinTopup === null) await setSetting("ads_min_topup", adsMinTopupUzs);
-  else adsMinTopupUzs = Math.max(0, parseInt(adsMinTopup, 10) || 0);
+  if (adsMinTonRaw === null) await setSetting("ads_min_ton", adsMinTon);
+  else adsMinTon = Math.max(0.01, parseFloat(adsMinTonRaw) || adsMinTon);
+
+  if (adsMinCpmRaw === null) await setSetting("ads_min_cpm_ton", adsMinCpmTon);
+  else adsMinCpmTon = Math.max(0.01, parseFloat(adsMinCpmRaw) || adsMinCpmTon);
 }
 
 export function getTonRateUzs(): number {
@@ -235,8 +256,19 @@ export function getAdsMarkupPct(): number {
   return adsMarkupPct;
 }
 
+export function getAdsMinTon(): number {
+  return adsMinTon;
+}
+
+/** Eng kam to'ldirish summasi SO'MDA (kurs bo'yicha, yuqoriga yaxlitlanadi). */
 export function getAdsMinTopupUzs(): number {
-  return adsMinTopupUzs;
+  // Yuqoriga yaxlitlaymiz: pastga yaxlitlansa, foydalanuvchi ko'rsatilgan
+  // summani to'lab, Telegramning eng kam TON chegarasiga yetmay qolardi.
+  return Math.ceil((adsMinTon * tonRateUzs) / 1000) * 1000;
+}
+
+export function getAdsMinCpmBaseTon(): number {
+  return adsMinCpmTon;
 }
 
 export async function setAdsMarkupPct(value: number): Promise<void> {
@@ -244,9 +276,49 @@ export async function setAdsMarkupPct(value: number): Promise<void> {
   await setSetting("ads_markup_pct", adsMarkupPct);
 }
 
-export async function setAdsMinTopupUzs(value: number): Promise<void> {
-  adsMinTopupUzs = Math.max(0, Math.round(value));
-  await setSetting("ads_min_topup", adsMinTopupUzs);
+export async function setAdsMinTon(value: number): Promise<void> {
+  adsMinTon = Math.max(0.01, Math.round(value * 100) / 100);
+  await setSetting("ads_min_ton", adsMinTon);
+}
+
+export async function setAdsMinCpmBaseTon(value: number): Promise<void> {
+  adsMinCpmTon = Math.max(0.01, Math.round(value * 100) / 100);
+  await setSetting("ads_min_cpm_ton", adsMinCpmTon);
+}
+
+/**
+ * Reklama parametrlariga qarab ENG KAM CPM ni baholaydi.
+ *
+ * Hujjatdagi qo'shimchalar (Telegram Ads API, createAd):
+ *
+ *   • rasm      — "50-80% higher CPM"     → biz 80% ni olamiz
+ *   • video     — "70-100% higher CPM"    → biz 100% ni olamiz
+ *   • userpic   — "30% higher CPM"        → 30%
+ *   • premium emoji — hujjatda foiz yo'q; amalda qimmatroq, shuning
+ *     uchun asosni 0.1 dan 0.15 ga ko'taramiz
+ *
+ * Har doim YUQORI chegarani olamiz: past baho ko'rsatib, keyin Telegram
+ * rad etgandan ko'ra, biroz yuqori aytib, o'tib ketgani yaxshiroq.
+ */
+export interface MinCpmInput {
+  premiumEmoji?: boolean;
+  photo?: boolean;
+  video?: boolean;
+  userpic?: boolean;
+}
+
+export function minCpmTon(opts: MinCpmInput = {}): number {
+  let base = adsMinCpmTon;
+
+  // Premium emoji asosni ko'taradi (0.10 → 0.15).
+  if (opts.premiumEmoji) base = Math.max(base, Math.round(base * 1.5 * 100) / 100);
+
+  let multiplier = 1;
+  if (opts.video) multiplier *= 2.0;
+  else if (opts.photo) multiplier *= 1.8;
+  if (opts.userpic) multiplier *= 1.3;
+
+  return Math.ceil(base * multiplier * 100) / 100;
 }
 
 /** Reklama byudjeti uchun narx hisobi. */

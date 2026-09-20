@@ -30,6 +30,13 @@ export interface AdRow {
   error_msg: string | null;
   created_at: number;
   synced_at: number;
+
+  // Sarflanmagan byudjetni qaytarish (012_ad_refunds.sql)
+  refund_state: "none" | "pending" | "done" | "failed";
+  refund_after: number;
+  delete_after_refund: boolean;
+  refunded_ton: number;
+  refund_tries: number;
 }
 
 export interface AdTopupRow {
@@ -60,6 +67,9 @@ function toAdRow(raw: Record<string, unknown>): AdRow {
     clicks: Number(raw.clicks ?? 0),
     actions: Number(raw.actions ?? 0),
     tg_ad_id: raw.tg_ad_id === null ? null : Number(raw.tg_ad_id),
+    refunded_ton: Number(raw.refunded_ton ?? 0),
+    refund_after: Number(raw.refund_after ?? 0),
+    refund_tries: Number(raw.refund_tries ?? 0),
   };
 }
 
@@ -256,4 +266,95 @@ export async function totalSpentUzs(userId: number): Promise<number> {
     [userId]
   );
   return Number(rows[0]?.total ?? 0);
+}
+
+// ───────────────────────── Sarflanmagan byudjetni qaytarish ─────────────────────────
+
+/**
+ * Telegram `decreaseAdBudget` va `deleteAd` uchun reklama KAMIDA shuncha
+ * vaqt to'xtagan bo'lishini talab qiladi.
+ */
+export const REFUND_COOLDOWN_SEC = 11 * 60;
+
+/** Cheksiz aylanishni to'xtatish: shuncha urinishdan keyin qo'l bilan hal qilinadi. */
+export const REFUND_MAX_TRIES = 6;
+
+/**
+ * Qaytarishni NAVBATGA qo'yadi.
+ *
+ * Darhol bajarilmaydi: Telegram reklama 10 daqiqa to'xtagan bo'lishini
+ * talab qiladi. Fon ishchisi `refund_after` kelganda o'zi bajaradi.
+ */
+export async function scheduleRefund(id: number, alsoDelete: boolean): Promise<void> {
+  await pool.query(
+    `UPDATE ads
+        SET refund_state = 'pending',
+            refund_after = $2,
+            delete_after_refund = $3,
+            refund_tries = 0
+      WHERE id = $1
+        AND refund_state <> 'pending'`,
+    [id, nowSec() + REFUND_COOLDOWN_SEC, alsoDelete]
+  );
+}
+
+/** Navbatdagi, vaqti kelgan qaytarishlar. */
+export async function listDueRefunds(limit = 20): Promise<AdRow[]> {
+  const { rows } = await pool.query(
+    `SELECT * FROM ads
+      WHERE refund_state = 'pending'
+        AND refund_after <= $1
+        AND tg_ad_id IS NOT NULL
+      ORDER BY refund_after ASC
+      LIMIT $2`,
+    [nowSec(), limit]
+  );
+  return rows.map(toAdRow);
+}
+
+export async function finishRefund(id: number, refundedTon: number): Promise<void> {
+  await pool.query(
+    `UPDATE ads
+        SET refund_state = 'done', refunded_ton = $2, error_msg = NULL
+      WHERE id = $1`,
+    [id, refundedTon]
+  );
+}
+
+/**
+ * Urinish yiqildi: keyingi urinish vaqtini suradi.
+ * Chegaraga yetsa 'failed' bo'ladi va admin aralashuvi kerak bo'ladi.
+ */
+export async function retryRefundLater(id: number, message: string): Promise<boolean> {
+  const { rows } = await pool.query<{ refund_tries: number }>(
+    `UPDATE ads
+        SET refund_tries = refund_tries + 1,
+            refund_after = $2,
+            refund_state = CASE WHEN refund_tries + 1 >= $3 THEN 'failed' ELSE 'pending' END,
+            error_msg = $4
+      WHERE id = $1
+      RETURNING refund_tries`,
+    [id, nowSec() + REFUND_COOLDOWN_SEC, REFUND_MAX_TRIES, message]
+  );
+  return (rows[0]?.refund_tries ?? 0) < REFUND_MAX_TRIES;
+}
+
+/**
+ * Rad etilgan reklamalar — puli hali qaytarilmaganlari.
+ *
+ * Telegram rad etganda pul byudjetda qolib ketadi. Foydalanuvchi hech
+ * narsa qilmasa ham, u o'ziniki: shuning uchun o'zimiz qaytaramiz.
+ */
+export async function listDeclinedNeedingRefund(limit = 20): Promise<AdRow[]> {
+  const { rows } = await pool.query(
+    `SELECT * FROM ads
+      WHERE status = 'declined'
+        AND refund_state = 'none'
+        AND budget_ton > 0
+        AND tg_ad_id IS NOT NULL
+      ORDER BY id ASC
+      LIMIT $1`,
+    [limit]
+  );
+  return rows.map(toAdRow);
 }

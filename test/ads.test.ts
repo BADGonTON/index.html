@@ -38,7 +38,36 @@ interface FakeState {
 
 const fake: FakeState = { nextError: null, calls: [], adId: 5000 };
 
+/**
+ * Soxta Telegram tomonidagi reklamalar.
+ *
+ * Holat ESLAB QOLINADI: `editAd` reklamani to'xtatadi, `decreaseAdBudget`
+ * byudjetni kamaytiradi. Busiz qaytarish oqimini sinab bo'lmaydi —
+ * Telegram faol reklamadan pul yechishga ruxsat bermaydi.
+ */
+const fakeAds = new Map<number, { paused: boolean; budget: number; status: string }>();
+
 function fakeAd(id: number, budget: number) {
+  const st = fakeAds.get(id);
+  if (st) {
+    return {
+      ad_id: id,
+      title: "Test",
+      currency: "TON",
+      text: "Matn",
+      promote_url: "https://t.me/example",
+      cpm: 0.5,
+      placement: "channel_post",
+      spent_budget: 0,
+      remaining_budget: st.budget,
+      views: 0,
+      clicks: 0,
+      actions: 0,
+      created_date: Math.floor(Date.now() / 1000),
+      status: st.status,
+      is_paused: st.paused,
+    };
+  }
   return {
     ad_id: id,
     title: "Test",
@@ -98,15 +127,42 @@ function startFakeAdsApi(): Promise<http.Server> {
           return reply([{ language_code: "uz", name: "Uzbek" }]);
         case "getTargetTopicsList":
           return reply([{ topic_id: 1, name: "Texnologiya" }]);
-        case "createAd":
-          return reply(fakeAd(++fake.adId, Number(body.initial_budget ?? 0)));
-        case "increaseAdBudget": {
-          const ad = fakeAd(Number(body.ad_id), Number(body.amount ?? 0));
-          return reply(ad);
+        case "createAd": {
+          const id = ++fake.adId;
+          fakeAds.set(id, {
+            paused: false,
+            budget: Number(body.initial_budget ?? 0),
+            status: "in_review",
+          });
+          return reply(fakeAd(id, 0));
         }
-        case "getAdsById":
-          return reply([fakeAd(fake.adId, 1)]);
+        case "increaseAdBudget": {
+          const id = Number(body.ad_id);
+          const st = fakeAds.get(id);
+          if (st) st.budget += Number(body.amount ?? 0);
+          return reply(fakeAd(id, 0));
+        }
+        case "decreaseAdBudget": {
+          const id = Number(body.ad_id);
+          const st = fakeAds.get(id);
+          if (st) st.budget = Math.max(0, st.budget - Number(body.amount ?? 0));
+          return reply(fakeAd(id, 0));
+        }
+        case "editAd": {
+          const id = Number(body.ad_id);
+          const st = fakeAds.get(id);
+          if (st && body.is_paused !== undefined) {
+            st.paused = body.is_paused === true || body.is_paused === "true";
+            st.status = st.paused ? "stopped" : "active";
+          }
+          return reply(fakeAd(id, 0));
+        }
+        case "getAdsById": {
+          const ids = JSON.parse(String(body.ad_ids ?? "[]")) as number[];
+          return reply(ids.filter((id) => fakeAds.has(id)).map((id) => fakeAd(id, 0)));
+        }
         case "deleteAd":
+          fakeAds.delete(Number(body.ad_id));
           return reply(true);
         default:
           return reply({});
@@ -164,6 +220,71 @@ async function main(): Promise<void> {
   const free = pricing.adsQuote(50_000);
   ok("ustama 0 bo'lsa haq ham 0", free.fee_uzs === 0 && free.budget_uzs === 50_000);
   await pricing.setAdsMarkupPct(15);
+
+  // ── Premium emoji: 160 belgi chegarasi ──
+  //
+  // Emoji matnda `![🎁](tg://emoji?id=...)` bo'lib turadi — 40 dan ortiq
+  // belgi, lekin Telegram uni BITTA belgi deb sanaydi. Xom uzunlikni
+  // sanasak, 10 ta emoji qo'ygan odamga 160 o'rniga 50 belgi qolardi.
+  console.log("\n── Premium emoji ──");
+
+  const adText = await import("../src/services/adText");
+
+  const one = adText.analyzeAdText("Salom ![🎁](tg://emoji?id=5170233102089322756) dunyo");
+  ok("emoji bitta belgi", one.length === 13, `${one.length} (xom 45)`);
+  ok("emoji sanaldi", one.emojiCount === 1);
+  ok("sodda ko'rinish to'g'ri", one.plain === "Salom 🎁 dunyo", one.plain);
+
+  const htmlForm = adText.analyzeAdText('<tg-emoji emoji-id="789">⭐</tg-emoji> Stars');
+  ok("HTML ko'rinish ham taniladi", htmlForm.emojiCount === 1 && htmlForm.length === 7,
+     `${htmlForm.length}`);
+
+  // Foydalanuvchining aynan talabi: 10 qator emoji 160 dan 10 tasini yesin.
+  const tenEmoji =
+    Array.from({ length: 10 }, (_, n) => `![🎁](tg://emoji?id=51702331020893227${n}0)`).join("") +
+    " Katta chegirma boshlandi";
+  const ten = adText.checkAdText(tenEmoji);
+  ok("10 ta emoji = 10 belgi", ten.info.emojiCount === 10);
+  ok("xom uzunlik katta, hisoblangani kichik",
+     tenEmoji.length > 400 && ten.info.length === 35,
+     `xom ${tenEmoji.length}, hisoblangan ${ten.info.length}`);
+  ok("chegaraga sig'di", ten.ok === true);
+
+  // Oddiy emoji (premium emas) — baribir bitta belgi.
+  ok("oddiy emoji ham bitta belgi",
+     adText.analyzeAdText("👍").length === 1,
+     String(adText.analyzeAdText("👍").length));
+
+  // ── Eng kam CPM ──
+  //
+  // Telegram aniq raqamni API orqali BERMAYDI — hujjatda faqat foizlar
+  // bor. Shuning uchun bu baho, lekin u har doim OSHISHI kerak.
+  console.log("\n── Eng kam CPM ──");
+
+  const cpmBase = pricing.minCpmTon({});
+  const cpmEmoji = pricing.minCpmTon({ premiumEmoji: true });
+  const cpmPhoto = pricing.minCpmTon({ photo: true });
+  const cpmVideo = pricing.minCpmTon({ video: true });
+
+  ok("asos 0.1 TON", cpmBase === 0.1, String(cpmBase));
+  ok("premium emoji 0.15 TON", cpmEmoji === 0.15, String(cpmEmoji));
+  ok("rasm qimmatroq", cpmPhoto > cpmBase, `${cpmBase} → ${cpmPhoto}`);
+  ok("video rasmdan qimmat", cpmVideo > cpmPhoto, `${cpmPhoto} → ${cpmVideo}`);
+  ok("kanal rasmi yana oshiradi",
+     pricing.minCpmTon({ userpic: true }) > cpmBase,
+     String(pricing.minCpmTon({ userpic: true })));
+  ok("emoji + video eng qimmat",
+     pricing.minCpmTon({ premiumEmoji: true, video: true }) > cpmVideo,
+     String(pricing.minCpmTon({ premiumEmoji: true, video: true })));
+
+  // ── Eng kam summa TON dan hisoblanadi ──
+  console.log("\n── Eng kam summa ──");
+
+  await pricing.setAdsMinTon(0.1);
+  const minUzs = pricing.getAdsMinTopupUzs();
+  ok("0.1 TON so'mga o'girildi", minUzs === Math.ceil((0.1 * pricing.getTonRateUzs()) / 1000) * 1000,
+     `${minUzs} so'm`);
+  ok("yuqoriga yaxlitlandi", minUzs >= 0.1 * pricing.getTonRateUzs(), String(minUzs));
 
   // ── Server ──
   const app = createServer({} as never);
@@ -376,16 +497,55 @@ async function main(): Promise<void> {
   // savoliga javob shu yerdan chiqadi.
   ok("xizmat haqi yozildi", items.every((t) => Number(t.fee_uzs) > 0));
 
-  // ── O'chirish ──
-  console.log("\n── O'chirish ──");
+  // ── O'chirish: sarflanmagan pul QAYTADI ──
+  //
+  // Ilgari reklama darhol o'chardi va byudjetdagi pul Telegram tomonda
+  // qolib ketardi — foydalanuvchi uni boshqa ko'rmasdi. Endi avval pul
+  // qaytariladi, keyin o'chiriladi.
+  //
+  // Telegram byudjetni qaytarish uchun reklama kamida 10 daqiqa
+  // to'xtagan bo'lishini talab qiladi, shuning uchun ish navbatga
+  // qo'yiladi va fon ishchisi bajaradi.
+  console.log("\n── O'chirish va pulni qaytarish ──");
+
+  const ads = await import("../src/db/repo/ads");
 
   const removed = await call(`/${adId}`, { method: "DELETE" });
-  ok("o'chirildi", removed.status === 200);
-  ok("Telegramda ham o'chirildi",
-     fake.calls.some((c) => c.method === "deleteAd"));
+  ok("o'chirish qabul qilindi", removed.status === 200, String(removed.status));
+  ok("qaytarish va'da qilindi", removed.data.refund === true);
+  ok("qaytariladigan summa aytildi", Number(removed.data.refund_uzs) > 0,
+     String(removed.data.refund_uzs));
+
+  const afterDelete = await ads.getUserAd(USER, adId);
+  ok("reklama hali o'chmadi (pul kutilmoqda)", afterDelete !== null);
+  ok("qaytarish navbatga qo'yildi", afterDelete?.refund_state === "pending",
+     String(afterDelete?.refund_state));
+  ok("keyin o'chirish belgilandi", afterDelete?.delete_after_refund === true);
+  ok("reklama to'xtatildi", fake.calls.some((c) => c.method === "editAd"));
+
+  // ── Fon ishchisi: pulni qaytaradi ──
+  //
+  // Vaqtni "oldinga suramiz" — 10 daqiqa kutib o'tirmaymiz.
+  await pool.query("UPDATE ads SET refund_after = 0 WHERE id = $1", [adId]);
+
+  const balanceBeforeRefund = await users.getBalance(USER);
+  const { runAdsRefundsOnce } = await import("../src/worker/adsWorker");
+
+  // Bitta aylanish yetarli: marshrut o'chirish so'ralganda reklamani
+  // ALLAQACHON to'xtatgan va `refund_after` ni 11 daqiqaga surgan, ya'ni
+  // ishchi kelganda Telegramning 10 daqiqalik talabi bajarilgan bo'ladi.
+  await runAdsRefundsOnce();
+
+  const balanceAfterRefund = await users.getBalance(USER);
+  ok("pul balansga qaytdi", balanceAfterRefund > balanceBeforeRefund,
+     `${balanceBeforeRefund} → ${balanceAfterRefund}`);
+  ok("Telegramdan byudjet olindi",
+     fake.calls.some((c) => c.method === "decreaseAdBudget"));
+  ok("Telegramda o'chirildi", fake.calls.some((c) => c.method === "deleteAd"));
 
   const listEnd = await call("/");
-  ok("ro'yxat bo'shadi", (listEnd.data.items as unknown[]).length === 0);
+  ok("ro'yxat bo'shadi", (listEnd.data.items as unknown[]).length === 0,
+     String((listEnd.data.items as unknown[]).length));
 
   // ── Token bo'lmasa ──
   //

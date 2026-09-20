@@ -37,10 +37,14 @@ import { userFacingAdsError, adsErrorForLog } from "../services/adsErrors";
 import {
   getAdsMarkupPct,
   getAdsMinTopupUzs,
+  getAdsMinTon,
+  getAdsMinCpmBaseTon,
   getTonRateUzs,
   adsQuote,
   tonToUzs,
+  minCpmTon,
 } from "../services/pricing";
+import { checkAdText, hasPremiumEmoji, AD_TEXT_LIMIT, AD_TITLE_LIMIT } from "../services/adText";
 import { getBalance, tryDeductBalance, refundBalance } from "../db/repo/users";
 import {
   createAdDraft,
@@ -55,6 +59,8 @@ import {
   listUserTopups,
   totalSpentUzs,
   countUserAds,
+  scheduleRefund,
+  REFUND_COOLDOWN_SEC,
   AdRow,
 } from "../db/repo/ads";
 import { sendLog } from "../services/logger";
@@ -115,6 +121,9 @@ function serializeAd(row: AdRow) {
     error: row.error_msg,
     created_at: row.created_at,
     synced_at: row.synced_at,
+    refund_state: row.refund_state,
+    refunded_ton: row.refunded_ton,
+    refunded_uzs: tonToUzs(row.refunded_ton),
   };
 }
 
@@ -293,8 +302,25 @@ function parseSchedule(raw: unknown): AdSchedule | undefined {
 
 /** `createAd`/`editAd` uchun umumiy maydonlar. */
 function parseAdFields(body: Record<string, unknown>, forEdit: boolean) {
-  const title = str(body.title, "Sarlavha", 128, !forEdit);
-  const text = str(body.text, "Matn", 160, false);
+  const title = str(body.title, "Sarlavha", AD_TITLE_LIMIT, !forEdit);
+
+  // Matn UZUNLIGI oddiy `length` bilan sanalmaydi.
+  //
+  // Premium emoji matnda `![🎁](tg://emoji?id=...)` bo'lib turadi — 40 dan
+  // ortiq belgi, lekin Telegram uni BITTA belgi deb sanaydi. Xom uzunlikni
+  // tekshirsak, 10 ta emoji qo'ygan odamga 160 o'rniga 50 belgi yozishga
+  // ruxsat bergan bo'lardik.
+  const text = String(body.text ?? "").trim();
+  if (text) {
+    const check = checkAdText(text);
+    if (!check.ok) {
+      throw new BadInput(
+        `Matn ${check.info.length} belgi — ${check.over} tasini olib tashlang ` +
+          `(chegara ${AD_TEXT_LIMIT}). Premium emoji bitta belgi deb sanaladi.`
+      );
+    }
+  }
+
   const promoteUrl = str(body.promote_url, "Havola", 256, !forEdit);
 
   if (promoteUrl && !/^https?:\/\/|^t\.me\//i.test(promoteUrl)) {
@@ -307,6 +333,25 @@ function parseAdFields(body: Record<string, unknown>, forEdit: boolean) {
   const cpm = Number(body.cpm);
   if (!forEdit && (!Number.isFinite(cpm) || cpm <= 0)) {
     throw new BadInput("CPM narxini kiriting");
+  }
+
+  // Eng kam CPM reklama parametrlariga qarab o'sadi: premium emoji,
+  // rasm, video va kanal rasmi qimmatroq. Telegram o'z chegarasini
+  // API orqali bermaydi, shuning uchun bu BAHO — lekin past qiymat
+  // bilan borib rad etilgandan ko'ra shu yerda aytgan ma'qul.
+  if (Number.isFinite(cpm) && cpm > 0) {
+    const needed = minCpmTon({
+      premiumEmoji: hasPremiumEmoji(text),
+      photo: Boolean(body.photo_id),
+      video: Boolean(body.video_id),
+      userpic: Boolean(body.show_userpic),
+    });
+    if (cpm < needed) {
+      throw new BadInput(
+        `Bu reklama uchun CPM kamida ${needed} TON bo'lishi kerak ` +
+          `(premium emoji, rasm va video narxni oshiradi).`
+      );
+    }
   }
 
   const frequency = body.impression_frequency === undefined
@@ -438,7 +483,24 @@ export function createAdsRouter(): Router {
         max_ads: MAX_ADS_PER_USER,
         markup_pct: getAdsMarkupPct(),
         min_topup_uzs: getAdsMinTopupUzs(),
+        min_ton: getAdsMinTon(),
         ton_rate_uzs: getTonRateUzs(),
+
+        // Eng kam CPM. Telegram aniq raqamni API orqali BERMAYDI —
+        // hujjatda faqat foizlar bor, shuning uchun bu BAHO. Telegram
+        // baribir rad etsa, uning o'z sababi ko'rsatiladi.
+        cpm: {
+          base: getAdsMinCpmBaseTon(),
+          premium_emoji: minCpmTon({ premiumEmoji: true }),
+          photo: minCpmTon({ photo: true }),
+          video: minCpmTon({ video: true }),
+          userpic_multiplier: 1.3,
+          estimate: true,
+        },
+        text_limit: AD_TEXT_LIMIT,
+        title_limit: AD_TITLE_LIMIT,
+        formatter_bot: "https://t.me/AdsMarkdownBot",
+        refund_wait_min: Math.round(REFUND_COOLDOWN_SEC / 60),
         placements: PLACEMENTS,
         buttons: BUTTONS,
       });
@@ -853,11 +915,39 @@ export function createAdsRouter(): Router {
         return;
       }
 
-      // Telegramda o'chmasa BIZDA HAM o'chirmaymiz: aks holda reklama
-      // egasiz qolib, foydalanuvchi uni boshqara olmasdi.
-      if (row.tg_ad_id) await deleteTelegramAd(row.tg_ad_id);
+      // Telegramga hali bormagan qoralama — shunchaki o'chiramiz.
+      if (!row.tg_ad_id) {
+        await deleteAdRow(row.id);
+        res.json({ ok: true, refund: false });
+        return;
+      }
+
+      // BYUDJETDA PUL BOR: avval uni qaytaramiz, keyin o'chiramiz.
+      //
+      // Teskarisi qilib bo'lmaydi — reklama o'chsa, byudjetdagi pul
+      // Telegram tomonda qolib ketardi va uni qaytarib bo'lmasdi.
+      //
+      // Telegram byudjetni qaytarish uchun reklama kamida 10 daqiqa
+      // to'xtagan bo'lishini talab qiladi, shuning uchun ish navbatga
+      // qo'yiladi: foydalanuvchi kutib o'tirmaydi.
+      const unspent = row.budget_ton;
+      if (unspent > 0) {
+        await editAd(row.tg_ad_id, { is_paused: true }).catch(() => {});
+        await scheduleRefund(row.id, true);
+        res.json({
+          ok: true,
+          refund: true,
+          refund_ton: unspent,
+          refund_uzs: tonToUzs(unspent),
+          wait_min: Math.round(REFUND_COOLDOWN_SEC / 60),
+        });
+        return;
+      }
+
+      // Byudjet bo'sh — qaytaradigan narsa yo'q, darhol o'chiramiz.
+      await deleteTelegramAd(row.tg_ad_id);
       await deleteAdRow(row.id);
-      res.json({ ok: true });
+      res.json({ ok: true, refund: false });
     })
   );
 
