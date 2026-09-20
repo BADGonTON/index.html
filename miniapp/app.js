@@ -2048,6 +2048,29 @@ function validateStep(step) {
   return null;
 }
 
+/**
+ * Matn maydoni ostidagi jonli ko'rinish.
+ *
+ * Matn maydoniga rasm qo'yib bo'lmaydi (u oddiy `textarea`), shuning
+ * uchun stikerlar uning OSTIDA, aynan o'z joyida chiziladi — emoji
+ * yozuvi qayerda bo'lsa, rasm ham o'sha yerda.
+ */
+async function syncTextLive(opts = {}) {
+  const raw = $('ad-text').value;
+  const box = $('ad-text-live');
+  const body = $('ad-text-live-body');
+
+  if (analyzeText(raw).emoji === 0) {
+    box.hidden = true;
+    return;
+  }
+
+  if (opts.fetch !== false) await loadEmoji(raw);
+
+  box.hidden = false;
+  body.innerHTML = renderTextWithEmoji(raw);
+}
+
 // ───────────────────────── Ko'rinish ─────────────────────────
 
 // ───────────────────── Premium emojini chizish ─────────────────────
@@ -2434,8 +2457,9 @@ function renderAdsList() {
   AD.items.forEach((ad) => {
     const card = document.createElement('div');
     card.className = 'ad-card';
-    const refunding = ad.refund_state === 'pending'
-      ? '<p class="ad-card-text" style="color:var(--gold)">♻️ Pul qaytarilmoqda…</p>'
+    const paused = ad.is_paused || ad.status === 'stopped';
+    const pausedNote = paused && ad.status !== 'stopped'
+      ? '<p class="ad-card-text" style="color:var(--text-mute)">⏸ To\'xtatilgan</p>'
       : '';
     card.innerHTML = `
       <div class="ad-card-top">
@@ -2443,7 +2467,7 @@ function renderAdsList() {
         ${statusPill(ad.status)}
       </div>
       ${ad.text ? `<p class="ad-card-text">${escapeHtml(analyzeText(ad.text).plain)}</p>` : ''}
-      ${refunding}
+      ${pausedNote}
       <div class="ad-card-row">
         <div class="ad-card-metric"><b>${fmtNum(ad.views)}</b><span>Ko'rish</span></div>
         <div class="ad-card-metric"><b>${fmtNum(ad.clicks)}</b><span>Bosish</span></div>
@@ -2489,7 +2513,14 @@ function renderAdDetail() {
   $('add-decline-text').textContent = ad.decline_reason
     || 'Telegram sababni ko\'rsatmadi. Matn va havolani tekshirib, qaytadan yarating.';
 
-  $('add-pause-label').textContent = ad.status === 'stopped' ? 'Davom ettirish' : 'To\'xtatish';
+  // Telegramda `status` va `is_paused` ALOHIDA: ko'rikdagi reklama ham
+  // to'xtatilgan bo'lishi mumkin. Ilgari faqat `status` ga qaralgani
+  // uchun to'xtatish ekranda sezilmasdi.
+  const paused = ad.is_paused || ad.status === 'stopped';
+  $('add-pause-label').textContent = paused ? 'Davom ettirish' : 'To\'xtatish';
+  $('add-status-b').innerHTML = paused && ad.status !== 'stopped'
+    ? `${statusPill(ad.status)} <i class="st st-stopped">To'xtatilgan</i>`
+    : statusPill(ad.status);
   $('add-submit-review').hidden = ad.status !== 'ready_for_review';
 
   const min = AD.cfg?.min_topup_uzs ?? 0;
@@ -2723,8 +2754,10 @@ function bindAdsEvents() {
   });
 
   // ── Matn ──
+  let liveTimer = null;
   $('ad-text').addEventListener('input', () => {
-    const t = analyzeText($('ad-text').value);
+    const raw = $('ad-text').value;
+    const t = analyzeText(raw);
     const limit = AD.cfg?.text_limit || 160;
     const counter = $('ad-text-count');
     counter.textContent = String(t.length);
@@ -2732,6 +2765,12 @@ function bindAdsEvents() {
     $('ad-text-emoji').hidden = t.emoji === 0;
     $('ad-text-emoji').textContent = `${t.emoji} premium emoji`;
     syncCpmHint();
+
+    // Stikerlar YOZGAN SARI chiziladi — lekin har harfda serverga
+    // bormaslik uchun yozish to'xtaganda.
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => void syncTextLive(), 300);
+    syncTextLive({ fetch: false });
   });
 
   $('ad-url').addEventListener('input', () => {
@@ -2888,7 +2927,7 @@ function bindAdsEvents() {
   });
 
   $('add-pause').addEventListener('click', () => {
-    const paused = AD.current.status !== 'stopped';
+    const paused = !(AD.current.is_paused || AD.current.status === 'stopped');
     adAction(
       $('add-pause'),
       () => adsApi(`/${AD.current.id}/pause`, { method: 'POST', body: JSON.stringify({ paused }) }),
@@ -2919,17 +2958,18 @@ function bindAdsEvents() {
     );
     if (!data) return;
 
+    // Ro'yxatdan DARHOL ketadi — server ham uni yashirgan.
+    AD.items = AD.items.filter((x) => x.id !== id);
+    AD.current = null;
+    renderAdsList();
+    showScreen('ads-mine', { push: false });
+
     if (data.refund) {
       toast(
-        `♻️ ${fmtSom(data.refund_uzs)} qaytariladi — ${data.wait_min} daqiqagacha`,
+        `♻️ O'chirildi. ${fmtSom(data.refund_uzs)} balansga qaytariladi — ${data.wait_min} daqiqagacha`,
         'success'
       );
-    } else {
-      AD.items = AD.items.filter((x) => x.id !== id);
     }
-    AD.current = null;
-    loadMyAds();
-    showScreen('ads-mine', { push: false });
   });
 
   $('adst-pick').addEventListener('change', (e) => {

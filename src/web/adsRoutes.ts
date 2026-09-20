@@ -67,6 +67,7 @@ import {
   totalSpentUzs,
   countUserAds,
   scheduleRefund,
+  hideAd,
   REFUND_COOLDOWN_SEC,
   AdRow,
 } from "../db/repo/ads";
@@ -115,6 +116,10 @@ function serializeAd(row: AdRow) {
     promote_url: row.promote_url,
     placement: row.placement,
     status: row.status,
+    // Telegramda `status` va `is_paused` ALOHIDA maydonlar: ko'rikdagi
+    // reklama ham to'xtatilgan bo'lishi mumkin. Ikkalasi ham kerak,
+    // aks holda ekranda to'xtatish sezilmasdi.
+    is_paused: row.is_paused,
     decline_reason: row.decline_reason,
     // Foydalanuvchi HAMMA joyda so'mda ishlaydi — TON faqat Telegram
     // API si talab qilgani uchun ichkarida qoladi va tashqariga chiqmaydi.
@@ -947,7 +952,12 @@ export function createAdsRouter(): Router {
       }
       const paused = Boolean(req.body?.paused);
       const ad = await editAd(row.tg_ad_id, { is_paused: paused });
-      await syncAdFromTelegram(ad);
+
+      // Telegram javobida `is_paused` qaytmasligi mumkin (hujjatda u
+      // "Optional"). Unda BIZ so'raganimizni yozamiz — aks holda
+      // ekranda to'xtatish sezilmay qolardi.
+      await syncAdFromTelegram({ ...ad, is_paused: ad.is_paused ?? paused });
+
       const saved = await getUserAd(userId, row.id);
       res.json({ ok: true, ad: serializeAd(saved ?? row) });
     })
@@ -1000,6 +1010,14 @@ export function createAdsRouter(): Router {
       if (unspent > 0) {
         await editAd(row.tg_ad_id, { is_paused: true }).catch(() => {});
         await scheduleRefund(row.id, true);
+
+        // Foydalanuvchi ro'yxatidan DARHOL ketadi.
+        //
+        // Yozuvning o'zi qolaveradi — pulni qaytarish uchun kerak —
+        // lekin ekranda ko'rinmaydi. Aks holda "o'chirdim, lekin
+        // o'chmadi" degan holat chiqardi.
+        await hideAd(row.id);
+
         res.json({
           ok: true,
           refund: true,

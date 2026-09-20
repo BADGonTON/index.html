@@ -168,7 +168,7 @@ async function main() {
       ads_count: 1,
       max_ads: 50,
       markup_pct: 15,
-      min_topup_uzs: 2_000,
+      min_topup_uzs: 23_000,
       ton_rate_uzs: 20_000,
       cpm: { base: 2_000, premium_emoji: 3_000, photo: 3_600, video: 4_000, userpic_multiplier: 1.3, estimate: true },
       text_limit: 160,
@@ -510,6 +510,27 @@ async function main() {
     ok("emoji bitta belgi deb sanaldi", counted.count === "13", counted.count);
     ok("emoji soni ko'rsatildi", counted.emojiShown && counted.emoji === "1 premium emoji",
        counted.emoji);
+
+    // ── Stiker MATN MAYDONINING OSTIDA, o'z joyida chiziladi ──
+    //
+    // `textarea` ga rasm qo'yib bo'lmaydi, shuning uchun ko'rinish
+    // uning ostida turadi — emoji yozuvi qayerda bo'lsa, rasm ham
+    // o'sha yerda.
+    await page.waitForTimeout(700);
+    const live = await page.evaluate(`(() => {
+      var box = document.getElementById("ad-text-live");
+      var body = document.getElementById("ad-text-live-body");
+      return {
+        shown: !box.hidden,
+        images: body.querySelectorAll(".tgp-emoji").length,
+        html: body.innerHTML,
+        text: body.textContent
+      };
+    })()`) as any;
+    ok("jonli ko'rinish chiqdi", live.shown === true);
+    ok("stiker rasm bo'lib chizildi", live.images === 1, String(live.images));
+    ok("xom yozuv ko'rinmaydi", !/tg:\/\/emoji/.test(live.html), live.html.slice(0, 70));
+    ok("rasm AYNAN o'z joyida", /^Salom\s*dunyo$/.test(live.text.trim()), live.text);
 
     // ── Bosqichdan o'tish: bo'sh sarlavha to'xtatadi ──
     await page.click("#wiz-next");

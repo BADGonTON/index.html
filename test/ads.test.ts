@@ -153,7 +153,9 @@ function startFakeAdsApi(): Promise<http.Server> {
           const st = fakeAds.get(id);
           if (st && body.is_paused !== undefined) {
             st.paused = body.is_paused === true || body.is_paused === "true";
-            st.status = st.paused ? "stopped" : "active";
+            // DIQQAT: Telegram `status` ni o'zgartirmasligi mumkin —
+            // ko'rikdagi reklama to'xtatilsa ham "in_review" qoladi.
+            // Aynan shu holat bizda nosozlik chiqargan edi.
           }
           return reply(fakeAd(id, 0));
         }
@@ -188,6 +190,7 @@ async function main(): Promise<void> {
   const { createServer } = await import("../src/web/server");
   const { config } = await import("../src/config");
   const { sign } = await import("@telegram-apps/init-data-node");
+  const ads = await import("../src/db/repo/ads");
 
   await runMigrations();
   await pricing.loadPricing();
@@ -287,10 +290,20 @@ async function main(): Promise<void> {
   // ── Eng kam summa TON dan hisoblanadi ──
   console.log("\n── Eng kam summa ──");
 
-  await pricing.setAdsMinTon(0.1);
+  await pricing.setAdsMinTon(1);
   const minUzs = pricing.getAdsMinTopupUzs();
   ok("eng kam summa so'mda chiqadi", minUzs > 0, `${minUzs} so'm`);
-  ok("yuqoriga yaxlitlandi", minUzs >= 0.1 * pricing.getTonRateUzs(), String(minUzs));
+  // Ustama hisobga olinishi SHART: aks holda foydalanuvchi ko'rsatilgan
+  // summani to'lab, byudjetga 1 TON dan kam tushardi va Telegram rad etardi.
+  const minQuote = pricing.adsQuote(minUzs);
+  ok("eng kam summa 1 TON byudjet beradi", minQuote.budget_ton >= 1,
+     `${minUzs} so'm → ${minQuote.budget_ton} TON`);
+  ok("ustama hisobga olindi", minUzs > 1 * pricing.getTonRateUzs(),
+     `${minUzs} > ${1 * pricing.getTonRateUzs()}`);
+
+  // Bir so'm kam bo'lsa chegaradan tushib ketishi kerak.
+  ok("chegara zich", pricing.adsQuote(minUzs - 1000).budget_ton < 1,
+     String(pricing.adsQuote(minUzs - 1000).budget_ton));
 
   // ── Javobda TON maydonlari BO'LMASLIGI kerak ──
   //
@@ -471,6 +484,30 @@ async function main(): Promise<void> {
   const tooSmall = await call(`/${adId}/budget`, { method: "POST", body: { uzs: 10 } });
   ok("juda kichik to'ldirish o'tmaydi", tooSmall.status === 400, String(tooSmall.data.error));
 
+  // ── TO'XTATISH EKRANDA SEZILISHI SHART ──
+  //
+  // Telegramda `status` va `is_paused` ALOHIDA maydonlar: ko'rikdagi
+  // reklamani to'xtatsa ham `status` "in_review" bo'lib qolaveradi.
+  // Ilgari biz faqat `status` ni saqlardik, shuning uchun to'xtatish
+  // ekranda umuman ko'rinmasdi — "to'xtatdim, to'xtamadi".
+  console.log("\n── To'xtatish ──");
+
+  const paused = await call(`/${adId}/pause`, { method: "POST", body: { paused: true } });
+  ok("to'xtatish qabul qilindi", paused.status === 200, String(paused.data.error ?? ""));
+
+  const pausedAd = paused.data.ad as Record<string, unknown>;
+  ok("javobda to'xtatilgani bor", pausedAd?.is_paused === true, String(pausedAd?.is_paused));
+  ok("holat o'zgarmagan bo'lsa ham (Telegram shunday)",
+     pausedAd?.status === "in_review", String(pausedAd?.status));
+
+  const storedPaused = await ads.getUserAd(USER, adId);
+  ok("bazaga ham yozildi", storedPaused?.is_paused === true, String(storedPaused?.is_paused));
+
+  const resumed = await call(`/${adId}/pause`, { method: "POST", body: { paused: false } });
+  ok("davom ettirish ishladi",
+     (resumed.data.ad as Record<string, unknown>)?.is_paused === false,
+     String((resumed.data.ad as Record<string, unknown>)?.is_paused));
+
   // ── Egalik ──
   //
   // Telegram tomonda hisob BITTA, shuning uchun reklama kimniki ekanini
@@ -522,8 +559,6 @@ async function main(): Promise<void> {
   // qo'yiladi va fon ishchisi bajaradi.
   console.log("\n── O'chirish va pulni qaytarish ──");
 
-  const ads = await import("../src/db/repo/ads");
-
   const removed = await call(`/${adId}`, { method: "DELETE" });
   ok("o'chirish qabul qilindi", removed.status === 200, String(removed.status));
   ok("qaytarish va'da qilindi", removed.data.refund === true);
@@ -531,7 +566,16 @@ async function main(): Promise<void> {
      String(removed.data.refund_uzs));
 
   const afterDelete = await ads.getUserAd(USER, adId);
-  ok("reklama hali o'chmadi (pul kutilmoqda)", afterDelete !== null);
+  ok("yozuv qoldi (pul qaytarish uchun kerak)", afterDelete !== null);
+
+  // Foydalanuvchi uchun esa u DARHOL o'chgan bo'lishi kerak — aks holda
+  // "o'chirdim, lekin o'chmadi" degan holat chiqardi.
+  const listAfterDelete = await call("/");
+  ok("ro'yxatdan DARHOL ketdi",
+     (listAfterDelete.data.items as unknown[]).length === 0,
+     String((listAfterDelete.data.items as unknown[]).length));
+  ok("yashirilgani belgilandi", (afterDelete?.hidden_at ?? 0) > 0,
+     String(afterDelete?.hidden_at));
   ok("qaytarish navbatga qo'yildi", afterDelete?.refund_state === "pending",
      String(afterDelete?.refund_state));
   ok("keyin o'chirish belgilandi", afterDelete?.delete_after_refund === true);

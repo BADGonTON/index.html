@@ -31,6 +31,16 @@ export interface AdRow {
   created_at: number;
   synced_at: number;
 
+  /**
+   * Telegramda IKKITA alohida maydon bor: `status` va `is_paused`.
+   * Ko'rikdagi reklama ham to'xtatilgan bo'lishi mumkin — shuning
+   * uchun ikkalasi ham kerak.
+   */
+  is_paused: boolean;
+
+  /** Ro'yxatdan yashirilgan vaqt (0 — ko'rinadi). */
+  hidden_at: number;
+
   // Sarflanmagan byudjetni qaytarish (012_ad_refunds.sql)
   refund_state: "none" | "pending" | "done" | "failed";
   refund_after: number;
@@ -70,6 +80,8 @@ function toAdRow(raw: Record<string, unknown>): AdRow {
     refunded_ton: Number(raw.refunded_ton ?? 0),
     refund_after: Number(raw.refund_after ?? 0),
     refund_tries: Number(raw.refund_tries ?? 0),
+    hidden_at: Number(raw.hidden_at ?? 0),
+    is_paused: Boolean(raw.is_paused),
   };
 }
 
@@ -115,7 +127,8 @@ export async function attachTelegramAd(id: number, ad: TelegramAd): Promise<void
         SET tg_ad_id = $2, status = $3, cpm_ton = $4,
             budget_ton = $5, spent_ton = $6,
             views = $7, clicks = $8, actions = $9,
-            decline_reason = $10, error_msg = NULL, synced_at = $11
+            decline_reason = $10, error_msg = NULL, synced_at = $11,
+            is_paused = $12
       WHERE id = $1`,
     [
       id,
@@ -129,6 +142,7 @@ export async function attachTelegramAd(id: number, ad: TelegramAd): Promise<void
       ad.actions ?? 0,
       ad.decline_reason?.text ?? null,
       nowSec(),
+      Boolean(ad.is_paused),
     ]
   );
 }
@@ -140,7 +154,7 @@ export async function syncAdFromTelegram(ad: TelegramAd): Promise<void> {
         SET title = $2, text = $3, promote_url = $4, placement = $5,
             status = $6, cpm_ton = $7, budget_ton = $8, spent_ton = $9,
             views = $10, clicks = $11, actions = $12,
-            decline_reason = $13, synced_at = $14
+            decline_reason = $13, synced_at = $14, is_paused = $15
       WHERE tg_ad_id = $1`,
     [
       ad.ad_id,
@@ -157,6 +171,7 @@ export async function syncAdFromTelegram(ad: TelegramAd): Promise<void> {
       ad.actions ?? 0,
       ad.decline_reason?.text ?? null,
       nowSec(),
+      Boolean(ad.is_paused),
     ]
   );
 }
@@ -167,10 +182,22 @@ export async function setAdError(id: number, message: string | null): Promise<vo
 
 export async function listUserAds(userId: number, limit = 100): Promise<AdRow[]> {
   const { rows } = await pool.query(
-    "SELECT * FROM ads WHERE user_id = $1 ORDER BY id DESC LIMIT $2",
+    "SELECT * FROM ads WHERE user_id = $1 AND hidden_at = 0 ORDER BY id DESC LIMIT $2",
     [userId, limit]
   );
   return rows.map(toAdRow);
+}
+
+/**
+ * Reklamani foydalanuvchi ro'yxatidan YASHIRADI.
+ *
+ * Yozuvning o'zi qolaveradi: sarflanmagan pulni qaytarish uchun Telegram
+ * reklamani 10 daqiqa to'xtagan holda ushlab turishni talab qiladi.
+ * Foydalanuvchi uchun esa u darhol o'chgan bo'lib ko'rinadi — aks holda
+ * "o'chirdim, lekin o'chmadi" degan holat chiqardi.
+ */
+export async function hideAd(id: number): Promise<void> {
+  await pool.query("UPDATE ads SET hidden_at = $2 WHERE id = $1", [id, nowSec()]);
 }
 
 /**
@@ -207,7 +234,7 @@ export async function listAdsToSync(limit: number, olderThanSec: number): Promis
 
 export async function countUserAds(userId: number): Promise<number> {
   const { rows } = await pool.query<{ count: string }>(
-    "SELECT COUNT(*) AS count FROM ads WHERE user_id = $1",
+    "SELECT COUNT(*) AS count FROM ads WHERE user_id = $1 AND hidden_at = 0",
     [userId]
   );
   return Number(rows[0]?.count ?? 0);

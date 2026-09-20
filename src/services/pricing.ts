@@ -51,7 +51,7 @@ let adsMarkupPct = 15;
  * chegarasi bor. So'mda saqlasak, kurs o'zgargan kuni chegara Telegramning
  * talabidan pastga tushib qolardi va reklama yaratilmasdi.
  */
-let adsMinTon = 0.1;
+let adsMinTon = 1;
 
 /**
  * Eng kam CPM (1000 ko'rsatish narxi, TON).
@@ -260,11 +260,24 @@ export function getAdsMinTon(): number {
   return adsMinTon;
 }
 
-/** Eng kam to'ldirish summasi SO'MDA (kurs bo'yicha, yuqoriga yaxlitlanadi). */
+/**
+ * Eng kam to'ldirish summasi SO'MDA.
+ *
+ * USTAMA HISOBGA OLINADI. Foydalanuvchi to'lagan summadan avval xizmat
+ * haqi ayriladi, qolgani byudjetga tushadi. Shuning uchun "1 TON kerak"
+ * degani "1 TON qiymatidagi so'm" emas:
+ *
+ *   1 TON = 20 000 so'm byudjetga
+ *   ustama 15%  →  foydalanuvchi 23 000 so'm to'lashi kerak
+ *
+ * Ilgari bu hisobga olinmagan edi: 20 000 so'm to'lagan odamning
+ * byudjetiga 0.86 TON tushib, Telegram reklamani rad etardi.
+ */
 export function getAdsMinTopupUzs(): number {
-  // Yuqoriga yaxlitlaymiz: pastga yaxlitlansa, foydalanuvchi ko'rsatilgan
-  // summani to'lab, Telegramning eng kam TON chegarasiga yetmay qolardi.
-  return Math.ceil((adsMinTon * tonRateUzs) / 1000) * 1000;
+  const budgetUzs = adsMinTon * tonRateUzs;
+  const totalUzs = (budgetUzs * (100 + adsMarkupPct)) / 100;
+  // Yuqoriga yaxlitlaymiz — pastga yaxlitlansa chegaradan tushib qolardi.
+  return Math.ceil(totalUzs / 1000) * 1000;
 }
 
 export function getAdsMinCpmBaseTon(): number {

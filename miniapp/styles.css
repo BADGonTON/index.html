@@ -1645,3 +1645,20 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
   vertical-align: -.22em;
   object-fit: contain;
 }
+
+/* Matn maydoni ostidagi jonli ko'rinish — emoji o'z joyida chiziladi. */
+.ta-live {
+  margin-top: 11px; padding: 11px 13px;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+}
+.ta-live-label {
+  display: block; margin-bottom: 6px;
+  font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--text-mute);
+}
+.ta-live-body {
+  font-size: 14px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+}
+.ta-live-body .tgp-emoji { vertical-align: -.22em; }
