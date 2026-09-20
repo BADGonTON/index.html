@@ -21,6 +21,8 @@ export const STEP = {
   ADMIN_SET_SERVICE_FEE: "admin:set_service_fee",
   ADMIN_SET_EXTEND_MIN_DAYS: "admin:set_extend_min_days",
   ADMIN_SET_EXTEND_FEE: "admin:set_extend_fee",
+  ADMIN_SET_ADS_MARKUP: "admin:set_ads_markup",
+  ADMIN_SET_ADS_MIN_TOPUP: "admin:set_ads_min_topup",
   ADMIN_BROADCAST_WAIT: "admin:broadcast_wait",
   ADMIN_BROADCAST_CONFIRM: "admin:broadcast_confirm",
 

@@ -59,7 +59,30 @@ const state = {
   extendDays: 1,
 
   screen: 'market',
+  world: 'gift',
   history: [],
+
+  // ── Reklama bo'limi ──
+  ads: {
+    enabled: false,
+    ready: false,
+    cfg: null,        // /ads/bootstrap javobi
+    refs: null,       // davlatlar / tillar / mavzular
+    items: [],        // mening reklamalarim
+    current: null,    // ochilgan reklama
+    stats: [],
+    statsDays: 7,
+    // Forma holati
+    target: 'channels',
+    placement: 'channel_post',
+    media: null,      // {kind:'photo'|'video', id, url}
+    sel: {
+      chLangs: new Set(), chTopics: new Set(), channels: [], exChannels: [],
+      countries: new Set(), locations: [], uLangs: new Set(), uTopics: new Set(),
+      uChannels: [], audiences: new Set(), bots: [], queries: [],
+    },
+    schedule: new Array(7).fill(0),
+  },
 };
 
 // ───────────────────────────── Yordamchilar ─────────────────────────────
@@ -202,14 +225,34 @@ async function api(path, options = {}) {
 
 // ───────────────────────────── Navigatsiya ─────────────────────────────
 
-const TABS = ['market', 'bundles', 'mine', 'balance'];
+/**
+ * Ilovada IKKITA dunyo bor va ularning o'z tab paneli:
+ *
+ *   gift — Market / To'plam / Giftlarim / Balans   (+ "Reklama" tugmasi)
+ *   ads  — Reklama / Reklamalarim / Profil        (+ "Gift Arenda" tugmasi)
+ *
+ * Har bir panelning OXIRGI tugmasi ikkinchi dunyoga o'tkazadi. Tarix
+ * dunyolar bo'yicha ALOHIDA yuritiladi, aks holda "orqaga" tugmasi
+ * foydalanuvchini kutilmaganda boshqa dunyoga tashlab yuborardi.
+ */
+const GIFT_TABS = ['market', 'bundles', 'mine', 'balance'];
+const ADS_TABS  = ['ads-create', 'ads-mine', 'ads-profile'];
+const TABS = [...GIFT_TABS, ...ADS_TABS];
+
+/** Ekran qaysi dunyoga tegishli. */
+function worldOf(name) {
+  return name.startsWith('ads-') ? 'ads' : 'gift';
+}
 
 function showScreen(name, { push = true } = {}) {
   if (state.screen === name) return;
+
+  const world = worldOf(name);
   if (push && !TABS.includes(name)) state.history.push(state.screen);
   if (TABS.includes(name)) state.history = [];
 
   state.screen = name;
+  state.world = world;
 
   document.querySelectorAll('.screen').forEach((s) => {
     s.classList.toggle('is-active', s.dataset.screen === name);
@@ -217,6 +260,10 @@ function showScreen(name, { push = true } = {}) {
   document.querySelectorAll('.tab').forEach((t) => {
     t.classList.toggle('is-active', t.dataset.tab === name);
   });
+
+  // Faqat shu dunyoning paneli ko'rinadi.
+  $('tabbar-gift').hidden = world !== 'gift';
+  $('tabbar-ads').hidden  = world !== 'ads';
 
   window.scrollTo({ top: 0 });
   syncBackButton();
@@ -226,10 +273,15 @@ function showScreen(name, { push = true } = {}) {
   // To'plamlar ro'yxati faqat KERAK BO'LGANDA yuklanadi — ilova ochilishi
   // shu sabab sekinlashmaydi.
   if (name === 'bundles' && state.bundles.items.length === 0) loadBundles({ reset: true });
+
+  if (name === 'ads-create') onAdsCreateOpen();
+  if (name === 'ads-mine') loadMyAds();
+  if (name === 'ads-profile') renderAdsProfile();
 }
 
 function goBack() {
-  const target = state.history.pop() || 'market';
+  const fallback = state.world === 'ads' ? 'ads-mine' : 'market';
+  const target = state.history.pop() || fallback;
   state.screen = '';
   showScreen(target, { push: false });
 }
@@ -1293,7 +1345,7 @@ async function payBundle() {
     renderBalancePill();
     renderBalance();
     haptic('success');
-    toast(`${res.count} ta gift olindi — ${fmtSom(res.cost_uzs)}`, 'ok');
+    toast(`${res.count} ta gift olindi — ${fmtSom(res.cost_uzs)}`, 'success');
 
     await refreshRentals();
     startPaymentWatcher();
@@ -1375,9 +1427,11 @@ function closeCollectionSheet() {
 // ───────────────────────────── Hodisalar ─────────────────────────────
 
 function bindEvents() {
-  document.querySelectorAll('.tab').forEach((tab) => {
+  document.querySelectorAll('.tab[data-tab]').forEach((tab) => {
     tab.addEventListener('click', () => { showScreen(tab.dataset.tab); haptic('light'); });
   });
+
+  bindAdsEvents();
 
   $('balance-pill').addEventListener('click', () => showScreen('balance'));
 
@@ -1481,6 +1535,983 @@ function bindEvents() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  REKLAMA BO'LIMI
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Gift Arenda bilan bitta ilovada, lekin o'z dunyosida yashaydi.
+// Barcha so'rovlar `/api/ads/*` ga ketadi.
+
+const AD = state.ads;
+
+const PLACEMENT_LABELS = {
+  channel_post:  ['Kanal postlari', 'Kanal postlari orasida ko\'rinadi.'],
+  bot_banner:    ['Botlarda',       'Botlar ichidagi banner sifatida ko\'rinadi.'],
+  search_result: ['Qidiruvda',      'Telegram qidiruvida, natijalar ustida ko\'rinadi.'],
+  video_banner:  ['Videolarda',     'Video ko\'rilayotganda banner bo\'lib chiqadi.'],
+};
+
+const TARGET_LABELS = {
+  channels: 'Kanallar',
+  users:    'Odamlar',
+  bots:     'Botlar',
+  search:   'Qidiruv',
+};
+
+const BUTTON_LABELS = {
+  subscribe: 'Obuna bo\'lish', view: 'Ko\'rish', read: 'O\'qish',
+  learn_more: 'Batafsil', download: 'Yuklab olish', open: 'Ochish',
+  sign_up: 'Ro\'yxatdan o\'tish', buy: 'Sotib olish', order: 'Buyurtma',
+  play: 'O\'ynash', try: 'Sinab ko\'rish', leave_request: 'Ariza qoldirish',
+};
+
+const STATUS_LABELS = {
+  draft:            ['Qoralama',        'st-stopped'],
+  stopped:          ['To\'xtatilgan',   'st-stopped'],
+  ready_for_review: ['Yuborilmagan',    'st-hold'],
+  in_review:        ['Ko\'rikda',       'st-review'],
+  declined:         ['Rad etilgan',     'st-declined'],
+  active:           ['Faol',            'st-active'],
+  on_hold:          ['Kutilmoqda',      'st-hold'],
+};
+
+/** Telegram ruxsat bergan vaqt mintaqalari (soniyada, UTC dan siljish). */
+const TIMEZONES = [
+  -43200, -39600, -36000, -34200, -32400, -28800, -25200, -21600, -18000,
+  -14400, -12600, -10800, -9000, -7200, -3600, 0, 3600, 7200, 10800, 12600,
+  14400, 16200, 18000, 19800, 20700, 21600, 23400, 25200, 28800, 31500,
+  32400, 34200, 36000, 37800, 39600, 43200, 45900, 46800, 49500, 50400,
+];
+
+const DAY_NAMES = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'];
+
+/** `/api/ads/...` ga so'rov. */
+function adsApi(path, options) {
+  return api(`/ads${path}`, options);
+}
+
+function tonFmt(n) {
+  return `${Number(n).toFixed(2)} TON`;
+}
+
+function statusPill(status) {
+  const [label, cls] = STATUS_LABELS[status] || [status, 'st-stopped'];
+  return `<i class="st ${cls}">${escapeHtml(label)}</i>`;
+}
+
+// ───────────────────────────── Bootstrap ─────────────────────────────
+
+/**
+ * Reklama bo'limi ochilganda bir marta sozlanadi.
+ *
+ * Ma'lumotnomalar (davlatlar, tillar, mavzular) KERAK BO'LGANDA yuklanadi:
+ * ilova ochilishida ularni tortib olish ochilishni sekinlashtirardi va
+ * reklama bo'limiga kirmaydigan foydalanuvchiga umuman kerak emas.
+ */
+async function onAdsCreateOpen() {
+  if (AD.ready) return;
+
+  try {
+    const cfg = await adsApi('/bootstrap');
+    AD.cfg = cfg;
+    AD.enabled = Boolean(cfg.enabled);
+
+    if (!cfg.enabled || cfg.account_ok === false) {
+      $('ads-gate').hidden = false;
+      $('ads-form').hidden = true;
+      $('ads-gate-text').textContent = cfg.enabled
+        ? 'Reklama xizmati vaqtincha javob bermayapti. Birozdan keyin urinib ko\'ring.'
+        : 'Reklama bo\'limi hozircha mavjud emas.';
+      return;
+    }
+
+    $('ads-gate').hidden = true;
+    $('ads-form').hidden = false;
+
+    const refs = await adsApi('/refs');
+    AD.refs = refs;
+
+    buildAdForm();
+    AD.ready = true;
+  } catch (err) {
+    $('ads-gate').hidden = false;
+    $('ads-form').hidden = true;
+    $('ads-gate-text').textContent = err.message;
+  }
+}
+
+// ───────────────────────────── Forma qurilishi ─────────────────────────────
+
+function buildAdForm() {
+  const cfg = AD.cfg;
+
+  // Joylashuv
+  const placement = $('ad-placement');
+  placement.innerHTML = '';
+  (cfg.placements || Object.keys(PLACEMENT_LABELS)).forEach((key, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.value = key;
+    b.textContent = (PLACEMENT_LABELS[key] || [key])[0];
+    b.className = i === 0 ? 'is-on' : '';
+    b.addEventListener('click', () => {
+      AD.placement = key;
+      [...placement.children].forEach((c) => c.classList.toggle('is-on', c === b));
+      $('ad-placement-hint').textContent = (PLACEMENT_LABELS[key] || ['', ''])[1];
+      haptic('light');
+    });
+    placement.appendChild(b);
+  });
+
+  // Targeting turi
+  const tt = $('ad-target-type');
+  tt.innerHTML = '';
+  Object.entries(TARGET_LABELS).forEach(([key, label], i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.className = i === 0 ? 'is-on' : '';
+    b.addEventListener('click', () => {
+      AD.target = key;
+      [...tt.children].forEach((c) => c.classList.toggle('is-on', c === b));
+      document.querySelectorAll('.tgt').forEach((n) => { n.hidden = n.dataset.tgt !== key; });
+      syncAdNote();
+      haptic('light');
+    });
+    tt.appendChild(b);
+  });
+  document.querySelectorAll('.tgt').forEach((n) => { n.hidden = n.dataset.tgt !== 'channels'; });
+
+  // Tugma yozuvlari
+  const btnSel = $('ad-button');
+  btnSel.innerHTML = '<option value="">Standart ("Saytni ochish")</option>';
+  (cfg.buttons || Object.keys(BUTTON_LABELS)).forEach((key) => {
+    const o = document.createElement('option');
+    o.value = key;
+    o.textContent = BUTTON_LABELS[key] || key;
+    btnSel.appendChild(o);
+  });
+
+  // Vaqt mintaqalari
+  const tzSel = $('ad-tz');
+  tzSel.innerHTML = '';
+  TIMEZONES.forEach((off) => {
+    const o = document.createElement('option');
+    o.value = String(off);
+    const h = Math.trunc(Math.abs(off) / 3600);
+    const m = Math.round((Math.abs(off) % 3600) / 60);
+    o.textContent = `UTC${off < 0 ? '−' : '+'}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    if (off === 18000) o.selected = true; // Toshkent
+    tzSel.appendChild(o);
+  });
+
+  // Tanlovchilar
+  pickList($('tgt-ch-langs'),  AD.refs.languages, 'language_code', 'name', AD.sel.chLangs, 8);
+  pickList($('tgt-ch-topics'), AD.refs.topics,    'topic_id',      'name', AD.sel.chTopics, 20);
+  pickList($('tgt-u-countries'), AD.refs.countries, 'country_code', 'name', AD.sel.countries, 8, true);
+  pickList($('tgt-u-langs'),   AD.refs.languages, 'language_code', 'name', AD.sel.uLangs, 8);
+  pickList($('tgt-u-topics'),  AD.refs.topics,    'topic_id',      'name', AD.sel.uTopics, 20);
+
+  buildSchedule();
+  syncQuote();
+  syncAdNote();
+}
+
+/**
+ * Ko'p tanlanadigan ro'yxat.
+ *
+ * 30 tadan ko'p element bo'lsa qidiruv maydoni qo'shiladi — 200 ta
+ * davlatni ko'zdan kechirish telefonda imkonsiz.
+ */
+function pickList(box, items, valueKey, labelKey, selected, limit, searchable = false) {
+  box.innerHTML = '';
+  if (!Array.isArray(items) || items.length === 0) {
+    box.innerHTML = '<p class="hint">Ro\'yxat bo\'sh.</p>';
+    return;
+  }
+
+  let filter = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'picks';
+  wrap.style.margin = '0';
+
+  const draw = () => {
+    wrap.innerHTML = '';
+    const needle = filter.toLowerCase();
+    const visible = items
+      .filter((it) => !needle || String(it[labelKey]).toLowerCase().includes(needle))
+      .slice(0, searchable && !needle ? 24 : 400);
+
+    visible.forEach((it) => {
+      const value = it[valueKey];
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'pick' + (selected.has(value) ? ' is-on' : '');
+      chip.innerHTML = `<span>${escapeHtml(String(it[labelKey]))}</span>`;
+      chip.addEventListener('click', () => {
+        if (selected.has(value)) {
+          selected.delete(value);
+        } else {
+          if (selected.size >= limit) { toast(`Eng ko'pi ${limit} ta`, 'warn'); return; }
+          selected.add(value);
+        }
+        chip.classList.toggle('is-on', selected.has(value));
+        haptic('light');
+      });
+      wrap.appendChild(chip);
+    });
+
+    if (visible.length === 0) {
+      wrap.innerHTML = '<p class="hint">Topilmadi.</p>';
+    }
+  };
+
+  if (searchable || items.length > 30) {
+    const field = document.createElement('div');
+    field.className = 'field';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Qidirish…';
+    input.addEventListener('input', () => { filter = input.value.trim(); draw(); });
+    field.appendChild(input);
+    box.appendChild(field);
+  }
+
+  box.appendChild(wrap);
+  draw();
+}
+
+/** Qo'lda kiritiladigan ro'yxat (kanallar, botlar, qidiruv so'zlari). */
+function renderTokenList(box, list, onRemove) {
+  box.innerHTML = '';
+  list.forEach((item, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'pick' + (item.exclude ? ' is-x' : ' is-on');
+    chip.innerHTML = `<span>${escapeHtml(item.label)}</span><i class="pick-del">×</i>`;
+    chip.querySelector('.pick-del').addEventListener('click', () => {
+      onRemove(i);
+      haptic('light');
+    });
+    box.appendChild(chip);
+  });
+}
+
+// ───────────────────────────── Jadval ─────────────────────────────
+
+function buildSchedule() {
+  const grid = $('ad-sched');
+  grid.innerHTML = '';
+
+  for (let day = 0; day < 7; day++) {
+    const label = document.createElement('div');
+    label.className = 'sched-row-label';
+    label.textContent = DAY_NAMES[day];
+    grid.appendChild(label);
+
+    for (let hour = 0; hour < 24; hour++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.title = `${DAY_NAMES[day]} ${String(hour).padStart(2, '0')}:00`;
+      cell.addEventListener('click', () => {
+        AD.schedule[day] ^= (1 << hour);
+        cell.classList.toggle('is-on', Boolean(AD.schedule[day] & (1 << hour)));
+        haptic('light');
+      });
+      grid.appendChild(cell);
+    }
+  }
+  paintSchedule();
+}
+
+function paintSchedule() {
+  const cells = $('ad-sched').querySelectorAll('button');
+  let i = 0;
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      cells[i++].classList.toggle('is-on', Boolean(AD.schedule[day] & (1 << hour)));
+    }
+  }
+}
+
+function fillSchedule(fromHour, toHour) {
+  let mask = 0;
+  for (let h = fromHour; h < toHour; h++) mask |= (1 << h);
+  AD.schedule = new Array(7).fill(mask);
+  paintSchedule();
+}
+
+// ───────────────────────────── Narx ─────────────────────────────
+
+/**
+ * Narx KLIENTDA hisoblanadi — slayder/maydon o'zgarganda darhol ko'rinsin.
+ * Server baribir o'zi qayta hisoblaydi, ya'ni bu faqat ko'rsatish uchun.
+ */
+function syncQuote() {
+  const cfg = AD.cfg;
+  if (!cfg) return;
+
+  const total = Math.floor(Number($('ad-budget').value) || 0);
+  const box = $('ad-quote');
+  if (total <= 0) { box.hidden = true; return; }
+
+  const budgetUzs = Math.round((total * 100) / (100 + cfg.markup_pct));
+  const feeUzs = total - budgetUzs;
+  const ton = Math.floor((budgetUzs / cfg.ton_rate_uzs) * 100) / 100;
+
+  $('q-pct').textContent = String(cfg.markup_pct);
+  $('q-budget').textContent = fmtSom(budgetUzs);
+  $('q-fee').textContent = fmtSom(feeUzs);
+  $('q-total').textContent = fmtSom(total);
+  $('q-ton').textContent = tonFmt(ton);
+  box.hidden = false;
+}
+
+function syncAdNote() {
+  const url = $('ad-url').value.trim();
+  const external = url !== '' && !/^https?:\/\/t\.me\//i.test(url);
+  $('ad-website-wrap').hidden = !external;
+}
+
+// ───────────────────────────── Yuborish ─────────────────────────────
+
+/** Formadan targeting obyektini yig'adi. */
+function collectTarget() {
+  const s = AD.sel;
+
+  if (AD.target === 'channels') {
+    return {
+      type: 'channels',
+      language_codes: [...s.chLangs],
+      topic_ids: [...s.chTopics],
+      channel_ids: s.channels.map((c) => c.value),
+      exclude_channel_ids: s.exChannels.map((c) => c.value),
+    };
+  }
+  if (AD.target === 'users') {
+    return {
+      type: 'users',
+      country_codes: [...s.countries],
+      location_ids: s.locations.map((l) => l.value),
+      language_codes: [...s.uLangs],
+      topic_ids: [...s.uTopics],
+      intersect_topics: $('tgt-u-intersect').checked,
+      channel_ids: s.uChannels.map((c) => c.value),
+      audience_ids: [...s.audiences],
+      device: $('tgt-u-device').value || undefined,
+      exclude_political_channels: $('tgt-u-nopolitics').checked,
+    };
+  }
+  if (AD.target === 'bots') {
+    return { type: 'bots', bot_ids: s.bots.map((b) => b.value) };
+  }
+  return { type: 'search', search_queries: s.queries.map((q) => q.value) };
+}
+
+/** Sanani `datetime-local` dan Unix vaqtiga o'giradi. */
+function localToUnix(value) {
+  if (!value) return undefined;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
+function collectAdPayload() {
+  const payload = {
+    title: $('ad-title').value.trim(),
+    text: $('ad-text').value.trim(),
+    promote_url: $('ad-url').value.trim(),
+    placement: AD.placement,
+    target: collectTarget(),
+    cpm: Number($('ad-cpm').value) || 0,
+    budget_uzs: Math.floor(Number($('ad-budget').value) || 0),
+    impression_frequency: Number($('ad-freq').value) || 1,
+    show_userpic: $('ad-userpic').checked,
+    activate_date: localToUnix($('ad-start').value),
+    deactivate_date: localToUnix($('ad-end').value),
+  };
+
+  const daily = Number($('ad-daily').value);
+  if (Number.isFinite(daily) && daily > 0) payload.daily_budget_limit = daily;
+
+  if (!$('ad-website-wrap').hidden) {
+    payload.website_name = $('ad-website').value.trim();
+    const button = $('ad-button').value;
+    if (button) payload.button = button;
+  }
+
+  if (AD.media?.kind === 'photo') payload.photo_id = AD.media.id;
+  if (AD.media?.kind === 'video') payload.video_id = AD.media.id;
+
+  if ($('ad-sched-on').checked) {
+    payload.schedule = {
+      week_hours_mask: AD.schedule,
+      use_viewer_timezone: $('ad-sched-viewer').checked,
+      timezone: $('ad-sched-viewer').checked ? undefined : Number($('ad-tz').value),
+    };
+  }
+
+  return payload;
+}
+
+async function submitAd(e) {
+  e.preventDefault();
+  const button = $('ad-submit');
+
+  try {
+    setBusy(button, true, 'Yuborilmoqda…');
+    const data = await adsApi('/', {
+      method: 'POST',
+      body: JSON.stringify(collectAdPayload()),
+    });
+
+    state.balance = data.balance_uzs;
+    renderBalancePill();
+    AD.items.unshift(data.ad);
+    resetAdForm();
+
+    haptic('success');
+    toast('Reklama yaratildi — ko\'rikka yuborildi', 'success');
+    showScreen('ads-mine');
+  } catch (err) {
+    haptic('error');
+    if (err.payload?.balance_uzs !== undefined) {
+      state.balance = err.payload.balance_uzs;
+      renderBalancePill();
+    }
+    toast(err.message, 'error');
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+function resetAdForm() {
+  $('ads-form').reset();
+  AD.media = null;
+  AD.schedule = new Array(7).fill(0);
+  Object.values(AD.sel).forEach((v) => {
+    if (v instanceof Set) v.clear();
+    else if (Array.isArray(v)) v.length = 0;
+  });
+  $('ad-media-preview').hidden = true;
+  $('ad-media-preview').innerHTML = '';
+  $('ad-media-clear').hidden = true;
+  $('ad-quote').hidden = true;
+  $('ad-text-count').textContent = '0';
+  if (AD.refs) buildAdForm();
+}
+
+// ───────────────────────────── Fayl yuklash ─────────────────────────────
+
+/**
+ * Fayl XOM BAYT bo'lib ketadi, base64 emas: base64 hajmni üchdan bir
+ * baravar oshiradi va 20 MB lik video 27 MB lik so'rovga aylanardi.
+ */
+async function uploadMedia(file, kind) {
+  const path = kind === 'photo' ? '/upload/photo' : '/upload/video';
+  const res = await fetch(`/api/ads${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type,
+      Authorization: `tma ${initData}`,
+    },
+    body: file,
+  });
+
+  let data = {};
+  try { data = await res.json(); } catch { /* bo'sh javob */ }
+  if (!res.ok) throw new Error(data.error || `Yuklab bo'lmadi (${res.status})`);
+
+  const result = data.result || {};
+  AD.media = {
+    kind,
+    id: kind === 'photo' ? result.photo_id : result.video_id,
+    url: kind === 'photo' ? result.photo_url : result.video_url,
+  };
+
+  const box = $('ad-media-preview');
+  box.innerHTML = kind === 'photo'
+    ? `<img src="${escapeHtml(AD.media.url)}" alt="">`
+    : `<video src="${escapeHtml(AD.media.url)}" controls playsinline></video>`;
+  box.hidden = false;
+  $('ad-media-clear').hidden = false;
+}
+
+// ───────────────────────────── Mening reklamalarim ─────────────────────────────
+
+async function loadMyAds() {
+  const box = $('ads-list');
+  if (AD.items.length === 0) {
+    box.innerHTML = '<div class="skeleton-card"></div><div class="skeleton-card"></div>';
+  }
+
+  try {
+    const data = await adsApi('/');
+    AD.items = data.items || [];
+    renderAdsList();
+  } catch (err) {
+    box.innerHTML = `<p class="hint is-error">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderAdsList() {
+  const box = $('ads-list');
+  box.innerHTML = '';
+
+  if (AD.items.length === 0) {
+    $('ads-stats-row').hidden = true;
+    box.innerHTML = `
+      <div class="empty">
+        <svg class="ico"><use href="#i-tab-ads"/></svg>
+        <h3>Hali reklama yo'q</h3>
+        <p>"Reklama" bo'limida birinchi reklamangizni yarating.</p>
+      </div>`;
+    return;
+  }
+
+  const totals = AD.items.reduce(
+    (acc, ad) => ({
+      active: acc.active + (ad.status === 'active' ? 1 : 0),
+      views: acc.views + ad.views,
+      clicks: acc.clicks + ad.clicks,
+    }),
+    { active: 0, views: 0, clicks: 0 }
+  );
+  $('ads-active').textContent = String(totals.active);
+  $('ads-views').textContent = fmtNum(totals.views);
+  $('ads-clicks').textContent = fmtNum(totals.clicks);
+  $('ads-stats-row').hidden = false;
+
+  AD.items.forEach((ad) => {
+    const card = document.createElement('div');
+    card.className = 'ad-card';
+    card.innerHTML = `
+      <div class="ad-card-top">
+        <span class="ad-card-title">${escapeHtml(ad.title)}</span>
+        ${statusPill(ad.status)}
+      </div>
+      ${ad.text ? `<p class="ad-card-text">${escapeHtml(ad.text)}</p>` : ''}
+      <div class="ad-card-row">
+        <div class="ad-card-metric"><b>${fmtNum(ad.views)}</b><span>Ko'rish</span></div>
+        <div class="ad-card-metric"><b>${fmtNum(ad.clicks)}</b><span>Bosish</span></div>
+        <div class="ad-card-metric"><b>${ad.ctr}%</b><span>CTR</span></div>
+        <div class="ad-card-metric"><b>${fmtSom(ad.budget_uzs)}</b><span>Byudjet</span></div>
+      </div>`;
+    card.addEventListener('click', () => openAd(ad));
+    box.appendChild(card);
+  });
+}
+
+// ───────────────────────────── Bitta reklama ─────────────────────────────
+
+async function openAd(ad) {
+  AD.current = ad;
+  renderAdDetail();
+  showScreen('ads-detail');
+
+  // Yangi ko'rsatkichlar uchun Telegramdan so'raymiz — ekran esa
+  // keshdagi ma'lumot bilan DARHOL ochiladi.
+  try {
+    const data = await adsApi(`/${ad.id}`);
+    AD.current = data.ad;
+    const i = AD.items.findIndex((x) => x.id === data.ad.id);
+    if (i !== -1) AD.items[i] = data.ad;
+    if (state.screen === 'ads-detail') renderAdDetail();
+  } catch { /* keshdagi ko'rinish qoladi */ }
+}
+
+function renderAdDetail() {
+  const ad = AD.current;
+  if (!ad) return;
+
+  const [label] = STATUS_LABELS[ad.status] || [ad.status];
+  $('add-title').textContent = ad.title;
+  $('add-status').textContent = ad.text || label;
+  $('add-status-b').innerHTML = statusPill(ad.status);
+  $('add-views').textContent = fmtNum(ad.views);
+  $('add-clicks').textContent = fmtNum(ad.clicks);
+  $('add-ctr').textContent = `${ad.ctr}%`;
+  $('add-spent').textContent = fmtSom(ad.spent_uzs);
+  $('add-budget').textContent = `${fmtSom(ad.budget_uzs)} · ${tonFmt(ad.budget_ton)}`;
+  $('add-cpm').textContent = tonFmt(ad.cpm_ton);
+
+  $('add-decline').hidden = ad.status !== 'declined';
+  $('add-decline-text').textContent = ad.decline_reason || 'Sabab ko\'rsatilmagan.';
+
+  $('add-pause-label').textContent = ad.status === 'stopped' ? 'Davom ettirish' : 'To\'xtatish';
+  $('add-submit-review').hidden = ad.status !== 'ready_for_review';
+
+  const min = AD.cfg?.min_topup_uzs ?? 0;
+  $('add-topup-hint').textContent =
+    `Kamida ${fmtSom(min)}. Xizmat haqi ${AD.cfg?.markup_pct ?? 0}% summaning ichida.`;
+}
+
+async function adAction(button, run, okMessage) {
+  try {
+    setBusy(button, true);
+    const data = await run();
+    if (data.ad) {
+      AD.current = data.ad;
+      const i = AD.items.findIndex((x) => x.id === data.ad.id);
+      if (i !== -1) AD.items[i] = data.ad;
+      renderAdDetail();
+    }
+    if (data.balance_uzs !== undefined) {
+      state.balance = data.balance_uzs;
+      renderBalancePill();
+    }
+    haptic('success');
+    toast(okMessage, 'success');
+    return true;
+  } catch (err) {
+    haptic('error');
+    if (err.payload?.balance_uzs !== undefined) {
+      state.balance = err.payload.balance_uzs;
+      renderBalancePill();
+    }
+    toast(err.message, 'error');
+    return false;
+  } finally {
+    setBusy(button, false);
+  }
+}
+
+// ───────────────────────────── Statistika ─────────────────────────────
+
+async function openAdStats() {
+  const ad = AD.current;
+  if (!ad) return;
+
+  $('adst-subtitle').textContent = ad.title;
+  showScreen('ads-stats');
+
+  const range = $('adst-range');
+  if (!range.dataset.built) {
+    [7, 14, 30, 90].forEach((days, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = `${days} kun`;
+      b.className = i === 0 ? 'is-on' : '';
+      b.addEventListener('click', () => {
+        AD.statsDays = days;
+        [...range.children].forEach((c) => c.classList.toggle('is-on', c === b));
+        loadAdStats();
+      });
+      range.appendChild(b);
+    });
+    range.dataset.built = '1';
+  }
+  await loadAdStats();
+}
+
+async function loadAdStats() {
+  const ad = AD.current;
+  const bars = $('adst-bars');
+  const table = $('adst-table');
+  bars.innerHTML = '';
+  table.innerHTML = '<p class="hint">Yuklanmoqda…</p>';
+
+  try {
+    const data = await adsApi(`/${ad.id}/stats?days=${AD.statsDays}&interval=86400`);
+    AD.stats = data.items || [];
+    renderAdStats();
+  } catch (err) {
+    table.innerHTML = `<p class="hint is-error">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderAdStats() {
+  const bars = $('adst-bars');
+  const table = $('adst-table');
+  bars.innerHTML = '';
+  table.innerHTML = '';
+
+  if (AD.stats.length === 0) {
+    table.innerHTML = '<p class="hint">Bu davr uchun ma\'lumot yo\'q.</p>';
+    return;
+  }
+
+  const max = Math.max(...AD.stats.map((s) => s.views), 1);
+  AD.stats.forEach((s) => {
+    const day = new Date(s.from_time * 1000);
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.title = `${fmtNum(s.views)} ko'rish`;
+    bar.innerHTML =
+      `<i style="height:${Math.max(2, Math.round((s.views / max) * 100))}%"></i>` +
+      `<span>${day.getDate()}.${day.getMonth() + 1}</span>`;
+    bars.appendChild(bar);
+  });
+
+  const sum = AD.stats.reduce(
+    (a, s) => ({
+      views: a.views + s.views,
+      clicks: a.clicks + s.clicks,
+      spent: a.spent + s.spent_uzs,
+    }),
+    { views: 0, clicks: 0, spent: 0 }
+  );
+  table.innerHTML = `
+    <div class="kv"><span>Ko'rishlar</span><b>${fmtNum(sum.views)}</b></div>
+    <div class="kv"><span>Bosishlar</span><b>${fmtNum(sum.clicks)}</b></div>
+    <div class="kv"><span>CTR</span><b>${sum.views ? ((sum.clicks / sum.views) * 100).toFixed(2) : 0}%</b></div>
+    <div class="kv"><span>Sarflandi</span><b>${fmtSom(sum.spent)}</b></div>`;
+}
+
+// ───────────────────────────── Profil ─────────────────────────────
+
+async function renderAdsProfile() {
+  try {
+    const cfg = await adsApi('/bootstrap');
+    AD.cfg = cfg;
+
+    if (!cfg.enabled) {
+      $('adp-spent').textContent = '0';
+      return;
+    }
+
+    $('adp-spent').textContent = fmtNum(cfg.spent_uzs);
+    $('adp-balance').textContent = fmtSom(cfg.balance_uzs);
+    $('adp-count').textContent = `${cfg.ads_count} / ${cfg.max_ads}`;
+    $('adp-markup').textContent = `${cfg.markup_pct}%`;
+    $('adp-min').textContent = fmtSom(cfg.min_topup_uzs);
+    $('adp-rate').textContent = `1 TON = ${fmtSom(cfg.ton_rate_uzs)}`;
+
+    const data = await adsApi('/me/history');
+    renderAdsHistory(data.items || []);
+  } catch (err) {
+    $('adp-history').innerHTML = `<p class="hint is-error">${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderAdsHistory(items) {
+  const box = $('adp-history');
+  box.innerHTML = '';
+
+  if (items.length === 0) {
+    box.innerHTML = '<p class="hint">Hali to\'lov qilinmagan.</p>';
+    return;
+  }
+
+  const LABELS = { done: 'Bajarildi', pending: 'Kutilmoqda', failed: 'Bekor qilindi', refunded: 'Qaytarildi' };
+
+  items.forEach((t) => {
+    const when = new Date(t.created_at * 1000);
+    const row = document.createElement('div');
+    row.className = 'ad-card';
+    row.innerHTML = `
+      <div class="ad-card-top">
+        <span class="ad-card-title">${fmtSom(t.uzs)}</span>
+        <i class="st ${t.status === 'done' ? 'st-active' : t.status === 'pending' ? 'st-review' : 'st-declined'}">${LABELS[t.status] || t.status}</i>
+      </div>
+      <p class="ad-card-text">
+        ${tonFmt(t.ton)} byudjetga · xizmat haqi ${fmtSom(t.fee_uzs)}<br>
+        ${when.toLocaleDateString('ru-RU')} ${when.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+      </p>`;
+    box.appendChild(row);
+  });
+}
+
+// ───────────────────────────── Hodisalar ─────────────────────────────
+
+function bindAdsEvents() {
+  // Dunyolar orasida almashinuv
+  document.querySelectorAll('[data-switch]').forEach((b) => {
+    b.addEventListener('click', () => {
+      showScreen(b.dataset.switch === 'ads' ? 'ads-create' : 'market');
+      haptic('light');
+    });
+  });
+
+  $('ads-form').addEventListener('submit', submitAd);
+
+  $('ad-text').addEventListener('input', (e) => {
+    $('ad-text-count').textContent = String(e.target.value.length);
+  });
+  $('ad-url').addEventListener('input', syncAdNote);
+  $('ad-budget').addEventListener('input', syncQuote);
+
+  // Media
+  $('ad-photo-btn').addEventListener('click', () => $('ad-photo-file').click());
+  $('ad-video-btn').addEventListener('click', () => $('ad-video-file').click());
+  $('ad-photo-file').addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) uploadMedia(file, 'photo').catch((err) => toast(err.message, 'error'));
+  });
+  $('ad-video-file').addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) uploadMedia(file, 'video').catch((err) => toast(err.message, 'error'));
+  });
+  $('ad-media-clear').addEventListener('click', () => {
+    AD.media = null;
+    $('ad-media-preview').hidden = true;
+    $('ad-media-preview').innerHTML = '';
+    $('ad-media-clear').hidden = true;
+  });
+
+  // Jadval
+  $('ad-sched-on').addEventListener('change', (e) => {
+    $('ad-sched-wrap').hidden = !e.target.checked;
+  });
+  $('ad-sched-viewer').addEventListener('change', (e) => {
+    $('ad-tz-wrap').hidden = e.target.checked;
+  });
+  $('sched-all').addEventListener('click', () => fillSchedule(0, 24));
+  $('sched-none').addEventListener('click', () => { AD.schedule = new Array(7).fill(0); paintSchedule(); });
+  $('sched-work').addEventListener('click', () => fillSchedule(9, 21));
+
+  // Kanal / bot / so'z qo'shish
+  const tokenAdder = (inputId, buttonId, listBox, list, kind, exclude = false) => {
+    const add = async () => {
+      const input = $(inputId);
+      const raw = input.value.trim();
+      if (!raw) return;
+
+      const button = $(buttonId);
+      try {
+        setBusy(button, true, '…');
+        const data = await adsApi('/refs/resolve', {
+          method: 'POST',
+          body: JSON.stringify({ kind, username: raw, for_excluding: exclude }),
+        });
+        if (list.length >= 100) { toast('Eng ko\'pi 100 ta', 'warn'); return; }
+        list.push({ value: data.id, label: data.title || data.username || raw, exclude });
+        input.value = '';
+        drawTokens();
+        haptic('success');
+      } catch (err) {
+        haptic('error');
+        toast(err.message, 'error');
+      } finally {
+        setBusy(button, false);
+      }
+    };
+
+    const drawTokens = () => {
+      renderTokenList($(listBox), list, (i) => { list.splice(i, 1); drawTokens(); });
+    };
+
+    $(buttonId).addEventListener('click', add);
+    $(inputId).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); add(); }
+    });
+    return drawTokens;
+  };
+
+  tokenAdder('tgt-ch-input',  'tgt-ch-add',  'tgt-ch-list',  AD.sel.channels,   'channel');
+  tokenAdder('tgt-chx-input', 'tgt-chx-add', 'tgt-chx-list', AD.sel.exChannels, 'channel', true);
+  tokenAdder('tgt-u-ch-input','tgt-u-ch-add','tgt-u-ch-list',AD.sel.uChannels,  'channel');
+  tokenAdder('tgt-b-input',   'tgt-b-add',   'tgt-b-list',   AD.sel.bots,       'bot');
+
+  // Qidiruv so'zlari — serverga bormaydi
+  const drawQueries = () => renderTokenList($('tgt-s-list'), AD.sel.queries, (i) => {
+    AD.sel.queries.splice(i, 1);
+    drawQueries();
+  });
+  const addQuery = () => {
+    const input = $('tgt-s-input');
+    const raw = input.value.trim();
+    if (!raw) return;
+    if (AD.sel.queries.length >= 10) { toast('Eng ko\'pi 10 ta', 'warn'); return; }
+    AD.sel.queries.push({ value: raw, label: raw });
+    input.value = '';
+    drawQueries();
+  };
+  $('tgt-s-add').addEventListener('click', addQuery);
+  $('tgt-s-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addQuery(); }
+  });
+
+  // Shahar qidiruvi
+  $('tgt-u-loc-search').addEventListener('click', async () => {
+    const countries = [...AD.sel.countries];
+    if (countries.length !== 1) { toast('Avval AYNAN BITTA davlat tanlang', 'warn'); return; }
+    const query = $('tgt-u-loc-input').value.trim();
+    if (!query) return;
+
+    const button = $('tgt-u-loc-search');
+    try {
+      setBusy(button, true, '…');
+      const data = await adsApi(
+        `/refs/locations?country=${encodeURIComponent(countries[0])}&q=${encodeURIComponent(query)}`
+      );
+      const box = $('tgt-u-loc-results');
+      box.innerHTML = '';
+      (data.locations || []).slice(0, 30).forEach((loc) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'pick';
+        chip.innerHTML = `<span>${escapeHtml(loc.name)}${loc.region ? ` · ${escapeHtml(loc.region)}` : ''}</span>`;
+        chip.addEventListener('click', () => {
+          if (AD.sel.locations.length >= 20) { toast('Eng ko\'pi 20 ta', 'warn'); return; }
+          if (AD.sel.locations.some((l) => l.value === loc.location_id)) return;
+          AD.sel.locations.push({ value: loc.location_id, label: loc.name });
+          renderTokenList($('tgt-u-locs'), AD.sel.locations, (i) => {
+            AD.sel.locations.splice(i, 1);
+            renderTokenList($('tgt-u-locs'), AD.sel.locations, () => {});
+          });
+          haptic('light');
+        });
+        box.appendChild(chip);
+      });
+      if (box.children.length === 0) box.innerHTML = '<p class="hint">Topilmadi.</p>';
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setBusy(button, false);
+    }
+  });
+
+  // Ro'yxat
+  $('ads-refresh').addEventListener('click', () => { loadMyAds(); haptic('light'); });
+
+  // Tafsilot amallari
+  $('add-topup-btn').addEventListener('click', async () => {
+    const uzs = Math.floor(Number($('add-topup').value) || 0);
+    if (uzs <= 0) { toast('Summani kiriting', 'warn'); return; }
+    const ok = await adAction(
+      $('add-topup-btn'),
+      () => adsApi(`/${AD.current.id}/budget`, { method: 'POST', body: JSON.stringify({ uzs }) }),
+      'Byudjet to\'ldirildi'
+    );
+    if (ok) $('add-topup').value = '';
+  });
+
+  $('add-pause').addEventListener('click', () => {
+    const paused = AD.current.status !== 'stopped';
+    adAction(
+      $('add-pause'),
+      () => adsApi(`/${AD.current.id}/pause`, { method: 'POST', body: JSON.stringify({ paused }) }),
+      paused ? 'Reklama to\'xtatildi' : 'Reklama davom etmoqda'
+    );
+  });
+
+  $('add-submit-review').addEventListener('click', () => {
+    adAction(
+      $('add-submit-review'),
+      () => adsApi(`/${AD.current.id}/submit`, { method: 'POST' }),
+      'Ko\'rikka yuborildi'
+    );
+  });
+
+  $('add-stats-btn').addEventListener('click', openAdStats);
+
+  $('add-delete').addEventListener('click', async () => {
+    const id = AD.current.id;
+    const ok = await adAction(
+      $('add-delete'),
+      () => adsApi(`/${id}`, { method: 'DELETE' }),
+      'Reklama o\'chirildi'
+    );
+    if (ok) {
+      AD.items = AD.items.filter((x) => x.id !== id);
+      AD.current = null;
+      renderAdsList();
+      showScreen('ads-mine', { push: false });
+    }
+  });
+
+  $('adp-topup').addEventListener('click', openTopup);
+}
+
 // ───────────────────────────── Ishga tushirish ─────────────────────────────
 
 function applyBootstrap(data) {
@@ -1513,6 +2544,11 @@ function applyBootstrap(data) {
     // To'plam yo'q bo'lsa market ekranidagi reklama chizig'ini ko'rsatmaymiz.
     $('bundle-promo').hidden = data.bundle.total === 0;
   }
+
+  // Reklama bo'limi TG_ADS_TOKEN sozlangandagina ko'rinadi. Aks holda
+  // tugma bosilib, ichida "sozlanmagan" degan xato chiqardi.
+  state.ads.enabled = Boolean(data.settings?.ads_enabled);
+  $('switch-to-ads').hidden = !state.ads.enabled;
 
   renderBalancePill();
   renderBalance();

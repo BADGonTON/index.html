@@ -18,6 +18,7 @@ export type LedgerReason =
   | "tg_profile"
   | "rent"
   | "rent_extend"
+  | "ads"
   | "refund";
 
 function nowSec(): number {

@@ -9,6 +9,8 @@ import type { Bot } from "grammy";
 import { config } from "../config";
 import { MyContext } from "../bot/session";
 import { createApiRouter } from "./routes";
+import { createAdsRouter } from "./adsRoutes";
+import { requireTelegramAuth, rateLimit } from "./auth";
 import { pingDatabase } from "../db/pool";
 import { catalogStats } from "../services/catalog";
 
@@ -166,6 +168,14 @@ export function createServer(bot: Bot<MyContext>): Express {
   // ---------------------------------------------------------------------
   //  API
   // ---------------------------------------------------------------------
+  // Reklama bo'limi ASOSIY routerdan OLDIN ulanadi.
+  //
+  // Tartib muhim: `/api` routeri barcha `/api/*` so'rovlarini ko'radi va
+  // ularga `requireTelegramAuth` + `rateLimit` ni qo'llaydi. Agar reklama
+  // undan KEYIN tursa, har bir reklama so'rovi tezlik chegarasida IKKI
+  // MARTA sanalardi.
+  app.use("/api/ads", requireTelegramAuth, rateLimit, createAdsRouter());
+
   app.use("/api", createApiRouter());
 
   // ---------------------------------------------------------------------

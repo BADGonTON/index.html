@@ -16,7 +16,7 @@
     "migrate": "tsx src/db/migrate.ts",
     "import:sqlite": "tsx scripts/import-sqlite.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx test/webhook.test.ts && tsx test/initdata.test.ts && tsx test/emoji.test.ts && tsx test/bot.test.ts && tsx test/payment.test.ts && tsx test/gifts.test.ts && tsx test/bundles.test.ts && tsx test/catalog.test.ts && tsx test/tma-e2e.test.ts && tsx test/render.test.ts"
+    "test": "tsx test/webhook.test.ts && tsx test/initdata.test.ts && tsx test/emoji.test.ts && tsx test/bot.test.ts && tsx test/payment.test.ts && tsx test/gifts.test.ts && tsx test/bundles.test.ts && tsx test/ads.test.ts && tsx test/catalog.test.ts && tsx test/tma-e2e.test.ts && TG_ADS_TOKEN=render-test tsx test/render.test.ts"
   },
   "dependencies": {
     "@grammyjs/runner": "^2.0.3",
@@ -28,6 +28,7 @@
     "compression": "^1.7.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "form-data": "^4.0.6",
     "grammy": "^1.46.0",
     "pg": "^8.13.1",
     "telegram": "^2.26.22"

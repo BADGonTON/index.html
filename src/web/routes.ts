@@ -54,6 +54,7 @@ import { tonConnectLink } from "../services/marketapp";
 import { guideVideoUrl } from "../services/media";
 import { sanitizeStoredRentError } from "../services/rentErrors";
 import { sendLog } from "../services/logger";
+import { adsEnabled } from "./adsRoutes";
 
 /**
  * Mini App API.
@@ -107,6 +108,9 @@ export function createApiRouter(): Router {
         // Mini App "Balansni to'ldirish" tugmasi shu orqali
         // t.me/<bot>?start=pay deeplinkini yasaydi.
         bot_username: botUsername(),
+        // Reklama bo'limi TG_ADS_TOKEN bo'lsagina ko'rinadi — aks holda
+        // tugma bosilib, ichida "sozlanmagan" degan xato chiqardi.
+        ads_enabled: adsEnabled(),
       },
       bundle: {
         min_days: BUNDLE_MIN_DAYS,

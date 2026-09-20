@@ -35,12 +35,26 @@ let extendMinDays = 7;
  */
 let extendFeeUzs = 1_000;
 
+/**
+ * Reklama byudjetiga qo'shiladigan ustama (%).
+ *
+ * Foydalanuvchi so'mda to'laydi, biz TON ga o'girib Telegram byudjetiga
+ * qo'yamiz. Ustama shu o'rtadagi xizmat uchun — kurs tebranishini ham,
+ * bizning ishimizni ham qoplaydi.
+ */
+let adsMarkupPct = 15;
+
+/** Reklamaga eng kam to'ldirish summasi (so'm). */
+let adsMinTopupUzs = 50_000;
+
 export async function loadPricing(): Promise<void> {
-  const [rate, fee, minDays, extFee] = await Promise.all([
+  const [rate, fee, minDays, extFee, adsMarkup, adsMinTopup] = await Promise.all([
     getSetting("ton_rate_som"),
     getSetting("service_fee_som"),
     getSetting("extend_min_days"),
     getSetting("extend_fee_som"),
+    getSetting("ads_markup_pct"),
+    getSetting("ads_min_topup"),
   ]);
 
   if (rate === null) await setSetting("ton_rate_som", tonRateUzs);
@@ -54,6 +68,12 @@ export async function loadPricing(): Promise<void> {
 
   if (extFee === null) await setSetting("extend_fee_som", extendFeeUzs);
   else extendFeeUzs = Math.max(0, parseInt(extFee, 10) || 0);
+
+  if (adsMarkup === null) await setSetting("ads_markup_pct", adsMarkupPct);
+  else adsMarkupPct = Math.max(0, parseInt(adsMarkup, 10) || 0);
+
+  if (adsMinTopup === null) await setSetting("ads_min_topup", adsMinTopupUzs);
+  else adsMinTopupUzs = Math.max(0, parseInt(adsMinTopup, 10) || 0);
 }
 
 export function getTonRateUzs(): number {
@@ -205,4 +225,67 @@ export function bundleQuote(pricesNano: Array<string | number>, days: number): B
     markup_uzs: markup,
     total_uzs: subtotal + markup,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  REKLAMA
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function getAdsMarkupPct(): number {
+  return adsMarkupPct;
+}
+
+export function getAdsMinTopupUzs(): number {
+  return adsMinTopupUzs;
+}
+
+export async function setAdsMarkupPct(value: number): Promise<void> {
+  adsMarkupPct = Math.max(0, Math.round(value));
+  await setSetting("ads_markup_pct", adsMarkupPct);
+}
+
+export async function setAdsMinTopupUzs(value: number): Promise<void> {
+  adsMinTopupUzs = Math.max(0, Math.round(value));
+  await setSetting("ads_min_topup", adsMinTopupUzs);
+}
+
+/** Reklama byudjeti uchun narx hisobi. */
+export interface AdsQuote {
+  /** Foydalanuvchi to'laydigan umumiy summa (so'm). */
+  total_uzs: number;
+  /** Shundan Telegram byudjetiga ketadigan qismi (so'm). */
+  budget_uzs: number;
+  /** Shundan bizning ustamamiz (so'm). */
+  fee_uzs: number;
+  /** Telegram byudjetiga qo'yiladigan TON. */
+  budget_ton: number;
+}
+
+/**
+ * Foydalanuvchi to'lagan SO'M dan Telegram byudjetiga necha TON tushishini
+ * hisoblaydi.
+ *
+ * Yo'nalish muhim: foydalanuvchi "50 000 so'mlik reklama" deydi, ya'ni
+ * u to'laydigan summa ma'lum. Ustama SHU SUMMANING ICHIDAN olinadi —
+ * ustidan emas. Aks holda ekranda bir narx, hisobda boshqa narx chiqardi.
+ *
+ *   total = 50 000, ustama 15%  →  ustama 6 522, byudjet 43 478
+ *   (43 478 + 15% = 50 000)
+ */
+export function adsQuote(totalUzs: number): AdsQuote {
+  const total = Math.max(0, Math.round(totalUzs));
+  const budgetUzs = Math.round((total * 100) / (100 + adsMarkupPct));
+  const feeUzs = total - budgetUzs;
+
+  // TON aniqligi: Telegram byudjet uchun 2 xona qabul qiladi (Currencies
+  // jadvalidagi "cpm & budget precision"). Pastga yaxlitlaymiz — shunda
+  // hech qachon hisobdagidan ko'proq TON so'ramaymiz.
+  const budgetTon = Math.floor((budgetUzs / tonRateUzs) * 100) / 100;
+
+  return { total_uzs: total, budget_uzs: budgetUzs, fee_uzs: feeUzs, budget_ton: budgetTon };
+}
+
+/** TON summasini so'mga o'giradi (ko'rsatish uchun). */
+export function tonToUzs(ton: number): number {
+  return Math.round(ton * tonRateUzs);
 }

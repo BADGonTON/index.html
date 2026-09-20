@@ -104,6 +104,11 @@ export const config = {
   marketAppApiToken: required("MARKETAPP_API_TOKEN"),
   marketAppApiBase: trimSlash(optional("MARKETAPP_API_BASE", "https://api.marketapp.org")),
 
+  // Telegram Ads (promoteapi.telegram.org). Token bo'lmasa Mini App'dagi
+  // "Reklama" bo'limi ko'rinmaydi — qolgan hamma narsa odatdagidek ishlaydi.
+  tgAdsToken: optional("TG_ADS_TOKEN", ""),
+  tgAdsApiBase: trimSlash(optional("TG_ADS_API_BASE", "https://promoteapi.telegram.org")),
+
   mnemonic: required("TON_MNEMONIC"),
   toncenterApiKey: optional("TONCENTER_API_KEY", ""),
   toncenterBaseUrl: trimSlash(optional("TONCENTER_BASE_URL", "https://toncenter.com/api/v2")),

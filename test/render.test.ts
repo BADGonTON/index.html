@@ -157,7 +157,63 @@ async function main() {
     })),
   };
 
+  // Reklama bo'limi uchun soxta javoblar. Haqiqiy Telegram Ads API si
+  // testda mavjud emas, bizga esa MINI APP ekranni to'g'ri chizishi kerak.
+  const adsFixtures: Record<string, unknown> = {
+    "/api/ads/bootstrap": {
+      enabled: true,
+      account_ok: true,
+      balance_uzs: 500_000,
+      spent_uzs: 120_000,
+      ads_count: 1,
+      max_ads: 50,
+      markup_pct: 15,
+      min_topup_uzs: 50_000,
+      ton_rate_uzs: 20_000,
+      placements: ["channel_post", "bot_banner", "search_result", "video_banner"],
+      buttons: ["subscribe", "view", "learn_more"],
+    },
+    "/api/ads/refs": {
+      countries: [
+        { country_code: "UZ", name: "Uzbekistan" },
+        { country_code: "KZ", name: "Kazakhstan" },
+      ],
+      languages: [
+        { language_code: "uz", name: "Uzbek" },
+        { language_code: "ru", name: "Russian" },
+      ],
+      topics: [
+        { topic_id: 1, name: "Texnologiya" },
+        { topic_id: 2, name: "Biznes" },
+      ],
+    },
+    "/api/ads/": {
+      items: [
+        {
+          id: 1, tg_ad_id: 5001, title: "Bahorgi aksiya", text: "Eng yaxshi takliflar",
+          promote_url: "https://t.me/example", placement: "channel_post",
+          status: "active", decline_reason: null,
+          cpm_ton: 0.5, budget_ton: 2.17, budget_uzs: 43_400,
+          spent_ton: 0.4, spent_uzs: 8_000,
+          views: 12_400, clicks: 310, actions: 0, ctr: 2.5,
+          error: null, created_at: 1, synced_at: 1,
+        },
+      ],
+    },
+    "/api/ads/me/history": {
+      items: [
+        { id: 1, ad_id: 1, uzs: 50_000, ton: 2.17, fee_uzs: 6_522, status: "done", created_at: 1 },
+      ],
+    },
+  };
+
   const wrapper = http.createServer((req, res) => {
+    const adsPath = (req.url ?? "").split("?")[0];
+    if (adsPath.startsWith("/api/ads")) {
+      const fixture = adsFixtures[adsPath] ?? adsFixtures[`${adsPath}/`] ?? { items: [] };
+      res.writeHead(200, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify(fixture));
+    }
     if (req.url?.startsWith("/api/bundles")) {
       const one = req.url.includes("/bundles/");
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -305,6 +361,141 @@ async function main() {
     await page.waitForTimeout(150);
     const opened = await page.evaluate(`(() => window.__opened || "")()`) as string;
     ok("gift Telegramda ochiladi", opened === "https://t.me/nft/poolfloat-1", opened);
+
+    ok("konsol toza", errors.length === 0, errors.join(" | "));
+    await page.close();
+  }
+
+  // ── Reklama dunyosi ──
+  //
+  // Ilovada IKKITA tab paneli bor va ular almashinadi. Bu joy ayniqsa
+  // xatoga moyil: noto'g'ri sozlansa, foydalanuvchi reklama bo'limiga
+  // kirib, GIFT panelida qolib ketadi yoki ikkala panel birdan chiqadi.
+  console.log("\n── Reklama bo'limi ──");
+  {
+    const page = await browser.newPage({ viewport: { width: 420, height: 760 }, colorScheme: "dark" });
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => {
+      if (m.type() === "error" && !m.text().includes("Failed to load resource")) errors.push(m.text());
+    });
+
+    await page.addInitScript(`
+      window.Telegram = { WebApp: {
+        initData: ${JSON.stringify(initData)},
+        version: "7.10", platform: "tdesktop",
+        ready: function(){}, expand: function(){}, close: function(){},
+        setHeaderColor: function(){}, disableVerticalSwipes: function(){},
+        openTelegramLink: function(u){ window.__opened = u; },
+        HapticFeedback: { impactOccurred: function(){}, notificationOccurred: function(){} },
+        BackButton: { show: function(){}, hide: function(){}, onClick: function(){} }
+      }};`);
+
+    await page.goto(`http://127.0.0.1:${PORT}/app`);
+    await page.waitForTimeout(1600);
+
+    const switchVisible = await page.evaluate(
+      `(() => { var b = document.getElementById("switch-to-ads"); return Boolean(b) && !b.hidden; })()`
+    ) as boolean;
+    ok("Reklama tugmasi ko'rindi", switchVisible);
+
+    await page.click('[data-switch="ads"]');
+    await page.waitForTimeout(700);
+
+    const world = await page.evaluate(`(() => {
+      var gift = document.getElementById("tabbar-gift");
+      var ads  = document.getElementById("tabbar-ads");
+      var screen = document.querySelector(".screen.is-active");
+      return {
+        giftBarHidden: gift.hidden,
+        adsBarHidden: ads.hidden,
+        screen: screen ? screen.dataset.screen : "",
+        formVisible: !document.getElementById("ads-form").hidden,
+        gateVisible: !document.getElementById("ads-gate").hidden,
+        sections: document.querySelectorAll("#ads-form .acc").length,
+        placements: document.querySelectorAll("#ad-placement button").length,
+        targets: document.querySelectorAll("#ad-target-type button").length,
+        schedCells: document.querySelectorAll("#ad-sched button").length,
+        tabs: [].slice.call(document.querySelectorAll("#tabbar-ads .tab")).map(function (t) {
+          return t.querySelector("span").textContent.trim();
+        })
+      };
+    })()`) as any;
+
+    ok("reklama ekrani ochildi", world.screen === "ads-create", world.screen);
+    ok("gift paneli yashirildi", world.giftBarHidden === true);
+    ok("reklama paneli ko'rindi", world.adsBarHidden === false);
+    ok("forma chiqdi (xato ekrani emas)", world.formVisible && !world.gateVisible);
+    ok("olti bo'lim bor", world.sections === 6, String(world.sections));
+    ok("to'rt joylashuv", world.placements === 4, String(world.placements));
+    ok("to'rt targeting turi", world.targets === 4, String(world.targets));
+    ok("jadval 7×24", world.schedCells === 168, String(world.schedCells));
+    ok(
+      "panel: Reklama / Reklamalarim / Profil / Gift Arenda",
+      world.tabs.join(" | ") === "Reklama | Reklamalarim | Profil | Gift Arenda",
+      world.tabs.join(" | ")
+    );
+
+    // Narx hisobi: ustama summaning ICHIDAN olinishi ekranda ham
+    // shunday ko'rinishi kerak — aks holda foydalanuvchi bir narx
+    // ko'rib, boshqasini to'lardi.
+    await page.fill("#ad-budget", "50000");
+    await page.waitForTimeout(250);
+    const quote = await page.evaluate(`(() => {
+      var box = document.getElementById("ad-quote");
+      if (box.hidden) return null;
+      return {
+        budget: document.getElementById("q-budget").textContent,
+        fee: document.getElementById("q-fee").textContent,
+        total: document.getElementById("q-total").textContent,
+        ton: document.getElementById("q-ton").textContent
+      };
+    })()`) as any;
+    ok("narx hisobi chiqdi", quote !== null);
+    ok("jami — kiritilgan summa", (quote?.total ?? "").replace(/\s/g, "").startsWith("50000"), quote?.total);
+    ok("xizmat haqi ko'rsatildi", (quote?.fee ?? "").replace(/\s/g, "").startsWith("6522"), quote?.fee);
+    ok("TON hisoblandi", /TON/.test(quote?.ton ?? ""), quote?.ton);
+
+    // Reklamalarim
+    await page.click('[data-tab="ads-mine"]');
+    await page.waitForTimeout(600);
+    const mine = await page.evaluate(`(() => {
+      var card = document.querySelector("#ads-list .ad-card");
+      return {
+        cards: document.querySelectorAll("#ads-list .ad-card").length,
+        title: card ? card.querySelector(".ad-card-title").textContent.trim() : "",
+        status: card ? card.querySelector(".st").textContent.trim() : "",
+        views: document.getElementById("ads-views").textContent
+      };
+    })()`) as any;
+    ok("reklama kartochkasi chizildi", mine.cards === 1, String(mine.cards));
+    ok("sarlavha to'g'ri", mine.title === "Bahorgi aksiya", mine.title);
+    ok("holat o'zbekcha", mine.status === "Faol", mine.status);
+    ok("umumiy ko'rishlar", mine.views.replace(/\s/g, "") === "12400", mine.views);
+
+    // Profil
+    await page.click('[data-tab="ads-profile"]');
+    await page.waitForTimeout(600);
+    const profile = await page.evaluate(`(() => ({
+      spent: document.getElementById("adp-spent").textContent,
+      markup: document.getElementById("adp-markup").textContent,
+      history: document.querySelectorAll("#adp-history .ad-card").length
+    }))()`) as any;
+    ok("sarflangan summa", profile.spent.replace(/\s/g, "") === "120000", profile.spent);
+    ok("ustama ko'rsatildi", profile.markup === "15%", profile.markup);
+    ok("to'lovlar tarixi", profile.history === 1, String(profile.history));
+
+    // Gift Arendaga qaytish
+    await page.click('[data-switch="gift"]');
+    await page.waitForTimeout(500);
+    const back = await page.evaluate(`(() => ({
+      screen: document.querySelector(".screen.is-active").dataset.screen,
+      giftBarHidden: document.getElementById("tabbar-gift").hidden,
+      adsBarHidden: document.getElementById("tabbar-ads").hidden
+    }))()`) as any;
+    ok("Gift Arendaga qaytdi", back.screen === "market", back.screen);
+    ok("gift paneli qaytdi", back.giftBarHidden === false);
+    ok("reklama paneli yashirildi", back.adsBarHidden === true);
 
     ok("konsol toza", errors.length === 0, errors.join(" | "));
     await page.close();

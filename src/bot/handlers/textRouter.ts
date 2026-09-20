@@ -16,6 +16,8 @@ import {
   handleAdminSetServiceFeeText,
   handleAdminSetExtendMinDaysText,
   handleAdminSetExtendFeeText,
+  handleAdminSetAdsMarkupText,
+  handleAdminSetAdsMinTopupText,
   handleAdminBroadcastWaitText,
   handleAdminGiftAddIdText,
   handleAdminGiftAddStarsText,
@@ -54,6 +56,8 @@ const ROUTES: Record<string, StepHandler> = {
   [STEP.ADMIN_SET_SERVICE_FEE]: (_bot, ctx) => handleAdminSetServiceFeeText(ctx),
   [STEP.ADMIN_SET_EXTEND_MIN_DAYS]: (_bot, ctx) => handleAdminSetExtendMinDaysText(ctx),
   [STEP.ADMIN_SET_EXTEND_FEE]: (_bot, ctx) => handleAdminSetExtendFeeText(ctx),
+  [STEP.ADMIN_SET_ADS_MARKUP]: (_bot, ctx) => handleAdminSetAdsMarkupText(ctx),
+  [STEP.ADMIN_SET_ADS_MIN_TOPUP]: (_bot, ctx) => handleAdminSetAdsMinTopupText(ctx),
   [STEP.ADMIN_BROADCAST_WAIT]: (_bot, ctx) => handleAdminBroadcastWaitText(ctx),
 
   [STEP.ADMIN_GIFT_ADD_ID]: (_bot, ctx) => handleAdminGiftAddIdText(ctx),
