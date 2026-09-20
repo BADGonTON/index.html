@@ -44,7 +44,14 @@ import {
   minCpmTon,
   minCpmUzs,
 } from "../services/pricing";
-import { checkAdText, hasPremiumEmoji, AD_TEXT_LIMIT, AD_TITLE_LIMIT } from "../services/adText";
+import {
+  checkAdText,
+  hasPremiumEmoji,
+  extractEmojiIds,
+  AD_TEXT_LIMIT,
+  AD_TITLE_LIMIT,
+} from "../services/adText";
+import { resolveEmoji, fetchEmojiFile } from "../services/customEmoji";
 import { getBalance, tryDeductBalance, refundBalance } from "../db/repo/users";
 import {
   createAdDraft,
@@ -515,6 +522,49 @@ export function createAdsRouter(): Router {
         placements: PLACEMENTS,
         buttons: BUTTONS,
       });
+    })
+  );
+
+  // ---------------------------------------------------------------------
+  //  Premium emoji
+  //
+  //  Mini App — oddiy veb sahifa va Telegram unga premium emojini
+  //  chizadigan API bermaydi. Lekin BOT stikerni ola oladi, shuning
+  //  uchun biz uni olib, ko'rinishda haqiqiy emojini chizamiz.
+  // ---------------------------------------------------------------------
+  api.post(
+    "/emoji",
+    guard(async (req, res) => {
+      const text = String(req.body?.text ?? "");
+      const ids = extractEmojiIds(text);
+      if (ids.length === 0) {
+        res.json({ items: [] });
+        return;
+      }
+      res.json({ items: await resolveEmoji(ids) });
+    })
+  );
+
+  /**
+   * Emoji faylini uzatadi.
+   *
+   * Telegramning fayl manzilida BOT TOKENI bor, shuning uchun manzil
+   * tashqariga chiqmaydi — faqat baytlar. Kalit ham `file_id` emas,
+   * emoji ID si: aks holda bot ko'rgan istalgan faylni so'rash mumkin
+   * bo'lardi.
+   */
+  api.get(
+    "/emoji/:id/file",
+    guard(async (req, res) => {
+      const file = await fetchEmojiFile(String(req.params.id));
+      if (!file) {
+        res.status(404).end();
+        return;
+      }
+      // Stiker o'zgarmaydi — brauzer uzoq saqlasin.
+      res.setHeader("Content-Type", file.contentType);
+      res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      res.end(Buffer.from(file.body));
     })
   );
 

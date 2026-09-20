@@ -669,20 +669,50 @@
       <div class="wstep" data-step="9" hidden>
         <p class="wiz-hint">Reklama shunday ko'rinadi:</p>
 
-        <div class="ad-preview" id="ad-preview">
-          <div class="ad-preview-head">
-            <div class="ad-preview-pic" id="pv-pic" hidden></div>
-            <div class="ad-preview-name">
-              <b id="pv-name">Reklama</b>
-              <span>Sponsored</span>
+        <!-- Telegramdagi haqiqiy ko'rinish.
+             Maket TARGETGA qarab o'zgaradi: kanalda post, botda banner,
+             qidiruvda natija ustida. Rasmiy ads.telegram.org dagi bilan
+             bir xil. -->
+        <div class="tgp" id="ad-preview">
+          <div class="tgp-wall"></div>
+
+          <!-- Kanal posti / qidiruv -->
+          <div class="tgp-card" id="pv-card">
+            <div class="tgp-head">
+              <span class="tgp-ad">Ad</span>
+              <span class="tgp-what">what's this?</span>
+            </div>
+            <div class="tgp-name" id="pv-name">Reklama</div>
+            <div class="tgp-text" id="pv-text">Reklama matni</div>
+            <div class="tgp-media" id="pv-media" hidden></div>
+            <div class="tgp-sep"></div>
+            <div class="tgp-btn" id="pv-btn">VIEW CHANNEL</div>
+          </div>
+
+          <div class="tgp-tools" id="pv-tools">
+            <i class="tgp-x">✕</i>
+            <i class="tgp-dots">⋮</i>
+          </div>
+
+          <!-- Bot banneri: kartochka tepada, ostida suhbat -->
+          <div class="tgp-bot" id="pv-bot" hidden>
+            <div class="tgp-bot-card">
+              <div class="tgp-head">
+                <span class="tgp-ad">Ad</span>
+                <b class="tgp-bot-name" id="pv-bot-name">Reklama</b>
+                <span class="tgp-what">what's this?</span>
+                <i class="tgp-bot-x">✕</i>
+              </div>
+              <div class="tgp-text" id="pv-bot-text">Reklama matni</div>
+            </div>
+            <div class="tgp-bubbles">
+              <i class="tgp-bubble tgp-out"></i>
+              <i class="tgp-bubble tgp-in"></i>
             </div>
           </div>
-          <div class="ad-preview-media" id="pv-media" hidden></div>
-          <div class="ad-preview-text" id="pv-text">—</div>
-          <div class="ad-preview-btn" id="pv-btn">Ochish</div>
         </div>
-        <p class="hint">Premium emoji bu yerda oddiy emoji bo'lib ko'rinadi —
-           Telegramda esa animatsion chiqadi.</p>
+
+        <p class="hint" id="pv-note">—</p>
 
         <h2 class="sec-title">Tekshiring</h2>
         <div class="card" id="pv-summary"></div>

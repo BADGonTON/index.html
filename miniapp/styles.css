@@ -1530,41 +1530,118 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
   font-size: 13.5px; line-height: 1.45;
 }
 
-/* ─────────────────────── Reklama ko'rinishi ─────────────────────── */
-
-.ad-preview {
-  padding: 14px;
-  border-radius: var(--r);
-  background: var(--surface);
-  border: 1px solid var(--line);
-}
-.ad-preview-head { display: flex; align-items: center; gap: 10px; }
-.ad-preview-pic {
-  width: 34px; height: 34px; flex: none;
-  border-radius: 50%;
-  background: var(--raised);
-}
-.ad-preview-name b { display: block; font-size: 14px; font-weight: 640; color: var(--ton); }
-.ad-preview-name span { font-size: 11px; color: var(--text-mute); }
-.ad-preview-media {
-  margin-top: 11px; border-radius: var(--r-sm); overflow: hidden;
-  background: var(--raised);
-}
-.ad-preview-media img, .ad-preview-media video { display: block; width: 100%; }
-.ad-preview-text {
-  margin-top: 11px;
-  font-size: 14px; line-height: 1.5;
-  white-space: pre-wrap; word-break: break-word;
-}
-.ad-preview-btn {
-  margin-top: 13px; padding: 9px;
-  border-radius: var(--r-sm);
-  background: var(--raised);
-  color: var(--ton);
-  font-size: 13.5px; font-weight: 620;
-  text-align: center;
-}
-
 .ads-gate { align-items: flex-start; }
 .ads-gate b { display: block; font-size: 14px; color: var(--text); }
 .ads-gate p { margin-top: 5px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TELEGRAMDAGI KO'RINISH
+
+   ads.telegram.org dagi "Preview" bilan bir xil: yashil devor qog'ozi,
+   oq kartochka, chap tomonda ko'k chiziq. Maket TARGETGA qarab
+   o'zgaradi — kanalda post, botda banner.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.tgp {
+  position: relative;
+  padding: 16px;
+  border-radius: var(--r);
+  overflow: hidden;
+  background: #8db98a;
+}
+
+/* Telegramning standart devor qog'ozi — nozik naqsh. */
+.tgp-wall {
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(255,255,255,.16) 0 7px, transparent 8px),
+    radial-gradient(circle at 78% 12%, rgba(255,255,255,.13) 0 9px, transparent 10px),
+    radial-gradient(circle at 32% 62%, rgba(255,255,255,.12) 0 11px, transparent 12px),
+    radial-gradient(circle at 88% 74%, rgba(255,255,255,.15) 0 8px, transparent 9px),
+    radial-gradient(circle at 55% 88%, rgba(255,255,255,.11) 0 10px, transparent 11px),
+    linear-gradient(140deg, #9ec69a, #86b184 60%, #7aa87c);
+}
+
+/* ── Kanal posti / qidiruv ── */
+
+.tgp-card {
+  position: relative;
+  max-width: 88%;
+  padding: 11px 13px;
+  border-radius: 13px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
+.tgp-card::before {
+  content: '';
+  position: absolute; left: 0; top: 7px; bottom: 7px;
+  width: 3px; border-radius: 2px;
+  background: #3390ec;
+}
+
+.tgp-head { display: flex; align-items: center; gap: 7px; }
+.tgp-ad { font-size: 13.5px; font-weight: 600; color: #3390ec; }
+.tgp-what {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #e8f2fd;
+  color: #3390ec;
+  font-size: 10.5px; font-weight: 500;
+}
+
+.tgp-name {
+  margin-top: 2px;
+  font-size: 14.5px; font-weight: 600; color: #000;
+}
+.tgp-text {
+  margin-top: 1px;
+  font-size: 14px; line-height: 1.32; color: #000;
+  white-space: pre-wrap; word-break: break-word;
+}
+.tgp-media { margin-top: 8px; border-radius: 8px; overflow: hidden; }
+.tgp-media img, .tgp-media video { display: block; width: 100%; }
+
+.tgp-sep { height: 1px; margin: 9px 0 7px; background: rgba(0, 0, 0, .09); }
+.tgp-btn {
+  text-align: center;
+  font-size: 13.5px; font-weight: 600; letter-spacing: .02em;
+  color: #3390ec;
+  text-transform: uppercase;
+}
+
+/* O'ngdagi yopish tugmalari — rasmiy ko'rinishdagidek. */
+.tgp-tools {
+  position: absolute; right: 16px; top: 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 7px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .34);
+  color: #fff;
+  font-size: 13px; font-style: normal;
+}
+
+/* ── Bot banneri ── */
+
+.tgp-bot { position: relative; }
+.tgp-bot-card {
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
+.tgp-bot-name { font-size: 13.5px; color: #000; }
+.tgp-bot-x { margin-left: auto; color: #8f9499; font-style: normal; font-size: 13px; }
+
+.tgp-bubbles { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; }
+.tgp-bubble { display: block; height: 34px; border-radius: 13px; }
+.tgp-out { align-self: flex-end; width: 62%; background: #e3f2d6; }
+.tgp-in  { align-self: flex-start; width: 74%; background: #fff; }
+
+/* ── Premium emoji ──
+   Matn ichida oddiy harf kabi oqadi, o'lchami shrift bilan bir xil. */
+.tgp-emoji {
+  display: inline-block;
+  width: 1.18em; height: 1.18em;
+  vertical-align: -.22em;
+  object-fit: contain;
+}

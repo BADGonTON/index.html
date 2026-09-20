@@ -205,6 +205,19 @@ async function main() {
         },
       ],
     },
+    "/api/ads/emoji": {
+      items: [
+        {
+          id: "5170233102089322756",
+          kind: "static",
+          glyph: "\u{1F381}",
+          url: "/api/ads/emoji/5170233102089322756/file",
+        },
+      ],
+    },
+    "/api/ads/refs/resolve": {
+      kind: "bot", id: 777001, title: "Example Bot", username: "example_bot",
+    },
     "/api/ads/me/history": {
       items: [
         { id: 1, ad_id: 1, uzs: 50_000, ton: 2.17, fee_uzs: 6_522, status: "done", created_at: 1 },
@@ -214,6 +227,10 @@ async function main() {
 
   const wrapper = http.createServer((req, res) => {
     const adsPath = (req.url ?? "").split("?")[0];
+    if (/^\/api\/ads\/emoji\/\d+\/file$/.test(adsPath)) {
+      res.writeHead(200, { "Content-Type": "image/webp" });
+      return res.end(Buffer.from(PIXEL.split(",")[1], "base64"));
+    }
     if (adsPath.startsWith("/api/ads")) {
       const fixture = adsFixtures[adsPath] ?? adsFixtures[`${adsPath}/`] ?? { items: [] };
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -392,6 +409,18 @@ async function main() {
         ready: function(){}, expand: function(){}, close: function(){},
         setHeaderColor: function(){}, disableVerticalSwipes: function(){},
         openTelegramLink: function(u){ window.__opened = u; },
+        isVersionAtLeast: function(v){ return parseFloat(v) <= 9.5; },
+        MainButton: {
+          setParams: function(p){ window.__mainBtn = p; return this; },
+          setText: function(t){ window.__mainBtn = { text: t }; return this; },
+          show: function(){}, hide: function(){ window.__mainBtn = null; },
+          onClick: function(fn){ window.__mainClick = fn; }
+        },
+        SecondaryButton: {
+          setParams: function(p){ window.__secBtn = p; return this; },
+          show: function(){}, hide: function(){ window.__secBtn = null; },
+          onClick: function(fn){ window.__secClick = fn; }
+        },
         HapticFeedback: { impactOccurred: function(){}, notificationOccurred: function(){} },
         BackButton: { show: function(){}, hide: function(){}, onClick: function(){} }
       }};`);
@@ -445,6 +474,19 @@ async function main() {
       world.tabs.join(" | ")
     );
 
+    // ── Telegramning O'Z pastki tugmasi ──
+    //
+    // Mini App sahifasidagi tugmadan ko'ra idiomatikroq. Ikonka
+    // Bot API 9.5+ da qo'llab-quvvatlanadi.
+    const mainBtn = await page.evaluate(`(() => ({
+      btn: window.__mainBtn,
+      navHidden: document.getElementById("wiz-nav").hidden
+    }))()`) as any;
+    ok("Telegram tugmasi sozlandi", mainBtn.btn?.text === "Davom etish", JSON.stringify(mainBtn.btn));
+    ok("premium emoji ikonkasi qo'yildi",
+       typeof mainBtn.btn?.icon_custom_emoji_id === "string", String(mainBtn.btn?.icon_custom_emoji_id));
+    ok("sahifadagi tugma yashirildi", mainBtn.navHidden === true);
+
     // ── Premium emoji: 160 belgi chegarasi ──
     //
     // Emoji matnda uzun yozuv bo'lib turadi, lekin BITTA belgi deb
@@ -462,7 +504,7 @@ async function main() {
        counted.emoji);
 
     // ── Bosqichdan o'tish: bo'sh sarlavha to'xtatadi ──
-    await page.click("#wiz-next");
+    await page.evaluate(`(() => window.__mainClick())()`);
     await page.waitForTimeout(250);
     const blocked = await page.evaluate(`(() => ({
       error: document.getElementById("wiz-error").hidden
@@ -474,7 +516,7 @@ async function main() {
 
     // Sarlavha yozilgach o'tadi
     await page.fill("#ad-title", "Bahorgi aksiya");
-    await page.click("#wiz-next");
+    await page.evaluate(`(() => window.__mainClick())()`);
     await page.waitForTimeout(250);
     let step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
     ok("ikkinchi bosqichga o'tdi", step === "2 / 9", String(step));
@@ -497,14 +539,14 @@ async function main() {
 
     // ── Targeting bosqichigacha: 2 → 6 ──
     for (let i = 0; i < 4; i++) {
-      await page.click("#wiz-next");
+      await page.evaluate(`(() => window.__mainClick())()`);
       await page.waitForTimeout(180);
     }
     step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
     ok("targeting bosqichiga yetdi", step === "6 / 9", String(step));
 
     // Targeting tanlanmasa o'tkazmasligi kerak.
-    await page.click("#wiz-next");
+    await page.evaluate(`(() => window.__mainClick())()`);
     await page.waitForTimeout(250);
     const noTarget = await page.evaluate(`(() => ({
       step: document.getElementById("wiz-step").textContent,
@@ -518,7 +560,7 @@ async function main() {
     await page.click("#tgt-ch-langs .pick");
     await page.waitForTimeout(150);
     for (let i = 0; i < 2; i++) {
-      await page.click("#wiz-next");
+      await page.evaluate(`(() => window.__mainClick())()`);
       await page.waitForTimeout(180);
     }
     step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
@@ -549,13 +591,18 @@ async function main() {
     ok("narx hisobida TON qatori yo'q", quote?.hasTonRow === false);
 
     // ── Natija ekrani: ko'rinish va tasdiqlash ──
-    await page.click("#wiz-next");
+    await page.evaluate(`(() => window.__mainClick())()`);
     await page.waitForTimeout(350);
     const final = await page.evaluate(`(() => ({
       step: document.getElementById("wiz-step").textContent,
       navHidden: document.getElementById("wiz-nav").hidden,
-      previewText: document.getElementById("pv-text").textContent,
-      previewBtn: document.getElementById("pv-btn").textContent,
+      cardShown: !document.getElementById("pv-card").hidden,
+      botShown: !document.getElementById("pv-bot").hidden,
+      name: document.getElementById("pv-name").textContent,
+      btn: document.getElementById("pv-btn").textContent,
+      emojiNodes: document.querySelectorAll("#pv-text .tgp-emoji").length,
+      textHtml: document.getElementById("pv-text").innerHTML,
+      note: document.getElementById("pv-note").textContent,
       rows: document.querySelectorAll("#pv-summary .kv").length,
       hasConfirm: Boolean(document.getElementById("wiz-confirm")),
       hasEdit: Boolean(document.getElementById("wiz-edit")),
@@ -564,12 +611,71 @@ async function main() {
 
     ok("natija ekraniga yetdi", final.step === "9 / 9", final.step);
     ok("pastki boshqaruv yashirildi", final.navHidden === true);
-    ok("ko'rinishda emoji ODDIY holda chiqdi",
-       final.previewText === "Salom \u{1F381} dunyo", final.previewText);
-    ok("tugma yozuvi bor", final.previewBtn.length > 0, final.previewBtn);
+
+    // ── Rasmiy Telegram ko'rinishi ──
+    ok("kanal posti maketi chizildi", final.cardShown && !final.botShown);
+    ok("kanal nomi havoladan olindi", final.name === "example", final.name);
+    ok("tugma yozuvi Telegramdagidek", final.btn === "VIEW CHANNEL", final.btn);
+
+    // ── Premium emoji HAQIQATAN chizildi ──
+    //
+    // Mini App'ga Telegram premium emojini chizadigan API bermaydi.
+    // Bot stikerni oladi, server uni uzatadi — natijada matn ichida
+    // haqiqiy emoji turadi, xom `tg://emoji?id=...` yozuvi emas.
+    ok("emoji rasm bo'lib chizildi", final.emojiNodes === 1, String(final.emojiNodes));
+    ok("xom emoji yozuvi ko'rinmaydi",
+       !/tg:\/\/emoji/.test(final.textHtml), final.textHtml.slice(0, 80));
+    ok("matn atrofi saqlandi",
+       /Salom/.test(final.textHtml) && /dunyo/.test(final.textHtml),
+       final.textHtml.slice(0, 80));
+    ok("chizilgani aytildi", /chizildi/.test(final.note), final.note);
+
     ok("xulosa jadvali to'ldi", final.rows >= 8, String(final.rows));
     ok("tasdiqlash / tahrirlash / bekor qilish bor",
        final.hasConfirm && final.hasEdit && final.hasCancel);
+
+    // ── Bot targetida MAKET O'ZGARADI ──
+    //
+    // Rasmiy ads.telegram.org da ham shunday: kanalda post ko'rinishi,
+    // botda esa tepadagi banner va ostida suhbat.
+    await page.click("#wiz-edit");
+    await page.waitForTimeout(200);
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.waitForTimeout(150);
+    }
+    // 5-bosqich: "Botlar" ni tanlaymiz, keyin 6-bosqichda botni qo'shamiz
+    await page.click('#ad-target-type button:nth-child(3)');
+    await page.waitForTimeout(150);
+    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.waitForTimeout(250);
+
+    await page.fill("#tgt-b-input", "@example_bot");
+    await page.click("#tgt-b-add");
+    await page.waitForTimeout(500);
+
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.waitForTimeout(200);
+    }
+
+    const botView = await page.evaluate(`(() => ({
+      step: document.getElementById("wiz-step").textContent,
+      cardShown: !document.getElementById("pv-card").hidden,
+      botShown: !document.getElementById("pv-bot").hidden,
+      bubbles: document.querySelectorAll("#pv-bot .tgp-bubble").length,
+      toolsHidden: document.getElementById("pv-tools").hidden,
+      botEmoji: document.querySelectorAll("#pv-bot-text .tgp-emoji").length
+    }))()`) as any;
+
+    if (botView.step === "9 / 9") {
+      ok("bot targetida banner maketi", botView.botShown && !botView.cardShown);
+      ok("ostida suhbat chizildi", botView.bubbles === 2, String(botView.bubbles));
+      ok("yonidagi tugmalar yashirildi", botView.toolsHidden === true);
+      ok("bannerda ham emoji chizildi", botView.botEmoji === 1, String(botView.botEmoji));
+    } else {
+      ok("bot targetida banner maketi", false, `9-bosqichga yetmadi: ${botView.step}`);
+    }
 
     // Tahrirlash birinchi bosqichga qaytaradi
     await page.click("#wiz-edit");

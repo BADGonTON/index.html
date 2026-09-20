@@ -106,3 +106,26 @@ export function checkAdText(raw: string): { ok: boolean; info: AdTextInfo; over:
 export function hasPremiumEmoji(raw: string): boolean {
   return analyzeAdText(raw).emojiCount > 0;
 }
+
+/**
+ * Matndagi premium emoji ID larini qaytaradi (tartibi saqlanadi).
+ *
+ * Mini App shu ID lar bo'yicha stikerlarni so'raydi va ko'rinishda
+ * haqiqiy, animatsion emojini chizadi.
+ */
+export function extractEmojiIds(raw: string): string[] {
+  const ids: string[] = [];
+  const text = String(raw ?? "");
+
+  for (const pattern of EMOJI_PATTERNS) {
+    const re = new RegExp(pattern.source, pattern.flags);
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      const first = match[1] ?? "";
+      const second = match[2] ?? "";
+      const id = /^\d+$/.test(first) ? first : second;
+      if (/^\d+$/.test(id)) ids.push(id);
+    }
+  }
+  return ids;
+}

@@ -277,6 +277,7 @@ function showScreen(name, { push = true } = {}) {
   if (name === 'bundles' && state.bundles.items.length === 0) loadBundles({ reset: true });
 
   if (name === 'ads-create') onAdsCreateOpen();
+  else if (state.world === 'gift' || name.startsWith('ads-')) syncMainButton();
   if (name === 'ads-mine') loadMyAds();
   if (name === 'ads-stats') openStatsTab();
   if (name === 'ads-profile') renderAdsProfile();
@@ -1656,7 +1657,7 @@ function analyzeText(raw) {
 // ───────────────────────────── Bootstrap ─────────────────────────────
 
 async function onAdsCreateOpen() {
-  if (AD.ready) { syncPreview(); return; }
+  if (AD.ready) { void syncPreview(); return; }
 
   try {
     const cfg = await adsApi('/bootstrap');
@@ -1964,15 +1965,67 @@ function gotoStep(step) {
   $('wiz-bar').style.width = `${(AD.step / WIZ_STEPS.length) * 100}%`;
   $('wiz-error').hidden = true;
 
-  // Oxirgi bosqichda pastki boshqaruv kerak emas — u yerda o'z tugmalari bor.
-  $('wiz-nav').hidden = AD.step === WIZ_STEPS.length;
+  // Telegramning o'z tugmasi bo'lsa, sahifadagisi ortiqcha.
+  $('wiz-nav').hidden = NATIVE_BUTTONS || AD.step === WIZ_STEPS.length;
+  syncMainButton();
   $('wiz-back').disabled = AD.step === 1;
   $('wiz-next').textContent = AD.step === WIZ_STEPS.length - 1 ? 'Ko\'rib chiqish' : 'Davom etish';
 
   if (AD.step === 8) { syncCpmHint(); syncQuote(); }
-  if (AD.step === 9) syncPreview();
+  if (AD.step === 9) void syncPreview();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Telegramning O'Z pastki tugmasi.
+ *
+ * Mini App sahifasidagi tugmadan ko'ra idiomatikroq: u klaviatura ustida
+ * turadi, ilova ranggiga moslashadi va ekranni band qilmaydi.
+ *
+ * `icon_custom_emoji_id` — Bot API 9.5+ imkoniyati. Eski mijozda bu
+ * maydon shunchaki e'tiborsiz qoldiriladi, tugma esa ishlayveradi.
+ * Tugma umuman qo'llab-quvvatlanmasa (juda eski mijoz), sahifadagi
+ * o'z tugmalarimiz ko'rinadi — shuning uchun hech kim boshi berk
+ * ko'chada qolmaydi.
+ */
+const NATIVE_BUTTONS = Boolean(tg?.MainButton && tg?.isVersionAtLeast?.('6.1'));
+
+/** Premium emoji ikonkasi faqat yangi mijozda qo'yiladi. */
+const BUTTON_ICONS = tg?.isVersionAtLeast?.('9.5')
+  ? { next: '5237699328843200968', confirm: '5237699328843200968' }
+  : {};
+
+function syncMainButton() {
+  if (!NATIVE_BUTTONS || state.screen !== 'ads-create') {
+    tg?.MainButton?.hide();
+    tg?.SecondaryButton?.hide();
+    return;
+  }
+
+  const last = AD.step === WIZ_STEPS.length;
+  const params = {
+    text: last ? 'Tasdiqlash va yaratish' : 'Davom etish',
+    is_visible: true,
+    is_active: true,
+  };
+  if (BUTTON_ICONS.next) params.icon_custom_emoji_id = last ? BUTTON_ICONS.confirm : BUTTON_ICONS.next;
+
+  try {
+    tg.MainButton.setParams(params);
+  } catch {
+    // Eski mijoz `setParams` ni bilmasligi mumkin — oddiy yo'l bilan.
+    tg.MainButton.setText(params.text);
+    tg.MainButton.show();
+  }
+
+  if (tg.SecondaryButton && AD.step > 1) {
+    try {
+      tg.SecondaryButton.setParams({ text: 'Orqaga', is_visible: true, position: 'left' });
+    } catch { /* qo'llab-quvvatlanmasa — sahifadagi tugma qoladi */ }
+  } else {
+    tg?.SecondaryButton?.hide();
+  }
 }
 
 function wizError(message) {
@@ -2043,38 +2096,142 @@ function validateStep(step) {
 
 // ───────────────────────── Ko'rinish ─────────────────────────
 
+// ───────────────────── Premium emojini chizish ─────────────────────
+
+/**
+ * Emoji ID → stiker ma'lumoti. Serverdan bir marta olinadi va saqlanadi:
+ * matn har tahrirlanganda qayta so'ramaslik uchun.
+ */
+const emojiCache = new Map();
+
+/**
+ * Matndagi premium emojilarni haqiqiy stikerga almashtirib, HTML qaytaradi.
+ *
+ * Telegram Mini App'ga premium emojini chizadigan API bermaydi — lekin
+ * BOT stikerni ola oladi. Server shu stikerni bizga uzatadi, biz esa
+ * uni <video> yoki <img> bo'lib matn ichiga qo'yamiz.
+ *
+ * Chizib bo'lmasa (masalan Lottie формат) oddiy emoji qoladi —
+ * ko'rinish hech qachon buzilmaydi.
+ */
+function renderTextWithEmoji(raw) {
+  let html = escapeHtml(String(raw ?? ''));
+
+  // `escapeHtml` dan keyin qidiramiz, shuning uchun naqshlar ham
+  // qochirilgan ko'rinishda bo'ladi.
+  const patterns = [
+    /!?\[([^\]]*)\]\(tg:\/\/emoji\?id=(\d+)\)/g,
+    /&lt;tg-emoji\s+emoji-id=(?:&quot;|')(\d+)(?:&quot;|')\s*&gt;(.*?)&lt;\/tg-emoji&gt;/g,
+  ];
+
+  for (const re of patterns) {
+    html = html.replace(new RegExp(re.source, re.flags), (...args) => {
+      const first = String(args[1] ?? '');
+      const second = String(args[2] ?? '');
+      const isIdFirst = /^\d+$/.test(first);
+      const id = isIdFirst ? first : second;
+      const glyph = isIdFirst ? second : first;
+
+      const info = emojiCache.get(id);
+      if (!info || !info.url) return glyph || '□';
+
+      return info.kind === 'video'
+        ? `<video class="tgp-emoji" src="${info.url}" autoplay loop muted playsinline></video>`
+        : `<img class="tgp-emoji" src="${info.url}" alt="${escapeHtml(glyph)}">`;
+    });
+  }
+  return html;
+}
+
+/** Matndagi emojilar haqida serverdan ma'lumot oladi. */
+async function loadEmoji(text) {
+  const ids = [];
+  for (const re of [/tg:\/\/emoji\?id=(\d+)/g, /emoji-id=["'](\d+)["']/g]) {
+    let m;
+    const r = new RegExp(re.source, re.flags);
+    while ((m = r.exec(text)) !== null) ids.push(m[1]);
+  }
+  // Hammasi allaqachon ma'lum bo'lsa — so'rov yubormaymiz.
+  if (ids.length === 0 || ids.every((id) => emojiCache.has(id))) return false;
+
+  try {
+    const data = await adsApi('/emoji', { method: 'POST', body: JSON.stringify({ text }) });
+    (data.items || []).forEach((item) => emojiCache.set(item.id, item));
+    // Topilmaganlarini ham belgilab qo'yamiz — qayta so'ramaslik uchun.
+    ids.forEach((id) => { if (!emojiCache.has(id)) emojiCache.set(id, { id, url: null }); });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ───────────────────────── Ko'rinish ─────────────────────────
+
+/**
+ * Tugma yozuvi.
+ *
+ * Telegram havolasida yozuv AVTOMATIK: bot username'lari majburiy
+ * "bot" bilan tugaydi, shu sabab botni kanaldan ajratib olish mumkin.
+ * Tashqi saytda esa foydalanuvchi o'zi tanlaydi — rasmiy interfeysda
+ * ham aynan shunday.
+ */
+function previewButtonLabel(url, button) {
+  const tme = url.match(/^https?:\/\/t\.me\/([A-Za-z0-9_]+)/i);
+  if (tme) return /bot$/i.test(tme[1]) ? 'VIEW BOT' : 'VIEW CHANNEL';
+  return (BUTTON_LABELS[button] || 'Saytni ochish').toUpperCase();
+}
+
 /** Reklama Telegramda qanday ko'rinishini chizadi. */
-function syncPreview() {
-  const text = analyzeText($('ad-text').value);
+async function syncPreview() {
+  const raw = $('ad-text').value;
   const url = $('ad-url').value.trim();
   const external = url !== '' && !/^https?:\/\/t\.me\//i.test(url);
+  const tme = url.match(/^https?:\/\/t\.me\/([A-Za-z0-9_]+)/i);
 
-  $('pv-name').textContent = external
+  // Stikerlarni oldindan olamiz, keyin chizamiz.
+  await loadEmoji(raw);
+
+  const name = external
     ? ($('ad-website').value.trim() || 'Sayt')
-    : (url.replace(/^https?:\/\//, '') || 'Kanal');
+    : (tme ? tme[1] : ($('ad-title').value.trim() || 'Kanal'));
 
-  // Premium emoji Mini App ichida ANIMATSION chiqmaydi: Telegram ularni
-  // chizish uchun ilovaga API bermagan. Shuning uchun ko'rinishda oddiy
-  // emoji turadi — Telegramda esa animatsion bo'ladi.
-  $('pv-text').textContent = text.plain || 'Reklama matni';
+  const html = renderTextWithEmoji(raw) || 'Reklama matni';
 
-  const button = $('ad-button').value;
-  $('pv-btn').textContent = external
-    ? (BUTTON_LABELS[button] || 'Saytni ochish')
-    : 'Ochish';
+  // Bot banneri boshqa maket: kartochka tepada, ostida suhbat.
+  const isBotBanner = AD.target === 'bots' || AD.placement === 'bot_banner';
+  $('pv-card').hidden = isBotBanner;
+  $('pv-bot').hidden = !isBotBanner;
+  // Bot bannerida yopish tugmasi kartochkaning O'ZIDA — yonidagisi ortiqcha.
+  $('pv-tools').hidden = isBotBanner;
 
-  $('pv-pic').hidden = !$('ad-userpic').checked;
-
-  const media = $('pv-media');
-  if (AD.media) {
-    media.hidden = false;
-    media.innerHTML = AD.media.kind === 'photo'
-      ? `<img src="${escapeHtml(AD.media.url)}" alt="">`
-      : `<video src="${escapeHtml(AD.media.url)}" controls playsinline></video>`;
+  if (isBotBanner) {
+    $('pv-bot-name').textContent = name;
+    $('pv-bot-text').innerHTML = html;
   } else {
-    media.hidden = true;
-    media.innerHTML = '';
+    $('pv-name').textContent = name;
+    $('pv-text').innerHTML = html;
+    $('pv-btn').textContent = previewButtonLabel(url, $('ad-button').value);
+
+    const media = $('pv-media');
+    if (AD.media) {
+      media.hidden = false;
+      media.innerHTML = AD.media.kind === 'photo'
+        ? `<img src="${escapeHtml(AD.media.url)}" alt="">`
+        : `<video src="${escapeHtml(AD.media.url)}" muted playsinline></video>`;
+    } else {
+      media.hidden = true;
+      media.innerHTML = '';
+    }
   }
+
+  // Chizib bo'lmagan emoji bormi — foydalanuvchiga aytamiz.
+  const total = analyzeText(raw).emoji;
+  const drawn = [...emojiCache.values()].filter((e) => e.url).length;
+  $('pv-note').textContent = total === 0
+    ? 'Reklama Telegramda aynan shunday ko\'rinadi.'
+    : drawn >= total
+      ? `${total} ta premium emoji chizildi — Telegramda ham shunday bo\'ladi.`
+      : 'Ba\'zi premium emojilar bu yerda oddiy holda ko\'rinadi, Telegramda esa animatsion chiqadi.';
 
   renderSummary();
 }
@@ -2589,15 +2746,25 @@ function bindAdsEvents() {
   });
 
   // ── Bosqich boshqaruvi ──
-  $('wiz-next').addEventListener('click', () => {
+  //
+  // Telegramning o'z tugmasi ham, sahifadagisi ham BIR XIL ishni
+  // bajaradi — mantiq bitta joyda tursin.
+  const wizNext = () => {
     const error = validateStep(AD.step);
     if (error) { wizError(error); return; }
-    // Qidiruv targetingida matn shart emas, shuning uchun 1-bosqichni
-    // targeting tanlangandan KEYIN qayta tekshiramiz.
+    if (AD.step === WIZ_STEPS.length) { void submitAd(); return; }
     gotoStep(AD.step + 1);
     haptic('light');
-  });
-  $('wiz-back').addEventListener('click', () => { gotoStep(AD.step - 1); haptic('light'); });
+  };
+  const wizBack = () => { gotoStep(AD.step - 1); haptic('light'); };
+
+  if (NATIVE_BUTTONS) {
+    tg.MainButton.onClick(wizNext);
+    tg.SecondaryButton?.onClick?.(wizBack);
+  }
+
+  $('wiz-next').addEventListener('click', wizNext);
+  $('wiz-back').addEventListener('click', wizBack);
   $('wiz-edit').addEventListener('click', () => { gotoStep(1); haptic('light'); });
   $('wiz-confirm').addEventListener('click', submitAd);
   $('wiz-cancel').addEventListener('click', () => {
