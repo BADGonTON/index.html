@@ -474,18 +474,26 @@ async function main() {
       world.tabs.join(" | ")
     );
 
-    // ── Telegramning O'Z pastki tugmasi ──
+    // ── O'TISH TUGMALARI HAR BOSQICHDA KO'RINISHI SHART ──
     //
-    // Mini App sahifasidagi tugmadan ko'ra idiomatikroq. Ikonka
-    // Bot API 9.5+ da qo'llab-quvvatlanadi.
-    const mainBtn = await page.evaluate(`(() => ({
-      btn: window.__mainBtn,
-      navHidden: document.getElementById("wiz-nav").hidden
-    }))()`) as any;
-    ok("Telegram tugmasi sozlandi", mainBtn.btn?.text === "Davom etish", JSON.stringify(mainBtn.btn));
-    ok("premium emoji ikonkasi qo'yildi",
-       typeof mainBtn.btn?.icon_custom_emoji_id === "string", String(mainBtn.btn?.icon_custom_emoji_id));
-    ok("sahifadagi tugma yashirildi", mainBtn.navHidden === true);
+    // Ilgari ular Telegramning MainButton'i foydasiga yashirilgandi.
+    // Mijozda u chiqmasa, foydalanuvchi tugmasiz qolib, bosqichdan
+    // o'ta olmasdi. Endi tugma har doim sahifada.
+    const navVisible = await page.evaluate(`(() => {
+      var nav = document.getElementById("wiz-nav");
+      var next = document.getElementById("wiz-next");
+      if (!nav || nav.hidden) return { ok: false, why: "nav yashirilgan" };
+      var r = next.getBoundingClientRect();
+      var st = getComputedStyle(next);
+      return {
+        ok: r.width > 0 && r.height > 0 && st.visibility !== "hidden" && st.display !== "none",
+        text: next.textContent.trim(),
+        back: document.getElementById("wiz-back").textContent.trim()
+      };
+    })()`) as any;
+    ok("o'tish tugmasi ko'rinadi", navVisible.ok === true, navVisible.why ?? "");
+    ok("yozuvi to'g'ri", navVisible.text === "Davom etish", navVisible.text);
+    ok("orqaga tugmasi ham bor", navVisible.back === "Orqaga", navVisible.back);
 
     // ── Premium emoji: 160 belgi chegarasi ──
     //
@@ -504,7 +512,7 @@ async function main() {
        counted.emoji);
 
     // ── Bosqichdan o'tish: bo'sh sarlavha to'xtatadi ──
-    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.click("#wiz-next");
     await page.waitForTimeout(250);
     const blocked = await page.evaluate(`(() => ({
       error: document.getElementById("wiz-error").hidden
@@ -516,7 +524,7 @@ async function main() {
 
     // Sarlavha yozilgach o'tadi
     await page.fill("#ad-title", "Bahorgi aksiya");
-    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.click("#wiz-next");
     await page.waitForTimeout(250);
     let step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
     ok("ikkinchi bosqichga o'tdi", step === "2 / 9", String(step));
@@ -539,14 +547,14 @@ async function main() {
 
     // ── Targeting bosqichigacha: 2 → 6 ──
     for (let i = 0; i < 4; i++) {
-      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.click("#wiz-next");
       await page.waitForTimeout(180);
     }
     step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
     ok("targeting bosqichiga yetdi", step === "6 / 9", String(step));
 
     // Targeting tanlanmasa o'tkazmasligi kerak.
-    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.click("#wiz-next");
     await page.waitForTimeout(250);
     const noTarget = await page.evaluate(`(() => ({
       step: document.getElementById("wiz-step").textContent,
@@ -560,7 +568,7 @@ async function main() {
     await page.click("#tgt-ch-langs .pick");
     await page.waitForTimeout(150);
     for (let i = 0; i < 2; i++) {
-      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.click("#wiz-next");
       await page.waitForTimeout(180);
     }
     step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
@@ -591,7 +599,7 @@ async function main() {
     ok("narx hisobida TON qatori yo'q", quote?.hasTonRow === false);
 
     // ── Natija ekrani: ko'rinish va tasdiqlash ──
-    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.click("#wiz-next");
     await page.waitForTimeout(350);
     const final = await page.evaluate(`(() => ({
       step: document.getElementById("wiz-step").textContent,
@@ -641,13 +649,13 @@ async function main() {
     await page.click("#wiz-edit");
     await page.waitForTimeout(200);
     for (let i = 0; i < 4; i++) {
-      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.click("#wiz-next");
       await page.waitForTimeout(150);
     }
     // 5-bosqich: "Botlar" ni tanlaymiz, keyin 6-bosqichda botni qo'shamiz
     await page.click('#ad-target-type button:nth-child(3)');
     await page.waitForTimeout(150);
-    await page.evaluate(`(() => window.__mainClick())()`);
+    await page.click("#wiz-next");
     await page.waitForTimeout(250);
 
     await page.fill("#tgt-b-input", "@example_bot");
@@ -655,7 +663,7 @@ async function main() {
     await page.waitForTimeout(500);
 
     for (let i = 0; i < 3; i++) {
-      await page.evaluate(`(() => window.__mainClick())()`);
+      await page.click("#wiz-next");
       await page.waitForTimeout(200);
     }
 
@@ -682,6 +690,36 @@ async function main() {
     await page.waitForTimeout(250);
     step = await page.evaluate(`(() => document.getElementById("wiz-step").textContent)()`);
     ok("tahrirlash 1-bosqichga qaytardi", step === "1 / 9", String(step));
+
+    // ── HAR BIR bosqichda tugma ko'rinishi ──
+    //
+    // Bitta bosqichda ham yo'qolsa, foydalanuvchi o'sha yerda qamalib
+    // qoladi. Shu sabab 1 dan 8 gacha hammasini ko'zdan kechiramiz.
+    const hidden: string[] = [];
+    for (let step = 1; step <= 8; step++) {
+      const seen = await page.evaluate(`(() => {
+        var nav = document.getElementById("wiz-nav");
+        var next = document.getElementById("wiz-next");
+        var r = next.getBoundingClientRect();
+        return {
+          step: document.getElementById("wiz-step").textContent,
+          shown: !nav.hidden && r.width > 0 && r.height > 0,
+          inView: r.top < window.innerHeight && r.bottom > 0
+        };
+      })()`) as any;
+      if (!seen.shown) hidden.push(`${seen.step}: yashirin`);
+      else if (!seen.inView) hidden.push(`${seen.step}: ekrandan tashqarida`);
+
+      if (step < 8) {
+        // Keyingi bosqichga o'tish uchun kerakli maydonni to'ldiramiz.
+        if (step === 1) await page.fill("#ad-title", "Sinov");
+        if (step === 2) await page.fill("#ad-url", "https://t.me/example");
+        if (step === 6) await page.click("#tgt-ch-langs .pick").catch(() => {});
+        await page.click("#wiz-next");
+        await page.waitForTimeout(220);
+      }
+    }
+    ok("tugma HAMMA bosqichda ko'rindi", hidden.length === 0, hidden.join(" | "));
 
     // ── Statistika bo'limi ──
     await page.click('[data-tab="ads-stats"]');

@@ -277,7 +277,6 @@ function showScreen(name, { push = true } = {}) {
   if (name === 'bundles' && state.bundles.items.length === 0) loadBundles({ reset: true });
 
   if (name === 'ads-create') onAdsCreateOpen();
-  else if (state.world === 'gift' || name.startsWith('ads-')) syncMainButton();
   if (name === 'ads-mine') loadMyAds();
   if (name === 'ads-stats') openStatsTab();
   if (name === 'ads-profile') renderAdsProfile();
@@ -1965,9 +1964,15 @@ function gotoStep(step) {
   $('wiz-bar').style.width = `${(AD.step / WIZ_STEPS.length) * 100}%`;
   $('wiz-error').hidden = true;
 
-  // Telegramning o'z tugmasi bo'lsa, sahifadagisi ortiqcha.
-  $('wiz-nav').hidden = NATIVE_BUTTONS || AD.step === WIZ_STEPS.length;
-  syncMainButton();
+  // Oxirgi bosqichda o'z tugmalari bor (Tasdiqlash / Tahrirlash / Bekor),
+  // qolgan hamma bosqichda pastki boshqaruv KO'RINADI.
+  //
+  // Ilgari bu yerda Telegramning o'z MainButton'iga ishonilgan va
+  // sahifadagi tugmalar yashirilgan edi. Mijozda u chiqmasa —
+  // foydalanuvchi hech qanday tugmasiz qolardi va bosqichdan o'ta
+  // olmasdi. Ishlaydigan yagona boshqaruvni hech qachon tekshirilmagan
+  // imkoniyat ortiga yashirmaymiz.
+  $('wiz-nav').hidden = AD.step === WIZ_STEPS.length;
   $('wiz-back').disabled = AD.step === 1;
   $('wiz-next').textContent = AD.step === WIZ_STEPS.length - 1 ? 'Ko\'rib chiqish' : 'Davom etish';
 
@@ -1975,57 +1980,6 @@ function gotoStep(step) {
   if (AD.step === 9) void syncPreview();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/**
- * Telegramning O'Z pastki tugmasi.
- *
- * Mini App sahifasidagi tugmadan ko'ra idiomatikroq: u klaviatura ustida
- * turadi, ilova ranggiga moslashadi va ekranni band qilmaydi.
- *
- * `icon_custom_emoji_id` — Bot API 9.5+ imkoniyati. Eski mijozda bu
- * maydon shunchaki e'tiborsiz qoldiriladi, tugma esa ishlayveradi.
- * Tugma umuman qo'llab-quvvatlanmasa (juda eski mijoz), sahifadagi
- * o'z tugmalarimiz ko'rinadi — shuning uchun hech kim boshi berk
- * ko'chada qolmaydi.
- */
-const NATIVE_BUTTONS = Boolean(tg?.MainButton && tg?.isVersionAtLeast?.('6.1'));
-
-/** Premium emoji ikonkasi faqat yangi mijozda qo'yiladi. */
-const BUTTON_ICONS = tg?.isVersionAtLeast?.('9.5')
-  ? { next: '5237699328843200968', confirm: '5237699328843200968' }
-  : {};
-
-function syncMainButton() {
-  if (!NATIVE_BUTTONS || state.screen !== 'ads-create') {
-    tg?.MainButton?.hide();
-    tg?.SecondaryButton?.hide();
-    return;
-  }
-
-  const last = AD.step === WIZ_STEPS.length;
-  const params = {
-    text: last ? 'Tasdiqlash va yaratish' : 'Davom etish',
-    is_visible: true,
-    is_active: true,
-  };
-  if (BUTTON_ICONS.next) params.icon_custom_emoji_id = last ? BUTTON_ICONS.confirm : BUTTON_ICONS.next;
-
-  try {
-    tg.MainButton.setParams(params);
-  } catch {
-    // Eski mijoz `setParams` ni bilmasligi mumkin — oddiy yo'l bilan.
-    tg.MainButton.setText(params.text);
-    tg.MainButton.show();
-  }
-
-  if (tg.SecondaryButton && AD.step > 1) {
-    try {
-      tg.SecondaryButton.setParams({ text: 'Orqaga', is_visible: true, position: 'left' });
-    } catch { /* qo'llab-quvvatlanmasa — sahifadagi tugma qoladi */ }
-  } else {
-    tg?.SecondaryButton?.hide();
-  }
 }
 
 function wizError(message) {
@@ -2757,11 +2711,6 @@ function bindAdsEvents() {
     haptic('light');
   };
   const wizBack = () => { gotoStep(AD.step - 1); haptic('light'); };
-
-  if (NATIVE_BUTTONS) {
-    tg.MainButton.onClick(wizNext);
-    tg.SecondaryButton?.onClick?.(wizBack);
-  }
 
   $('wiz-next').addEventListener('click', wizNext);
   $('wiz-back').addEventListener('click', wizBack);
