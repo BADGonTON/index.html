@@ -15,12 +15,6 @@ import {
 import { startKb, balanceKb, backKb, rentKb, referralKb } from "../keyboards";
 import { getActiveContest, countUserInvites } from "../../db/repo/contest";
 
-function escapeHtml(text: string): string {
-  return String(text ?? "").replace(/[&<>]/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] as string
-  );
-}
-
 export function registerStartHandlers(bot: Bot<MyContext>): void {
   bot.command("start", async (ctx) => {
     ctx.session.step = undefined;
@@ -106,7 +100,10 @@ export function registerStartHandlers(bot: Bot<MyContext>): void {
       ctx,
       fmt(REFERRAL_MESSAGE, { link, ref_earned: user.ref_earned }) +
         (contest
-          ? `\n\n\u{1F3C6} <b>${escapeHtml(contest.title)}</b>\n` +
+          // Nom bazada XAVFSIZ HTML bo'lib turadi (admin qo'ygan premium
+          // emoji bilan) — qayta qochirilmaydi, aks holda foydalanuvchi
+          // emoji o'rniga uzun raqamli ID ni ko'rardi.
+          ? `\n\n\u{1F3C6} <b>${contest.title}</b>\n` +
             `\u{1F465} Takliflaringiz: <b>${invites}</b> ta`
           : ""),
       referralKb(Boolean(contest))

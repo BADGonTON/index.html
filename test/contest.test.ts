@@ -486,6 +486,29 @@ async function main(): Promise<void> {
        !withEmoji.replies.some((t) => t.includes("&lt;tg-emoji")),
      withEmoji.replies.map((t) => t.slice(0, 40)).join(" | "));
 
+  // REFERAL EKRANI — konkurs nomi shu yerda ham chiqadi.
+  //
+  // Bu joy alohida tekshiriladi: nom bazada HTML bo'lib turadi, ya'ni
+  // uni ko'rsatadigan HAR BIR joy qayta qochirmasligi kerak. Bittasi
+  // o'tkazib yuborilsa, foydalanuvchi emoji o'rniga uzun raqamli
+  // ID larni ko'radi.
+  take();
+  await bot.handleUpdate(tap(A, "ref"));
+  const refScreen = take()
+    .filter((c) => /^(send|edit)/.test(c.method))
+    .map((c) => String(c.payload?.text ?? ""))
+    .pop() ?? "";
+
+  ok("referal ekranida emoji TIRIK",
+     refScreen.includes(`<tg-emoji emoji-id="${GIFT_ID}">`),
+     refScreen.split("\n").slice(-2).join(" / ").slice(0, 70));
+  ok("referal ekranida teg MATN bo'lib ko'rinmaydi",
+     !refScreen.includes("&lt;tg-emoji") && !refScreen.includes(`&quot;${GIFT_ID}`),
+     refScreen.includes("&lt;tg-emoji")
+       ? "qochirilib qolgan — ID ko'rinadi"
+       : "toza");
+  ok("referal ekranida taklif soni bor", /Takliflaringiz/.test(refScreen));
+
   // Kanaldagi e'londa ham admin tanlagan emoji bo'lishi kerak.
   await contest.countReferral(withEmoji.row!.id, A, X);
   take();
