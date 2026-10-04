@@ -15,8 +15,8 @@ import { config, miniAppUrl } from "../config";
  * Buni qo'lda yozib o'tirmaslik uchun `add()` yordamchisi tugma yozuvidagi
  * emojini o'zi ajratib oladi:
  *
- *     add(kb, "🎁 Gift olish", "gifts")
- *       → matn: "Gift olish"   ikonka: premium 🎁
+ *     add(kb, "👑 Premium olish", "premium")
+ *       → matn: "Premium olish"   ikonka: premium 👑
  *
  * Ranglar: `.success()` yashil, `.primary()` ko'k, `.danger()` qizil.
  */
