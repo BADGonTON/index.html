@@ -354,6 +354,69 @@ async function main(): Promise<void> {
      passthrough.length ? "o'tdi" : "to'silib qoldi");
   chatMemberBroken = false;
 
+  // ═══════════════════ 9. Konkurs ochish formati ═══════════════════
+  //
+  // Sovrin ko'p qatorli bo'lishi TABIIY: "1-o'rin ...", "2-3 o'rin ...".
+  // Ilgari uchinchi qator o'rinlar soni deb olinardi, ya'ni
+  // `parseInt("2-3 o'rin 20 000 so'm")` JIM TURIB 2 qaytarardi: admin
+  // 5 ta o'rin yozib, 2 ta o'rinli konkurs olardi va buni faqat
+  // g'oliblar e'lon qilinganda bilardi.
+  console.log("\n── Konkurs ochish formati ──");
+
+  async function openContest(text: string) {
+    await pool.query("DELETE FROM contests WHERE status = 'active'");
+    await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(ADMIN)]);
+    take();
+    await bot.handleUpdate(tap(ADMIN, "contest_start"));
+    await bot.handleUpdate(cmd(ADMIN, text));
+    const replies = take()
+      .filter((c) => /^(send|edit)/.test(c.method))
+      .map((c) => String(c.payload?.text ?? ""));
+    const { rows } = await pool.query<{ title: string; prize: string; winners_count: number }>(
+      "SELECT title, prize, winners_count FROM contests WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+    );
+    return { row: rows[0] ?? null, replies };
+  }
+
+  const oneLine = await openContest(
+    "TEST: Sinov\n1-o'rin 50 000 · 2-3 o'rin 20 000 · 4-5 o'rin 10 000\n5"
+  );
+  ok("bitta qatorli sovrin: 5 o'rin",
+     Number(oneLine.row?.winners_count) === 5,
+     String(oneLine.row?.winners_count));
+
+  const multi = await openContest(
+    "TEST: Sinov 2\n1-o'rin 50 000 so'm\n2-3 o'rin 20 000 so'mdan\n4-5 o'rin 10 000 so'mdan\n5"
+  );
+  ok("ko'p qatorli sovrin: 5 o'rin (2 EMAS)",
+     Number(multi.row?.winners_count) === 5,
+     String(multi.row?.winners_count));
+  ok("sovrinning HAMMA qatori saqlandi",
+     (multi.row?.prize ?? "").split("\n").length === 3 &&
+       (multi.row?.prize ?? "").includes("4-5 o'rin"),
+     JSON.stringify(multi.row?.prize));
+
+  const blanks = await openContest(
+    "TEST: Sinov 3\n\n1-o'rin 50 000\n\n2-5 o'rin 10 000\n\n5"
+  );
+  ok("bo'sh qatorlar xalaqit bermaydi",
+     Number(blanks.row?.winners_count) === 5,
+     String(blanks.row?.winners_count));
+
+  // Oxirgi qatorda son bo'lmasa — JIM TURMASDAN xato beradi.
+  const bad = await openContest("TEST: Sinov 4\n1-o'rin 50 000\n5 ta o'rin");
+  ok("oxirgi qator son bo'lmasa konkurs ochilmaydi", bad.row === null,
+     bad.row ? `ochildi: ${bad.row.winners_count}` : "ochilmadi");
+  ok("xato aniq aytiladi",
+     bad.replies.some((t) => /Noto'g'ri format/.test(t)),
+     bad.replies.map((t) => t.split("\n")[0]).join(" | ") || "javob yo'q");
+
+  const tooMany = await openContest("TEST: Sinov 5\nSovrin\n99");
+  ok("51 dan ko'p o'rin qabul qilinmaydi", tooMany.row === null,
+     tooMany.row ? `ochildi: ${tooMany.row.winners_count}` : "ochilmadi");
+
+  await pool.query("DELETE FROM contests WHERE title LIKE 'TEST:%'");
+
   // ═══════════════════ Tozalash ═══════════════════
   await sub.setSubscriptionRequired(false);
   await sub.setChannel("", "");

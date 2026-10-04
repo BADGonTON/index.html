@@ -839,12 +839,25 @@ export const ADMIN_CONTEST_NONE = "Hozircha faol konkurs yo'q.";
 
 export const ADMIN_CONTEST_START = `🏆 <b>Yangi konkurs</b>
 
-Nomi, sovrini va sovrinli o'rinlar sonini bitta xabarda yuboring.
-Har biri YANGI QATORDA:
+Bitta xabarda yuboring:
+
+• <b>1-qator</b> — konkurs nomi
+• <b>o'rtadagi qatorlar</b> — sovrinlar (nechta qator bo'lsa ham mayli)
+• <b>OXIRGI qator</b> — sovrinli o'rinlar soni, faqat RAQAM
 
 <code>Kuzgi konkurs
-1-o'rin iPhone, 2-o'rin AirPods
-3</code>`;
+1-o'rin iPhone
+2-o'rin AirPods
+2</code>
+
+Sovrinni bitta qatorga sig'dirsangiz ham bo'ladi:
+
+<code>Sinov konkursi
+1-o'rin 50 000 · 2-3 o'rin 20 000 · 4-5 o'rin 10 000
+5</code>
+
+⚠️ Oxirgi qatorda faqat son bo'lsin — "5 ta o'rin" deb yozilsa
+qabul qilinmaydi.`;
 
 export const ADMIN_CONTEST_FINISH_CONFIRM = `⚠️ <b>Konkursni yakunlaysizmi?</b>
 

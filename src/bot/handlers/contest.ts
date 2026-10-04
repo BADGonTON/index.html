@@ -279,12 +279,31 @@ async function announceWinners(
  * Yangi konkurs: nomi, sovrini va o'rinlar soni — uch qator.
  */
 export async function handleContestStartText(ctx: MyContext): Promise<void> {
-  const lines = (ctx.message?.text ?? "").split("\n").map((l) => l.trim());
-  const title = lines[0] ?? "";
-  const prize = lines[1] ?? "";
-  const winners = parseInt(lines[2] ?? "3", 10);
+  const lines = (ctx.message?.text ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 
-  if (!title || !Number.isFinite(winners) || winners < 1 || winners > 50) {
+  // Birinchi qator — nomi, OXIRGI qator — o'rinlar soni, ORASIDAGI
+  // hammasi sovrin.
+  //
+  // Nega oxirgi qator: sovrin ko'p qatorli bo'lishi tabiiy ("1-o'rin ...",
+  // "2-3 o'rin ..."). Ilgari uchinchi qator soni deb olinardi va
+  // `parseInt("2-3 o'rin 20 000 so'm")` JIM TURIB 2 qaytarardi — admin
+  // 5 ta o'rin yozib, 2 ta o'rinli konkurs olardi va buni bilmasdi.
+  const title = lines[0] ?? "";
+  const countLine = lines.length > 1 ? lines[lines.length - 1] : "";
+  const prize = lines.slice(1, -1).join("\n");
+
+  // Faqat RAQAM qabul qilinadi: "5 ta o'rin" ham xato, chunki xatoni
+  // hozir ko'rsatish yakunlashda noto'g'ri g'olib chiqqanidan yaxshiroq.
+  if (!title || !/^\d{1,2}$/.test(countLine)) {
+    await sendTracked(ctx, ADMIN_INVALID_FORMAT, adminBackKb());
+    return;
+  }
+
+  const winners = parseInt(countLine, 10);
+  if (winners < 1 || winners > 50) {
     await sendTracked(ctx, ADMIN_INVALID_FORMAT, adminBackKb());
     return;
   }
