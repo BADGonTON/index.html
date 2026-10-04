@@ -417,6 +417,98 @@ async function main(): Promise<void> {
 
   await pool.query("DELETE FROM contests WHERE title LIKE 'TEST:%'");
 
+  // ═══════════════════ 10. Admin qo'ygan premium emoji ═══════════════════
+  //
+  // Telegram premium emojini xabar MATNIDA yubormaydi — matnda oddiy
+  // zaxira belgisi, haqiqiy emoji esa `entities` ichida keladi. Faqat
+  // matnni o'qisak, admin tanlagan emoji yo'qolib, o'rniga oddiysi
+  // qolardi. Konkurs e'loni kanalga chiqadi, ya'ni bu KO'RINADIGAN
+  // narsa.
+  console.log("\n── Admin qo'ygan premium emoji ──");
+
+  const GIFT_ID = "5368324170671202286";
+  const MEDAL_ID = "5451971135748916371";
+
+  function msgWithEmoji(text: string, marks: [string, string][]): Update {
+    const entities = marks.map(([glyph, id]) => ({
+      type: "custom_emoji" as const,
+      offset: text.indexOf(glyph),
+      length: glyph.length,
+      custom_emoji_id: id,
+    }));
+    return {
+      update_id: updateId++,
+      message: {
+        message_id: messageId++, date: 0,
+        chat: chatOf(ADMIN), from: userOf(ADMIN), text, entities,
+      },
+    } as Update;
+  }
+
+  async function openWithEmoji(text: string, marks: [string, string][]) {
+    await pool.query("DELETE FROM contests WHERE status = 'active'");
+    await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(ADMIN)]);
+    take();
+    await bot.handleUpdate(tap(ADMIN, "contest_start"));
+    await bot.handleUpdate(msgWithEmoji(text, marks));
+    const replies = take()
+      .filter((c) => /^(send|edit)/.test(c.method))
+      .map((c) => String(c.payload?.text ?? ""));
+    const { rows } = await pool.query<{ id: number; title: string; prize: string }>(
+      "SELECT id, title, prize FROM contests WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+    );
+    return { row: rows[0] ?? null, replies };
+  }
+
+  const withEmoji = await openWithEmoji(
+    "\u{1F381} TEST: Sinov\n\u{1F3C5} 1-o'rin — 20 000 so'm\n2-o'rin — 12 000 so'm\n2",
+    [["\u{1F381}", GIFT_ID], ["\u{1F3C5}", MEDAL_ID]]
+  );
+
+  ok("nomdagi premium emoji AYNAN saqlandi",
+     (withEmoji.row?.title ?? "").includes(`<tg-emoji emoji-id="${GIFT_ID}">`),
+     JSON.stringify(withEmoji.row?.title));
+  ok("sovrindagi premium emoji AYNAN saqlandi",
+     (withEmoji.row?.prize ?? "").includes(`<tg-emoji emoji-id="${MEDAL_ID}">`),
+     JSON.stringify(withEmoji.row?.prize));
+
+  // Teg qator chegarasidan kesilib ketmasligi kerak: nomda yopilmagan
+  // teg qolsa ikkala qator ham buzilardi.
+  const balanced = (t: string) =>
+    (t.match(/<tg-emoji/g) ?? []).length === (t.match(/<\/tg-emoji>/g) ?? []).length;
+  ok("teglar qator chegarasida butun qoldi",
+     balanced(withEmoji.row?.title ?? "") && balanced(withEmoji.row?.prize ?? ""),
+     `title=${withEmoji.row?.title} prize=${withEmoji.row?.prize}`);
+
+  // Admin ko'radigan tasdiqda teg MATN bo'lib ko'rinmasligi kerak.
+  ok("tasdiq xabarida emoji tirik, qochirilmagan",
+     withEmoji.replies.some((t) => t.includes(`emoji-id="${GIFT_ID}"`)) &&
+       !withEmoji.replies.some((t) => t.includes("&lt;tg-emoji")),
+     withEmoji.replies.map((t) => t.slice(0, 40)).join(" | "));
+
+  // Kanaldagi e'londa ham admin tanlagan emoji bo'lishi kerak.
+  await contest.countReferral(withEmoji.row!.id, A, X);
+  take();
+  await bot.handleUpdate(tap(ADMIN, "contest_finish_yes"));
+  await new Promise((r) => setTimeout(r, 200));
+  const announce = take();
+  const toCh = announce.find(
+    (c) => c.method === "sendMessage" && c.payload?.chat_id === CHANNEL
+  );
+  ok("kanaldagi e'londa admin emojisi bor",
+     String(toCh?.payload?.text ?? "").includes(`emoji-id="${GIFT_ID}"`),
+     String(toCh?.payload?.text ?? "").slice(0, 60));
+
+  // HTML belgilarini admin yozsa ham xabar buzilmasligi kerak.
+  const risky = await openWithEmoji("TEST: <b>A</b> & B\nSovrin <i>x</i>\n1", []);
+  ok("HTML belgilari qochirildi",
+     (risky.row?.title ?? "").includes("&lt;b&gt;") &&
+       (risky.row?.title ?? "").includes("&amp;"),
+     JSON.stringify(risky.row?.title));
+
+  await pool.query("DELETE FROM contest_refs WHERE inviter_id = ANY($1)", [[A]]);
+  await pool.query("DELETE FROM contests WHERE title LIKE '%TEST%'");
+
   // ═══════════════════ Tozalash ═══════════════════
   await sub.setSubscriptionRequired(false);
   await sub.setChannel("", "");

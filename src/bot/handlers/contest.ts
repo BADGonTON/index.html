@@ -20,6 +20,7 @@ import {
   ADMIN_INVALID_FORMAT,
 } from "../texts";
 import { contestPanelKb, contestFinishKb, leadersKb, adminBackKb } from "../keyboards";
+import { messageLinesHtml } from "../entities";
 import {
   getActiveContest,
   startContest,
@@ -91,8 +92,11 @@ export function registerContestHandlers(bot: Bot<MyContext>): void {
     await renderMenu(
       ctx,
       fmt(LEADERS_MESSAGE, {
-        title: escapeHtml(contest.title),
-        prize: escapeHtml(contest.prize),
+        // Nom va sovrin bazada XAVFSIZ HTML bo'lib turadi (admin
+        // qo'ygan premium emoji bilan), shuning uchun qayta
+        // qochirilmaydi — aks holda teglar matn bo'lib ko'rinardi.
+        title: contest.title,
+        prize: contest.prize,
         participants: stats.participants,
         invites: stats.invites,
         leaders: list,
@@ -138,7 +142,7 @@ export function registerContestHandlers(bot: Bot<MyContext>): void {
     await renderMenu(
       ctx,
       fmt(ADMIN_CONTEST_FINISH_CONFIRM, {
-        title: escapeHtml(contest.title),
+        title: contest.title,
         participants: stats.participants,
         invites: stats.invites,
       }),
@@ -210,8 +214,8 @@ async function showPanel(ctx: MyContext): Promise<void> {
   if (contest) {
     const stats = await contestStats(contest.id);
     status = fmt(ADMIN_CONTEST_ACTIVE, {
-      title: escapeHtml(contest.title),
-      prize: escapeHtml(contest.prize) || "—",
+      title: contest.title,
+      prize: contest.prize || "—",
       winners: contest.winners_count,
       participants: stats.participants,
       invites: stats.invites,
@@ -242,7 +246,7 @@ async function announceWinners(
   for (const w of winners) {
     await notifyUser(
       w.user_id,
-      fmt(CONTEST_WON, { title: escapeHtml(title), place: w.place, invites: w.invites })
+      fmt(CONTEST_WON, { title, place: w.place, invites: w.invites })
     );
   }
 
@@ -257,8 +261,8 @@ async function announceWinners(
     await api.sendMessage(
       channel,
       fmt(CONTEST_FINISHED_CHANNEL, {
-        title: escapeHtml(title),
-        prize: escapeHtml(prize),
+        title,
+        prize,
         winners: list,
       }),
       { parse_mode: "HTML" }
@@ -279,8 +283,10 @@ async function announceWinners(
  * Yangi konkurs: nomi, sovrini va o'rinlar soni — uch qator.
  */
 export async function handleContestStartText(ctx: MyContext): Promise<void> {
-  const lines = (ctx.message?.text ?? "")
-    .split("\n")
+  // Har bir qator ALOHIDA HTML ga aylantiriladi: admin qo'ygan premium
+  // emoji `<tg-emoji>` bo'lib saqlanadi, qolgan matn esa xavfsiz
+  // holatga keltiriladi.
+  const lines = messageLinesHtml(ctx.message)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
 
@@ -327,12 +333,12 @@ export async function handleContestStartText(ctx: MyContext): Promise<void> {
   await sendTracked(
     ctx,
     `✅ <b>Konkurs boshlandi</b>\n\n` +
-      `<b>${escapeHtml(contest.title)}</b>\n` +
-      `${escapeHtml(contest.prize)}\n\n` +
+      `<b>${contest.title}</b>\n` +
+      `${contest.prize}\n\n` +
       `Sovrinli o'rinlar: <b>${contest.winners_count}</b>`,
     adminBackKb()
   );
-  await sendLog(`\u{1F3C6} Konkurs boshlandi: <b>${escapeHtml(contest.title)}</b>`);
+  await sendLog(`\u{1F3C6} Konkurs boshlandi: <b>${contest.title}</b>`);
 }
 
 /** Majburiy kanalni sozlaydi. */

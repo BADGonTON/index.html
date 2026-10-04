@@ -857,7 +857,11 @@ Sovrinni bitta qatorga sig'dirsangiz ham bo'ladi:
 5</code>
 
 ⚠️ Oxirgi qatorda faqat son bo'lsin — "5 ta o'rin" deb yozilsa
-qabul qilinmaydi.`;
+qabul qilinmaydi.
+
+💎 <b>Premium emoji ishlatsangiz bo'ladi.</b> Xabarga qanday emoji
+qo'ysangiz — liderlar ekranida ham, kanaldagi e'londa ham AYNAN
+o'shasi chiqadi.`;
 
 export const ADMIN_CONTEST_FINISH_CONFIRM = `⚠️ <b>Konkursni yakunlaysizmi?</b>
 
