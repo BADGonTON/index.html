@@ -10,3 +10,7 @@ data/
 .idea/
 .vscode/
 coverage/
+
+# Yuklab berish uchun yasalgan arxivlar va to'ldirilgan env namunalari
+*.zip
+namuna.env
