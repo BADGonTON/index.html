@@ -19,6 +19,16 @@ export function bindLogger(api: Api): void {
 }
 
 /**
+ * Bog'langan bot API si.
+ *
+ * Kanalga e'lon yuborish kabi, `notifyUser` ga sig'maydigan ishlar uchun.
+ * Bog'lanmagan bo'lsa `null` — chaqiruvchi o'zi hal qiladi.
+ */
+export function botApi(): Api | null {
+  return apiRef;
+}
+
+/**
  * LOG_CHANNEL_ID ga xabar yuboradi.
  * Log yuborib bo'lmasligi hech qachon asosiy ishni to'xtatmasligi kerak —
  * shuning uchun barcha xatolar yutiladi.

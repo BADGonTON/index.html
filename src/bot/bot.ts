@@ -10,6 +10,9 @@ import { unreachableKind, describeTgError } from "../services/tgErrors";
 
 import { offerGate, registerOfferHandlers } from "./handlers/offer";
 import { maintenanceGate, registerMaintenanceHandlers } from "./handlers/maintenance";
+import { subscriptionGate, registerSubscriptionHandlers } from "./handlers/subscription";
+import { registerContestHandlers } from "./handlers/contest";
+import { bindSubscription } from "../services/subscription";
 import { registerStartHandlers } from "./handlers/start";
 import { registerAdminHandlers } from "./handlers/admin";
 import { registerAdminAccountsHandlers } from "./handlers/adminAccounts";
@@ -52,6 +55,7 @@ export function createBot(): Bot<MyContext> {
   bindLogger(bot.api);
   // Premium emojini Mini App uchun stikerga aylantirish shu orqali ishlaydi.
   bindCustomEmoji(bot.api);
+  bindSubscription(bot.api);
 
   // OFERTA DARVOZASI. Rozilik berilmaguncha /start va "Roziman" tugmasidan
   // boshqa hech narsa ishlamaydi — Telegram Stars va akkaunt savdosi uchun
@@ -64,10 +68,18 @@ export function createBot(): Bot<MyContext> {
   // foydalanuvchi baribir ofertani ko'rishi kerak.
   bot.use(maintenanceGate());
 
+  // MAJBURIY OBUNA DARVOZASI. Konkurs vaqtida kanalga a'zo bo'lmagan
+  // odam ichkariga kirmaydi, a'zo bo'lgach esa uni taklif qilganning
+  // hisobiga bitta taklif yoziladi. Admin paneldan yoqiladi/o'chiriladi;
+  // o'chiq holatda bot mutlaqo odatdagidek ishlaydi.
+  bot.use(subscriptionGate());
+
   // Tartib muhim: aniq buyruq/callback ushlovchilar oldin,
   // umumiy matn marshrutizatori ENG OXIRIDA.
   registerOfferHandlers(bot);
   registerMaintenanceHandlers(bot);
+  registerSubscriptionHandlers(bot);
+  registerContestHandlers(bot);
   registerStartHandlers(bot);
   registerAdminHandlers(bot);
   registerAdminAccountsHandlers(bot);

@@ -23,6 +23,7 @@ import {
   handleAdminGiftAddStarsText,
   handleAdminGiftAddPremiumIdText,
 } from "./admin";
+import { handleContestStartText, handleSetChannelText } from "./contest";
 import {
   handleAdminTgPhoneText,
   handleAdminTgPriceText,
@@ -57,6 +58,8 @@ const ROUTES: Record<string, StepHandler> = {
   [STEP.ADMIN_SET_EXTEND_MIN_DAYS]: (_bot, ctx) => handleAdminSetExtendMinDaysText(ctx),
   [STEP.ADMIN_SET_EXTEND_FEE]: (_bot, ctx) => handleAdminSetExtendFeeText(ctx),
   [STEP.ADMIN_SET_ADS_MARKUP]: (_bot, ctx) => handleAdminSetAdsMarkupText(ctx),
+  [STEP.ADMIN_CONTEST_START]: (_bot, ctx) => handleContestStartText(ctx),
+  [STEP.ADMIN_SET_CHANNEL]: (_bot, ctx) => handleSetChannelText(ctx),
   [STEP.ADMIN_SET_ADS_MIN_TOPUP]: (_bot, ctx) => handleAdminSetAdsMinTopupText(ctx),
   [STEP.ADMIN_BROADCAST_WAIT]: (_bot, ctx) => handleAdminBroadcastWaitText(ctx),
 

@@ -4,6 +4,8 @@ export interface UserRow {
   balance: number;
   referrer_id: number | null;
   ref_earned: number;
+  /** Kanalga a'zo bo'lgan vaqt (0 — tekshirilmagan yoki a'zo emas). */
+  channel_joined_at: number;
   banned_until: number;
   /** Ommaviy ofertaga rozilik vaqti (null — hali rozilik bermagan). */
   offer_accepted_at: number | null;

@@ -93,6 +93,64 @@ export function rentKb(): InlineKeyboard {
   return kb;
 }
 
+/**
+ * Majburiy obuna ekrani.
+ *
+ * Yuqorida kanalga o'tish, pastda "A'zo bo'ldim". Havola bo'lmasa
+ * (admin faqat username qo'ygan) faqat tekshirish tugmasi qoladi —
+ * bo'sh havolali tugma Telegramda xato beradi.
+ */
+export function subscribeKb(channelUrl: string): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  if (channelUrl) addUrl(kb, BTN.SUB_JOIN, channelUrl).primary().row();
+  add(kb, BTN.SUB_CHECK, "sub_check").success();
+  return kb;
+}
+
+/** Referal ekrani: konkurs ketayotgan bo'lsa "Liderlar" ham chiqadi. */
+export function referralKb(withLeaders: boolean): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  if (withLeaders) add(kb, BTN.LEADERS, "leaders").success().row();
+  add(kb, BTN.BACK, "balance").primary();
+  return kb;
+}
+
+/** Liderlar ekrani. */
+export function leadersKb(): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  add(kb, BTN.REFERRAL, "ref").success().row();
+  add(kb, BTN.BACK, "balance").primary();
+  return kb;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KONKURS — ADMIN
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function contestPanelKb(hasActive: boolean, subOn: boolean): InlineKeyboard {
+  const kb = new InlineKeyboard();
+
+  if (hasActive) add(kb, BTN.ADMIN_CONTEST_FINISH, "contest_finish").danger().row();
+  else add(kb, BTN.ADMIN_CONTEST_START, "contest_start").success().row();
+
+  add(kb, BTN.ADMIN_CHANNEL, "contest_channel").primary().row();
+
+  // Darvoza holatiga qarab tugma o'zgaradi — admin nima bo'layotganini
+  // tugmaning o'zidan ko'radi.
+  if (subOn) add(kb, BTN.ADMIN_SUB_OFF, "contest_sub_off").danger().row();
+  else add(kb, BTN.ADMIN_SUB_ON, "contest_sub_on").success().row();
+
+  add(kb, BTN.BACK, "admin_panel").primary();
+  return kb;
+}
+
+export function contestFinishKb(): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  add(kb, BTN.ADMIN_CONTEST_FINISH, "contest_finish_yes").danger();
+  add(kb, BTN.CANCEL, "contest_panel").primary();
+  return kb;
+}
+
 export function balanceKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
   add(kb, BTN.PAY, "pay").success();
@@ -160,6 +218,7 @@ export function adminKb(maintenance = false): InlineKeyboard {
   add(kb, BTN.ADMIN_TG_ADD, "admin_tg_add").success();
   add(kb, BTN.ADMIN_TG_STATS, "admin_tg_stats").primary().row();
   add(kb, BTN.ADMIN_RENT_STATS, "admin_rent_stats").primary().row();
+  add(kb, BTN.ADMIN_CONTEST, "contest_panel").primary().row();
   add(kb, BTN.ADMIN_BROADCAST, "admin_broadcast").primary().row();
 
   // Texnik ishlar tugmasi holatga qarab o'zgaradi: yoqilgan bo'lsa

@@ -12,7 +12,14 @@ import {
   ENTER_AMOUNT,
   PAYMENT_BANNED,
 } from "../texts";
-import { startKb, balanceKb, backKb, rentKb } from "../keyboards";
+import { startKb, balanceKb, backKb, rentKb, referralKb } from "../keyboards";
+import { getActiveContest, countUserInvites } from "../../db/repo/contest";
+
+function escapeHtml(text: string): string {
+  return String(text ?? "").replace(/[&<>]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] as string
+  );
+}
 
 export function registerStartHandlers(bot: Bot<MyContext>): void {
   bot.command("start", async (ctx) => {
@@ -88,7 +95,22 @@ export function registerStartHandlers(bot: Bot<MyContext>): void {
     const user = await getOrCreateUser(ctx.from!.id, ctx.from?.username ?? null);
     const me = await ctx.api.getMe();
     const link = `https://t.me/${me.username}?start=${ctx.from!.id}`;
-    await renderMenu(ctx, fmt(REFERRAL_MESSAGE, { link, ref_earned: user.ref_earned }), backKb("balance"));
+
+    // Konkurs ketayotgan bo'lsa shu yerda "Liderlar" tugmasi qo'shiladi
+    // va necha odam taklif qilgani ko'rinadi — referal ekrani
+    // konkursning tabiiy joyi.
+    const contest = await getActiveContest();
+    const invites = contest ? await countUserInvites(contest.id, ctx.from!.id) : 0;
+
+    await renderMenu(
+      ctx,
+      fmt(REFERRAL_MESSAGE, { link, ref_earned: user.ref_earned }) +
+        (contest
+          ? `\n\n\u{1F3C6} <b>${escapeHtml(contest.title)}</b>\n` +
+            `\u{1F465} Takliflaringiz: <b>${invites}</b> ta`
+          : ""),
+      referralKb(Boolean(contest))
+    );
     await ctx.answerCallbackQuery();
   });
 

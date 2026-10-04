@@ -23,6 +23,14 @@ export interface SessionData {
    * xabar uchun qayta so'rov qilinmaydi.
    */
   offerOk?: boolean;
+
+  /**
+   * Kanalga a'zoligi tekshirilgan.
+   *
+   * Sessiyada saqlanadi, chunki har bir xabarda Telegramga "bu odam
+   * kanalda bormi?" deb so'rash botni sekinlashtirardi.
+   */
+  subOk?: boolean;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;

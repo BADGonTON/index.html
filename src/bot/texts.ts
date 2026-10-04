@@ -655,6 +655,15 @@ export const BTN = {
 
   PAY: "💳 To'lov",
   REFERRAL: "👥 Referal",
+  LEADERS: "🏆 Liderlar",
+  SUB_JOIN: "📢 Kanalga o'tish",
+  SUB_CHECK: "✅ A'zo bo'ldim",
+  ADMIN_CONTEST: "🏆 Konkurs",
+  ADMIN_CONTEST_START: "▶️ Konkurs boshlash",
+  ADMIN_CONTEST_FINISH: "🏁 Yakunlash",
+  ADMIN_CHANNEL: "📢 Majburiy kanal",
+  ADMIN_SUB_ON: "🔒 Darvozani yoqish",
+  ADMIN_SUB_OFF: "🔓 Darvozani o'chirish",
   CANCEL: "❌ Bekor qilish",
   BACK: "🔙 Orqaga qaytish",
   MENU: "🏘 Bosh menyu",
@@ -782,6 +791,113 @@ qo'yamiz. Ustama shu summaning ICHIDAN olinadi — ustidan emas.
 Masalan 15% da: 50 000 so'mdan 6 522 so'm bizga, 43 478 so'm byudjetga.
 
 Yangi qiymatni raqam bilan yuboring (masalan <code>15</code>):`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  KONKURS VA MAJBURIY OBUNA
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const SUB_REQUIRED = `🔒 <b>Kanalga a'zo bo'ling</b>
+
+Botdan foydalanish uchun avval kanalimizga a'zo bo'ling:
+
+${e(I.PEOPLE, "👥")} {channel}
+
+A'zo bo'lgach pastdagi tugmani bosing.`;
+
+export const SUB_NOT_YET = "Siz hali kanalga a'zo bo'lmadingiz. A'zo bo'lib, qaytadan bosing.";
+
+export const SUB_WELCOME = `${e(I.CHECK, "✅")} <b>Rahmat!</b>
+
+Endi botdan to'liq foydalanishingiz mumkin.
+Menyuni ochish uchun /start bosing.`;
+
+export const CONTEST_NEW_INVITE = `${e(I.PARTY, "🎉")} <b>Yangi taklif!</b>
+
+<b>{title}</b> konkursida sizning hisobingizga yana bitta odam qo'shildi.
+
+${e(I.PEOPLE, "👥")} Jami takliflaringiz: <b>{invites}</b>`;
+
+export const CONTEST_NONE = `ℹ️ <b>Konkurs yo'q</b>
+
+Hozircha faol konkurs mavjud emas. E'lonlarni kanalimizdan kuzating.`;
+
+export const LEADERS_MESSAGE = `🏆 <b>{title}</b>
+
+{prize}
+
+${e(I.CHART, "📊")} Ishtirokchilar: <b>{participants}</b> · Takliflar: <b>{invites}</b>
+
+<b>Liderlar</b>
+{leaders}
+{me}`;
+
+export const LEADERS_EMPTY = "Hali hech kim taklif qilmadi — birinchi bo'ling!";
+
+export const CONTEST_FINISHED_CHANNEL = `🏆 <b>{title} — yakunlandi!</b>
+
+{prize}
+
+<b>G'oliblar</b>
+{winners}
+
+${e(I.PARTY, "🎉")} Barchangizga rahmat! Sovrinlar egalariga tez orada topshiriladi.`;
+
+export const CONTEST_WON = `🏆 <b>Tabriklaymiz!</b>
+
+<b>{title}</b> konkursida <b>{place}-o'rin</b>ni egalladingiz.
+
+${e(I.PEOPLE, "👥")} Takliflaringiz: <b>{invites}</b>
+
+Sovrin haqida adminlar siz bilan bog'lanadi.`;
+
+// ── Admin ──
+
+export const ADMIN_CONTEST_PANEL = `🏆 <b>Konkurs</b>
+
+{status}`;
+
+export const ADMIN_CONTEST_ACTIVE = `Nomi: <b>{title}</b>
+Sovrin: {prize}
+Sovrinli o'rinlar: <b>{winners}</b>
+
+${e(I.CHART, "📊")} Ishtirokchilar: <b>{participants}</b> · Takliflar: <b>{invites}</b>`;
+
+export const ADMIN_CONTEST_NONE = "Hozircha faol konkurs yo'q.";
+
+export const ADMIN_CONTEST_START = `🏆 <b>Yangi konkurs</b>
+
+Nomi, sovrini va sovrinli o'rinlar sonini bitta xabarda yuboring.
+Har biri YANGI QATORDA:
+
+<code>Kuzgi konkurs
+1-o'rin iPhone, 2-o'rin AirPods
+3</code>`;
+
+export const ADMIN_CONTEST_FINISH_CONFIRM = `⚠️ <b>Konkursni yakunlaysizmi?</b>
+
+<b>{title}</b>
+Ishtirokchilar: <b>{participants}</b> · Takliflar: <b>{invites}</b>
+
+G'oliblar aniqlanadi va <b>o'zgarmas</b> bo'lib qoladi.
+Kanalga e'lon yuboriladi.`;
+
+export const ADMIN_CONTEST_FINISHED = `${e(I.CHECK, "✅")} <b>Konkurs yakunlandi</b>
+
+{winners}
+
+Kanalga e'lon yuborildi.`;
+
+export const ADMIN_SET_CHANNEL = `${e(I.PEOPLE, "👥")} <b>Majburiy kanal</b>
+
+Hozirgi: <b>{channel}</b>
+Darvoza: <b>{state}</b>
+
+Kanal username'ini yuboring (masalan <code>@HozirOL</code>).
+
+⚠️ Bot kanalda ADMIN bo'lishi shart — aks holda
+a'zolikni tekshira olmaydi.
+
+O'chirish uchun <code>-</code> yuboring.`;
 
 export const ADMIN_SET_ADS_MIN_TOPUP = `💳 <b>Reklama: eng kam summa</b>
 

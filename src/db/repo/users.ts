@@ -201,3 +201,21 @@ export async function hasAcceptedOffer(userId: number): Promise<boolean> {
   );
   return rows[0]?.ok ?? false;
 }
+
+/**
+ * Kanalga a'zo bo'lganini belgilaydi.
+ *
+ * Har bir xabarda Telegramga "bu odam kanalda bormi?" deb so'rash botni
+ * sekinlashtirardi, shuning uchun natija shu yerga yoziladi.
+ */
+export async function markChannelJoined(userId: number): Promise<void> {
+  await pool.query(
+    "UPDATE users SET channel_joined_at = $2 WHERE user_id = $1 AND channel_joined_at = 0",
+    [userId, nowSec()]
+  );
+}
+
+/** Kanalni tark etgan bo'lsa belgisi olib tashlanadi. */
+export async function clearChannelJoined(userId: number): Promise<void> {
+  await pool.query("UPDATE users SET channel_joined_at = 0 WHERE user_id = $1", [userId]);
+}
