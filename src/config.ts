@@ -143,7 +143,6 @@ export const config = {
   starMax: optionalInt("STAR_MAX", 5000),
   txDelaySec: optionalInt("TX_DELAY_SEC", 10),
   maxRetries: optionalInt("MAX_RETRIES", 3),
-  itemsPerPage: optionalInt("ITEMS_PER_PAGE", 10),
 
   // ---------- Gift Arenda ----------
   /**
