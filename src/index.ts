@@ -91,7 +91,6 @@ async function main(): Promise<void> {
         "message",
         "callback_query",
         "channel_post",
-        "pre_checkout_query",
         "my_chat_member",
       ],
     });

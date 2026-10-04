@@ -15,7 +15,6 @@ import { bindSubscription } from "../services/subscription";
 import { registerStartHandlers } from "./handlers/start";
 import { registerAdminHandlers } from "./handlers/admin";
 import { registerAdminAccountsHandlers } from "./handlers/adminAccounts";
-import { registerGiftHandlers } from "./handlers/gifts";
 import { registerPaymentHandlers } from "./handlers/payment";
 import { registerStarsHandlers } from "./handlers/stars";
 import { registerPremiumHandlers } from "./handlers/premium";
@@ -80,7 +79,6 @@ export function createBot(): Bot<MyContext> {
   registerStartHandlers(bot);
   registerAdminHandlers(bot);
   registerAdminAccountsHandlers(bot);
-  registerGiftHandlers(bot);
   registerPaymentHandlers(bot);
   registerStarsHandlers(bot);
   registerPremiumHandlers(bot);

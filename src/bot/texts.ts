@@ -105,23 +105,12 @@ export const MAINTENANCE_OFF = `✅ <b>Bot yana ochiq</b>
 
 Texnik ishlar rejimi o'chirildi, hamma xizmatlar ishlamoqda.`;
 
-/** Stars bo'limi (Stars olish / Premium olish). */
-export const STARS_SECTION = `⭐ <b>Stars va Premium</b>
-
-⭐ <b>Stars olish</b> — istalgan Telegram hisobiga Stars yuborish
-👑 <b>Premium olish</b> — 3, 6 yoki 12 oylik obuna
-
-Kerakli xizmatni tanlang 👇`;
-
-export const MAIN_MENU_TITLE =
-  `${e(I.ROBOT, "🤖")} HozirOLbot orqali ${e(I.STAR, "⭐️")}Stars evaziga ${e(I.GIFT, "🎁")} Gift xarid qiling`;
-
 export const START_MESSAGE = `${e(I.USER, "👤")} Hurmatli <b>{name}</b>
 
 ${e(I.MONEY, "💰")} Balansingiz: <b>{balance} so'm</b>
 
 ${e(I.ROBOT, "🤖")} <b>HozirOL</b> orqali siz quyidagilarni xarid qilishingiz mumkin:
-${e(I.STAR, "⭐")} Telegram Stars  |  ${e(I.GIFT, "🎁")} Telegram Gift  |  ${e(I.CROWN, "👑")} Telegram Premium
+${e(I.STAR, "⭐")} Telegram Stars  |  ${e(I.CROWN, "👑")} Telegram Premium  |  ${e(I.GIFT, "🎁")} Gift Arenda
 
 Kerakli bo'limni tanlang ${e(I.DOWN, "👇")}`;
 
@@ -648,7 +637,6 @@ export const BTN = {
   STARS: "⭐ Stars",
   STARS_BUY: "⭐ Stars olish",
   PREMIUM_BUY: "👑 Premium olish",
-  GIFTS: "🎁 Gift olish",
   BALANCE: "💰 Balans",
   TG_PROFILE: "👤 Profil olish",
   SUPPORT: "🆘 Support",
@@ -680,8 +668,6 @@ export const BTN = {
   ADMIN_BROADCAST: "🆘 Hammaga xabar",
   ADMIN_MAINTENANCE_ON: "⛔ Texnik ishlarni yoqish",
   ADMIN_MAINTENANCE_OFF: "✅ Botni ochish",
-  ADMIN_GIFT_ADD: "➕ Gift qo'shish",
-  ADMIN_GIFT_LIST: "📊 Gift ro'yxati",
   ADMIN_TG_ADD: "➕ Akkount qo'shish",
   ADMIN_TG_STATS: "📆 Akkountlar",
   BROADCAST_CONFIRM: "✅ Yuborish",

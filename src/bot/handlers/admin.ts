@@ -28,7 +28,7 @@ import {
   ADMIN_SET_EXTEND_FEE,
   ADMIN_RENT_STATS,
 } from "../texts";
-import { adminKb, adminBackKb, broadcastConfirmKb, giftAdminListKb } from "../keyboards";
+import { adminKb, adminBackKb, broadcastConfirmKb } from "../keyboards";
 import {
   banUser,
   creditBalance,
@@ -36,7 +36,6 @@ import {
   getUserIdsAfter,
 } from "../../db/repo/users";
 import { getQueueSize, getTotalOrders, updateTxStatus } from "../../db/repo/transactions";
-import { addGift, deleteGift, listGifts } from "../../db/repo/gifts";
 import { getRentQueueSize } from "../../db/repo/rentals";
 import { pool } from "../../db/pool";
 import { getStarPrice, setStarPrice } from "../../services/starPrice";
@@ -309,57 +308,6 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
     })
   );
 
-  // --- GIFT BOSHQARUVI ---
-  bot.callbackQuery(
-    "admin_gift_add",
-    adminOnly(async (ctx) => {
-      ctx.session.data = {};
-      await sendTracked(
-        ctx,
-        "🎁 <b>Yangi gift qo'shish</b>\n\nGift ID sini yuboring (Fragment/Telegram'dan olingan raqamli ID).\n" +
-          "Masalan <code>6046178578163303744</code>",
-        adminBackKb()
-      );
-      ctx.session.step = STEP.ADMIN_GIFT_ADD_ID;
-      await ctx.answerCallbackQuery();
-    })
-  );
-
-  bot.callbackQuery(
-    "admin_gift_list",
-    adminOnly(async (ctx) => {
-      const gifts = await listGifts(false);
-      if (gifts.length === 0) {
-        await renderMenu(ctx, "📋 Hozircha bazada gift yo'q.", adminBackKb());
-      } else {
-        const lines = gifts
-          .map((g) => `• <code>${g.id}</code> — ${g.star_count}⭐️ ${g.active ? "" : "(nofaol)"}`)
-          .join("\n");
-        await renderMenu(
-          ctx,
-          `📋 <b>Gift ro'yxati</b> (${gifts.length} ta)\n\n${lines}\n\nO'chirish uchun bosing:`,
-          giftAdminListKb(gifts)
-        );
-      }
-      await ctx.answerCallbackQuery();
-    })
-  );
-
-  bot.callbackQuery(
-    /^admin_gift_del_(.+)$/,
-    adminOnly(async (ctx) => {
-      const id = (ctx as any).match![1] as string;
-      await deleteGift(id);
-      const gifts = await listGifts(false);
-      await renderMenu(
-        ctx,
-        `✅ Gift o'chirildi: <code>${id}</code>`,
-        gifts.length ? giftAdminListKb(gifts) : adminBackKb()
-      );
-      await ctx.answerCallbackQuery();
-    })
-  );
-
   // --- BROADCAST ---
   bot.callbackQuery(
     "admin_broadcast",
@@ -558,48 +506,3 @@ export async function handleAdminBroadcastWaitText(ctx: MyContext): Promise<void
   ctx.session.step = STEP.ADMIN_BROADCAST_CONFIRM;
 }
 
-export async function handleAdminGiftAddIdText(ctx: MyContext): Promise<void> {
-  const id = (ctx.message?.text ?? "").trim();
-  if (!/^\d+$/.test(id)) {
-    await ctx.reply("❌ Gift ID faqat raqamlardan iborat bo'lishi kerak. Qaytadan kiriting:", {
-      parse_mode: "HTML",
-    });
-    return;
-  }
-  ctx.session.data = { id };
-  await ctx.reply("⭐️ Endi shu gift narxini (Stars miqdorida) kiriting.\nMasalan <code>50</code>", {
-    parse_mode: "HTML",
-  });
-  ctx.session.step = STEP.ADMIN_GIFT_ADD_STARS;
-}
-
-export async function handleAdminGiftAddStarsText(ctx: MyContext): Promise<void> {
-  const text = (ctx.message?.text ?? "").trim();
-  if (!/^\d+$/.test(text) || parseInt(text, 10) < 1) {
-    await ctx.reply("❌ Faqat musbat raqam kiriting. Masalan <code>50</code>", { parse_mode: "HTML" });
-    return;
-  }
-  ctx.session.data = { ...ctx.session.data, star_count: parseInt(text, 10) };
-  await ctx.reply(
-    "🌟 Endi ushbu gift uchun <b>Premium custom-emoji ID</b>sini yuboring (ixtiyoriy).\n" +
-      "Bunday ID yo'q bo'lsa — <code>-</code> yuboring.",
-    { parse_mode: "HTML" }
-  );
-  ctx.session.step = STEP.ADMIN_GIFT_ADD_PREMIUM_ID;
-}
-
-export async function handleAdminGiftAddPremiumIdText(ctx: MyContext): Promise<void> {
-  const text = (ctx.message?.text ?? "").trim();
-  const premiumId = text === "-" ? null : text;
-  const { id, star_count } = ctx.session.data as { id: string; star_count: number };
-
-  const gift = await addGift({ id, star_count, premium_id: premiumId, emoji: "🎁" });
-  await ctx.reply(
-    `✅ <b>Gift qo'shildi!</b>\n\nID: <code>${gift.id}</code>\n` +
-      `Narxi: <b>${gift.star_count}⭐️</b>\n` +
-      `Premium ID: ${gift.premium_id ? `<code>${gift.premium_id}</code>` : "yo'q"}`,
-    { parse_mode: "HTML", reply_markup: adminBackKb() }
-  );
-  ctx.session.step = undefined;
-  ctx.session.data = {};
-}

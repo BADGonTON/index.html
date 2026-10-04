@@ -2,7 +2,6 @@ import { InlineKeyboard } from "grammy";
 import { BTN } from "./texts";
 import { splitButtonLabel } from "./emoji";
 import { config, miniAppUrl } from "../config";
-import { GiftRow } from "../db/repo/gifts";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -65,8 +64,11 @@ export function offerKb(): InlineKeyboard {
 export function startKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
 
+  // Stars va Premium — ikkisi ham to'g'ridan-to'g'ri xarid oqimiga
+  // olib boradi. Ilgari ikkisi bitta "Stars" tugmasi ortida turardi,
+  // ya'ni foydalanuvchi Premium uchun ikki marta bosardi.
   add(kb, BTN.STARS, "stars").success();
-  add(kb, BTN.GIFTS, "page_0").success().row();
+  add(kb, BTN.PREMIUM_BUY, "premium").success().row();
 
   addMiniApp(kb, BTN.RENT).row();
 
@@ -74,15 +76,6 @@ export function startKb(): InlineKeyboard {
   add(kb, BTN.TG_PROFILE, "tg_profile").success().row();
 
   addUrl(kb, BTN.SUPPORT, config.supportBot).primary();
-  return kb;
-}
-
-/** Stars bo'limi: Stars olish / Premium olish. */
-export function starsMenuKb(): InlineKeyboard {
-  const kb = new InlineKeyboard();
-  add(kb, BTN.STARS_BUY, "stars_buy").success();
-  add(kb, BTN.PREMIUM_BUY, "premium").success().row();
-  add(kb, BTN.BACK, "back_to_main").primary();
   return kb;
 }
 
@@ -171,7 +164,7 @@ export function successKb(): InlineKeyboard {
   const kb = new InlineKeyboard();
   addMiniApp(kb, BTN.RENT).row();
   add(kb, BTN.STARS, "stars").success();
-  add(kb, BTN.GIFTS, "page_0").success().row();
+  add(kb, BTN.PREMIUM_BUY, "premium").success().row();
   add(kb, BTN.MENU, "back_to_main").primary();
   return kb;
 }
@@ -211,8 +204,6 @@ export function adminKb(maintenance = false): InlineKeyboard {
   add(kb, BTN.ADMIN_SERVICE_FEE, "admin_service_fee").primary().row();
   add(kb, BTN.ADMIN_EXTEND_MIN_DAYS, "admin_extend_min_days").primary();
   add(kb, BTN.ADMIN_EXTEND_FEE, "admin_extend_fee").primary().row();
-  add(kb, BTN.ADMIN_GIFT_ADD, "admin_gift_add").success();
-  add(kb, BTN.ADMIN_GIFT_LIST, "admin_gift_list").primary().row();
   add(kb, BTN.ADMIN_TG_ADD, "admin_tg_add").success();
   add(kb, BTN.ADMIN_TG_STATS, "admin_tg_stats").primary().row();
   add(kb, BTN.ADMIN_RENT_STATS, "admin_rent_stats").primary().row();
@@ -236,61 +227,6 @@ export function broadcastConfirmKb(): InlineKeyboard {
 
 export function adminBackKb(): InlineKeyboard {
   return add(new InlineKeyboard(), BTN.BACK, "admin_panel").primary();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  GIFT KATALOGI (Stars bilan sotib olinadigan sovg'alar)
-// ═══════════════════════════════════════════════════════════════════════════
-
-export function giftsPageKb(
-  gifts: GiftRow[],
-  page: number,
-  hasPrev: boolean,
-  hasNext: boolean
-): InlineKeyboard {
-  const kb = new InlineKeyboard();
-
-  // Giftning O'Z premium emojisi bo'lsa — u ikonka bo'ladi va yozuvda
-  // faqat narx qoladi. Bo'lmasa giftning oddiy emojisi yozuvda turadi:
-  // hamma gift uchun bir xil umumiy ikonka qo'yishdan ko'ra, giftning
-  // o'z belgisi ko'rinib turgani yaxshiroq.
-  gifts.forEach((gift, i) => {
-    kb.text(
-      gift.premium_id
-        ? { text: `${gift.star_count} ⭐️`, icon_custom_emoji_id: gift.premium_id }
-        : { text: `${gift.emoji} ${gift.star_count} ⭐️` },
-      `buy_${gift.id}_${gift.star_count}`
-    ).success();
-    if (i % 2 === 1) kb.row();
-  });
-  if (gifts.length % 2 !== 0) kb.row();
-
-  // Pastki qator: orqaga / menyu / keyingi
-  if (hasPrev) add(kb, BTN.PREV, `page_${page - 1}`).primary();
-  else add(kb, BTN.MENU, "back_to_main").primary();
-
-  if (hasNext) add(kb, BTN.NEXT, `page_${page + 1}`).primary();
-  return kb;
-}
-
-export function giftAdminListKb(gifts: GiftRow[]): InlineKeyboard {
-  const kb = new InlineKeyboard();
-
-  for (const g of gifts) {
-    kb.text(
-      g.premium_id
-        ? {
-            text: `${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…`,
-            icon_custom_emoji_id: g.premium_id,
-          }
-        : { text: `${g.emoji} ${g.star_count} ⭐️ — ${g.id.slice(0, 6)}…` },
-      `admin_gift_del_${g.id}`
-    )
-      .danger()
-      .row();
-  }
-  add(kb, BTN.BACK, "admin_panel").primary();
-  return kb;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

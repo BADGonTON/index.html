@@ -26,9 +26,6 @@ export const STEP = {
   ADMIN_BROADCAST_WAIT: "admin:broadcast_wait",
   ADMIN_BROADCAST_CONFIRM: "admin:broadcast_confirm",
 
-  ADMIN_GIFT_ADD_ID: "admin:gift_add_id",
-  ADMIN_GIFT_ADD_STARS: "admin:gift_add_stars",
-  ADMIN_GIFT_ADD_PREMIUM_ID: "admin:gift_add_premium_id",
 
   ADMIN_TG_ADD_PHONE: "admin:tg_add_phone",
   ADMIN_TG_ADD_PRICE: "admin:tg_add_price",

@@ -13,7 +13,7 @@
  *   • birinchi /start OFERTA so'raydi, boshqa hech narsa ochilmaydi
  *   • rozilikdan oldin tugmalar ishlamaydi (Telegram talabi)
  *   • rozilikdan keyin bosh menyu chiqadi va rozilik BAZADA qoladi
- *   • menyu tuzilishi kelishilganidek (Stars / Gift / Arenda / Balans / Profil)
+ *   • menyu tuzilishi kelishilganidek (Stars / Premium / Arenda / Balans / Profil)
  *   • tugma bosilganda YANGI xabar yuborilmaydi — eskisi TAHRIRLANADI
  *   • tugmalarda premium ikonka bor, yozuvida emoji yo'q
  */
@@ -189,8 +189,8 @@ async function main(): Promise<void> {
 
   const alert = sent.find((c) => c.method === "answerCallbackQuery");
   ok("ogohlantirish chiqdi", Boolean(alert?.payload.show_alert), alert?.payload.text ?? "");
-  ok("Stars bo'limi OCHILMADI",
-     !sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")),
+  ok("Stars oynasi OCHILMADI",
+     !sent.some((c) => /Nechta Stars sotib olmoqchisiz/.test(c.payload?.text ?? "")),
      sent.map((c) => c.method).join(", "));
 
   // Bazada ham rozilik yo'q
@@ -219,7 +219,7 @@ async function main(): Promise<void> {
   const labels = main.map((b) => b.text);
   console.log("   tugmalar:", labels.join(" | "));
 
-  for (const want of ["Stars", "Gift olish", "Balans", "Profil olish", "Support"]) {
+  for (const want of ["Stars", "Premium olish", "Balans", "Profil olish", "Support"]) {
     ok(`«${want}» bor`, labels.includes(want));
   }
   ok("Gift Arenda Mini App tugmasi", main.some((b) => b.web_app), "");
@@ -235,20 +235,33 @@ async function main(): Promise<void> {
   ok("matnda premium emoji ishlatilgan",
      (menu?.payload.text ?? "").includes("<tg-emoji emoji-id="));
 
-  // ── 5. Stars bo'limi ──
-  console.log("\n── Stars bo'limi ──");
+  // ── 5. Stars: BITTA bosishda miqdor so'raladi ──
+  //
+  // Ilgari o'rtada "Stars va Premium" bo'limi turardi. Endi asosiy
+  // menyuda ikkisi alohida tugma, shuning uchun Stars darhol xaridga
+  // olib boradi — ortiqcha bosish qolmadi.
+  console.log("\n── Stars ──");
   await bot.handleUpdate(callbackUpdate("stars", offerMsgId));
   sent = take();
 
   const stars = sent.find((c) => c.method === "editMessageText");
   ok("tahrirlandi, yangi xabar yo'q", Boolean(stars) && !sent.some((c) => c.method === "sendMessage"),
      sent.map((c) => c.method).join(", "));
+  ok("darhol miqdor so'raldi",
+     /Nechta Stars sotib olmoqchisiz/.test(stars?.payload?.text ?? ""),
+     (stars?.payload?.text ?? "").split("\n")[0]);
 
   const starsBtns = buttons(stars?.payload).map((b) => b.text);
   console.log("   tugmalar:", starsBtns.join(" | "));
-  ok("«Stars olish» bor", starsBtns.includes("Stars olish"));
-  ok("«Premium olish» bor", starsBtns.includes("Premium olish"));
   ok("«Orqaga qaytish» bor", starsBtns.includes("Orqaga qaytish"));
+
+  // Premium ham bitta bosishda ochiladi.
+  await bot.handleUpdate(callbackUpdate("premium", offerMsgId));
+  sent = take();
+  const prem = sent.find((c) => c.method === "editMessageText");
+  ok("Premium darhol ochildi",
+     /Telegram Premium/.test(prem?.payload?.text ?? ""),
+     (prem?.payload?.text ?? "").split("\n")[0]);
 
   // ── 6. Balans ──
   console.log("\n── Balans ──");
@@ -302,8 +315,8 @@ async function main(): Promise<void> {
   );
   ok("oddiy foydalanuvchi to'xtatildi", Boolean(notice),
      (notice?.payload?.text ?? sent.map((c) => c.method).join(", ")).split("\n")[0]);
-  ok("Stars bo'limi ochilmadi",
-     !sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")));
+  ok("Stars oynasi ochilmadi",
+     !sent.some((c) => /Nechta Stars sotib olmoqchisiz/.test(c.payload?.text ?? "")));
   ok("support tugmasi bor",
      buttons(notice?.payload).some((b) => typeof b.url === "string"),
      buttons(notice?.payload).map((b) => b.text).join(" | "));
@@ -317,7 +330,7 @@ async function main(): Promise<void> {
   await bot.handleUpdate(callbackUpdate("stars", offerMsgId));
   sent = take();
   ok("o'chirilgach yana ishladi",
-     sent.some((c) => /Stars va Premium/.test(c.payload?.text ?? "")),
+     sent.some((c) => /Nechta Stars sotib olmoqchisiz/.test(c.payload?.text ?? "")),
      sent.map((c) => c.method).join(", "));
 
   // ── 10. Broadcast: ASL XABAR CHATDA QOLISHI SHART ──
