@@ -68,7 +68,25 @@ export function fmt(template: string, values: Record<string, string | number> = 
  * kerak; bo'lmasa bot cheklanishi mumkin. Shuning uchun rozilik bermaguncha
  * bot boshqa hech qanday bo'limni ochmaydi.
  */
-export const OFFER_MESSAGE = `🎉 Assalomu alaykum <b>{name}</b>
+/**
+ * KIRISH EKRANI — oferta va kanal a'zoligi bitta joyda.
+ *
+ * Uch holat bor: ikkisi ham kerak, faqat oferta, faqat kanal.
+ * Hammasida BITTA tugma bosiladi va u ikkisini ham bajaradi.
+ */
+export const ENTRY_OFFER_AND_CHANNEL = `🎉 Assalomu alaykum <b>{name}</b>
+
+<b>HozirOL</b> botidan foydalanish uchun ikki qadam:
+
+📚 <b>1.</b> Ommaviy ofertani o'qing — yuqoridagi tugma
+📢 <b>2.</b> Kanalimizga a'zo bo'ling — {channel}
+
+Keyin pastdagi ✅ <b>Roziman</b> tugmasini bosing. Rozilik ham,
+a'zolik ham bir vaqtda tasdiqlanadi va menyu ochiladi.
+
+<blockquote>Rozilik berish orqali siz oferta shartlarini qabul qilasiz</blockquote>`;
+
+export const ENTRY_OFFER_ONLY = `🎉 Assalomu alaykum <b>{name}</b>
 
 <b>HozirOL</b> botidan foydalanish uchun ommaviy ofertani o'qib rozilik bering
 
@@ -77,10 +95,19 @@ export const OFFER_MESSAGE = `🎉 Assalomu alaykum <b>{name}</b>
 
 <blockquote>Rozilik berish orqali siz oferta shartlarini qabul qilasiz</blockquote>`;
 
-/** Rozilik berilmagan holda boshqa tugma bosilsa. */
-export const OFFER_REQUIRED = `❗️ Avval ommaviy ofertaga rozilik bering
+export const ENTRY_CHANNEL_ONLY = `🔒 <b>Kanalga a'zo bo'ling</b>
 
-/start buyrug'ini yuboring`;
+Botdan foydalanish uchun kanalimizga a'zo bo'lishingiz kerak:
+
+${e(I.PEOPLE, "👥")} {channel}
+
+A'zo bo'lgach pastdagi ✅ <b>A'zo bo'ldim</b> tugmasini bosing —
+menyu darhol ochiladi.`;
+
+export const ENTRY_BLOCKED = "Avval kirish shartlarini bajaring";
+export const ENTRY_NOT_MEMBER =
+  "Siz hali kanalga a'zo bo'lmadingiz. A'zo bo'lib, tugmani qaytadan bosing.";
+export const ENTRY_DONE = "Rahmat! Endi botdan foydalanishingiz mumkin";
 
 /**
  * TEXNIK ISHLAR — rejim yoqilganda oddiy foydalanuvchi ko'radigan yagona javob.
@@ -645,7 +672,7 @@ export const BTN = {
   REFERRAL: "👥 Referal",
   LEADERS: "🏆 Liderlar",
   SUB_JOIN: "📢 Kanalga o'tish",
-  SUB_CHECK: "✅ A'zo bo'ldim",
+  ENTRY_CHECK: "✅ A'zo bo'ldim",
   ADMIN_CONTEST: "🏆 Konkurs",
   ADMIN_CONTEST_START: "▶️ Konkurs boshlash",
   ADMIN_CONTEST_FINISH: "🏁 Yakunlash",
@@ -768,21 +795,6 @@ Yangi qiymatni raqam bilan yuboring (masalan <code>7</code>):`;
 // ═══════════════════════════════════════════════════════════════════════════
 //  KONKURS VA MAJBURIY OBUNA
 // ═══════════════════════════════════════════════════════════════════════════
-
-export const SUB_REQUIRED = `🔒 <b>Kanalga a'zo bo'ling</b>
-
-Botdan foydalanish uchun avval kanalimizga a'zo bo'ling:
-
-${e(I.PEOPLE, "👥")} {channel}
-
-A'zo bo'lgach pastdagi tugmani bosing.`;
-
-export const SUB_NOT_YET = "Siz hali kanalga a'zo bo'lmadingiz. A'zo bo'lib, qaytadan bosing.";
-
-export const SUB_WELCOME = `${e(I.CHECK, "✅")} <b>Rahmat!</b>
-
-Endi botdan to'liq foydalanishingiz mumkin.
-Menyuni ochish uchun /start bosing.`;
 
 export const CONTEST_NEW_INVITE = `${e(I.PARTY, "🎉")} <b>Yangi taklif!</b>
 

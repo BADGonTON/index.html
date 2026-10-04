@@ -7,9 +7,8 @@ import { createPgSessionStorage } from "../db/repo/sessions";
 import { bindLogger } from "../services/logger";
 import { unreachableKind, describeTgError } from "../services/tgErrors";
 
-import { offerGate, registerOfferHandlers } from "./handlers/offer";
 import { maintenanceGate, registerMaintenanceHandlers } from "./handlers/maintenance";
-import { subscriptionGate, registerSubscriptionHandlers } from "./handlers/subscription";
+import { entryGate, registerEntryHandlers } from "./handlers/entry";
 import { registerContestHandlers } from "./handlers/contest";
 import { bindSubscription } from "../services/subscription";
 import { registerStartHandlers } from "./handlers/start";
@@ -53,28 +52,27 @@ export function createBot(): Bot<MyContext> {
   bindLogger(bot.api);
   bindSubscription(bot.api);
 
-  // OFERTA DARVOZASI. Rozilik berilmaguncha /start va "Roziman" tugmasidan
-  // boshqa hech narsa ishlamaydi — Telegram Stars va akkaunt savdosi uchun
-  // bu talab. Barcha ushlovchilardan OLDIN turishi shart.
-  bot.use(offerGate());
+  // KIRISH DARVOZASI. Ommaviy ofertaga rozilik va (konkurs vaqtida)
+  // kanal a'zoligi — ikkisi BITTA ekranda so'raladi va bitta tugma
+  // ikkisini ham bajaradi.
+  //
+  // Nega bitta: ilgari ikki alohida darvoza bor edi va keyingisi
+  // "Roziman" tugmasining ushlovchisini to'xtatib qo'yardi — rozilik
+  // bazaga yozilmay, odamdan oferta qaytadan so'ralardi.
+  //
+  // Barcha ushlovchilardan OLDIN turishi shart.
+  bot.use(entryGate());
 
   // TEXNIK ISHLAR DARVOZASI. Yoqilganda oddiy foydalanuvchi faqat
   // "texnik ishlar bormoqda" javobini oladi; adminlar uchun bot
-  // odatdagidek ishlaydi. Ofertadan KEYIN turadi — rozilik bermagan
+  // odatdagidek ishlaydi. Kirishdan KEYIN turadi — rozilik bermagan
   // foydalanuvchi baribir ofertani ko'rishi kerak.
   bot.use(maintenanceGate());
 
-  // MAJBURIY OBUNA DARVOZASI. Konkurs vaqtida kanalga a'zo bo'lmagan
-  // odam ichkariga kirmaydi, a'zo bo'lgach esa uni taklif qilganning
-  // hisobiga bitta taklif yoziladi. Admin paneldan yoqiladi/o'chiriladi;
-  // o'chiq holatda bot mutlaqo odatdagidek ishlaydi.
-  bot.use(subscriptionGate());
-
   // Tartib muhim: aniq buyruq/callback ushlovchilar oldin,
   // umumiy matn marshrutizatori ENG OXIRIDA.
-  registerOfferHandlers(bot);
+  registerEntryHandlers(bot);
   registerMaintenanceHandlers(bot);
-  registerSubscriptionHandlers(bot);
   registerContestHandlers(bot);
   registerStartHandlers(bot);
   registerAdminHandlers(bot);

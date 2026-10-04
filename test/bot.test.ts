@@ -175,7 +175,7 @@ async function main(): Promise<void> {
 
   const offerBtns = buttons(offerMsg?.payload);
   ok("«Roziman» tugmasi bor",
-     offerBtns.some((b) => b.callback_data === "offer_accept" && /Roziman/.test(b.text)),
+     offerBtns.some((b) => b.callback_data === "entry_ok" && /Roziman/.test(b.text)),
      offerBtns.map((b) => b.text).join(" | "));
   ok("oferta havolasi tugmasi bor", offerBtns.some((b) => typeof b.url === "string"),
      offerBtns.map((b) => b.url ?? "-").join(" | "));

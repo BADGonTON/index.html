@@ -50,10 +50,25 @@ function addMiniApp(kb: InlineKeyboard, label: string): InlineKeyboard {
  * Yuqorida — hujjatni ochadigan havola tugmasi, pastda YASHIL "Roziman".
  * Rozilik berilmaguncha bot boshqa hech narsa qilmaydi.
  */
-export function offerKb(): InlineKeyboard {
+/**
+ * Kirish ekrani: oferta havolasi, kanal havolasi va BITTA tasdiq tugmasi.
+ *
+ * Havolalar faqat kerak bo'lganda qo'shiladi — bo'sh havolali tugma
+ * Telegramda xato beradi.
+ */
+export function entryKb(opts: {
+  offerUrl: string;
+  channelUrl: string;
+  label: "accept" | "check";
+}): InlineKeyboard {
   const kb = new InlineKeyboard();
-  if (config.offerUrl) addUrl(kb, BTN.OFFER_READ, config.offerUrl).primary().row();
-  add(kb, BTN.OFFER_ACCEPT, "offer_accept").success();
+  if (opts.offerUrl) addUrl(kb, BTN.OFFER_READ, opts.offerUrl).primary().row();
+  if (opts.channelUrl) addUrl(kb, BTN.SUB_JOIN, opts.channelUrl).primary().row();
+  add(
+    kb,
+    opts.label === "accept" ? BTN.OFFER_ACCEPT : BTN.ENTRY_CHECK,
+    "entry_ok"
+  ).success();
   return kb;
 }
 
@@ -93,12 +108,7 @@ export function rentKb(): InlineKeyboard {
  * (admin faqat username qo'ygan) faqat tekshirish tugmasi qoladi —
  * bo'sh havolali tugma Telegramda xato beradi.
  */
-export function subscribeKb(channelUrl: string): InlineKeyboard {
-  const kb = new InlineKeyboard();
-  if (channelUrl) addUrl(kb, BTN.SUB_JOIN, channelUrl).primary().row();
-  add(kb, BTN.SUB_CHECK, "sub_check").success();
-  return kb;
-}
+
 
 /** Referal ekrani: konkurs ketayotgan bo'lsa "Liderlar" ham chiqadi. */
 export function referralKb(withLeaders: boolean): InlineKeyboard {

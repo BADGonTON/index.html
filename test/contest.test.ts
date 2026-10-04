@@ -135,8 +135,14 @@ async function main(): Promise<void> {
   };
 
   const take = () => calls.splice(0, calls.length);
+  // Bot ekranni ikki xil ko'rsatadi: yangi xabar yuborib (`sendMessage`)
+  // yoki mavjudini tahrirlab (`editMessageText`). Kirish darvozasi
+  // tasdiqdan keyin menyuni TAHRIRLAB chiqaradi, shuning uchun faqat
+  // `sendMessage` ni sanash "javob kelmadi" degan yolg'on xulosa berardi.
   const sentTo = (list: Call[], userId: number) =>
-    list.filter((c) => c.method === "sendMessage" && c.payload?.chat_id === userId);
+    list.filter(
+      (c) => /^(sendMessage|editMessageText)$/.test(c.method) && c.payload?.chat_id === userId
+    );
   const textsTo = (list: Call[], userId: number) =>
     sentTo(list, userId).map((c) => String(c.payload.text));
 
@@ -198,7 +204,7 @@ async function main(): Promise<void> {
 
   // X hali kanalda yo'q — "tekshirdim" tugmasi uni o'tkazmasligi kerak.
   take();
-  await bot.handleUpdate(tap(X, "sub_check"));
+  await bot.handleUpdate(tap(X, "entry_ok"));
   const notYet = take();
   ok("a'zo bo'lmasa ogohlantiriladi",
      notYet.some((c) => c.method === "answerCallbackQuery" && c.payload?.show_alert === true),
@@ -209,7 +215,7 @@ async function main(): Promise<void> {
   // Endi X kanalga qo'shildi.
   members.add(X);
   take();
-  await bot.handleUpdate(tap(X, "sub_check"));
+  await bot.handleUpdate(tap(X, "entry_ok"));
   const joined = take();
   ok("a'zo bo'lgach ichkariga kiritildi",
      textsTo(joined, X).length > 0,
@@ -224,7 +230,7 @@ async function main(): Promise<void> {
   await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(X)]);
   await pool.query("UPDATE users SET channel_joined_at = 0 WHERE user_id = $1", [X]);
   take();
-  await bot.handleUpdate(tap(X, "sub_check"));
+  await bot.handleUpdate(tap(X, "entry_ok"));
   take();
   ok("qayta a'zo bo'lish IKKINCHI marta sanalmadi",
      (await contest.countUserInvites(started.id, A)) === 1,
@@ -238,7 +244,7 @@ async function main(): Promise<void> {
   for (const id of [Y, Z]) {
     members.add(id);
     await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(id)]);
-    await bot.handleUpdate(tap(id, "sub_check"));
+    await bot.handleUpdate(tap(id, "entry_ok"));
   }
   take();
   ok("A ning taklifi 2 ta", (await contest.countUserInvites(started.id, A)) === 2);
@@ -271,7 +277,7 @@ async function main(): Promise<void> {
   // bot uchun u ham oddiy foydalanuvchi.
   members.add(A);
   await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(A)]);
-  await bot.handleUpdate(tap(A, "sub_check"));
+  await bot.handleUpdate(tap(A, "entry_ok"));
   take();
   await bot.handleUpdate(tap(A, "leaders"));
   const board = take();
@@ -347,7 +353,7 @@ async function main(): Promise<void> {
   await pool.query("DELETE FROM bot_sessions WHERE key = $1", [String(Z)]);
   await pool.query("UPDATE users SET channel_joined_at = 0 WHERE user_id = $1", [Z]);
   take();
-  await bot.handleUpdate(tap(Z, "sub_check"));
+  await bot.handleUpdate(tap(Z, "entry_ok"));
   const passthrough = textsTo(take(), Z);
   ok("sozlama xatosida foydalanuvchi o'tkazildi",
      passthrough.length > 0 && !passthrough.some((t) => /a'zo bo'ling/i.test(t)),
