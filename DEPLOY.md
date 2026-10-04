@@ -46,8 +46,16 @@ systemd bularning uchalasini ham hal qiladi.
 ```bash
 cd /root/hozirol
 
-npm ci --omit=dev      # kutubxonalar
+# DIQQAT: `--omit=dev` QO'YMANG. `npm run build` TypeScript bilan
+# kompilyatsiya qiladi, typescript esa devDependency — dev paketlarsiz
+# "tsc: not found" bo'ladi.
+#
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 — playwright faqat testlar uchun,
+# brauzerlari ~100 MB va serverda kerak emas.
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
+
 npm run build          # TypeScript → dist/
+npm prune --omit=dev   # build tugadi — dev paketlar endi kerak emas (93 MB → 34 MB)
 
 sudo cp deploy/hozirol.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -70,18 +78,68 @@ journalctl -u hozirol -f           # loglar (jonli)
 journalctl -u hozirol -n 200       # oxirgi 200 qator
 ```
 
-### Kodni yangilaganda
+### Kodni yangilaganda (git pull)
 
 ```bash
 cd /root/hozirol
-git pull                    # yoki yangi zip'ni ko'chiring
-npm ci --omit=dev
+git pull
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
 npm run build
+npm prune --omit=dev
 sudo systemctl restart hozirol
 ```
 
+### Kodni yangilaganda (yangi zip)
+
+Yangi zip'ni ESKI papka USTIGA `unzip -o` qilib YOYMANG.
+`unzip` faqat arxivdagi fayllarni yozadi, arxivda YO'Q fayllarni esa
+joyida qoldiradi — ya'ni o'chirilgan eski `.ts` fayllar diskda qolib
+ketadi. `tsconfig.json` butun `src/**/*.ts` ni kompilyatsiya qiladi,
+shuning uchun o'sha qoldiq fayllar `npm run build` ni YIQITADI
+(olib tashlangan funksiyalarga murojaat qiladi).
+
+Butun papkani `rm -rf` qilish ham to'g'ri emas: u bilan birga `.env`
+(bot tokeni, TON mnemonikasi) va `miniapp/media/guide.mp4` ham ketadi.
+`.env` yo'qolsa xizmat ishga ham tushmaydi — `hozirol.service` dagi
+`EnvironmentFile=/root/hozirol/.env` topilmaydi.
+
+To'g'ri yo'l — eski papkani CHETGA SURIB, yangisini toza yoyish va
+faqat o'z fayllaringizni qaytarish:
+
+```bash
+sudo systemctl stop hozirol
+
+cd /root
+cp hozirol/.env /root/env-zaxira          # zaxira, har ehtimolga
+mv hozirol hozirol-eski                   # o'chirmaymiz — chetga suramiz
+
+mkdir hozirol
+unzip -q hozirol.zip -d hozirol
+
+cp hozirol-eski/.env hozirol/.env
+cp hozirol-eski/miniapp/media/guide.mp4 hozirol/miniapp/media/ 2>/dev/null
+
+cd hozirol
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
+npm run build
+npm prune --omit=dev
+
+sudo systemctl start hozirol
+sudo systemctl status hozirol --no-pager
+journalctl -u hozirol -n 50 --no-pager
+```
+
+Bot ko'tarilib, ishlayotganiga ishonch hosil qilgandan keyin eski
+papkani o'chirsangiz bo'ladi:
+
+```bash
+rm -rf /root/hozirol-eski
+```
+
 Migratsiyalar ishga tushishda **o'zi** qo'llanadi — qo'lda hech narsa
-qilish shart emas.
+qilish shart emas. Allaqachon qo'llangan migratsiyalar `schema_migrations`
+jadvalida qayd etilgan, shuning uchun fayli o'chirilgan eski
+migratsiyalar bazaga qayta urinmaydi va xato bermaydi.
 
 ---
 
