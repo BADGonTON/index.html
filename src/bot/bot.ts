@@ -5,7 +5,6 @@ import { config } from "../config";
 import { MyContext, initialSession } from "./session";
 import { createPgSessionStorage } from "../db/repo/sessions";
 import { bindLogger } from "../services/logger";
-import { bindCustomEmoji } from "../services/customEmoji";
 import { unreachableKind, describeTgError } from "../services/tgErrors";
 
 import { offerGate, registerOfferHandlers } from "./handlers/offer";
@@ -53,8 +52,6 @@ export function createBot(): Bot<MyContext> {
   );
 
   bindLogger(bot.api);
-  // Premium emojini Mini App uchun stikerga aylantirish shu orqali ishlaydi.
-  bindCustomEmoji(bot.api);
   bindSubscription(bot.api);
 
   // OFERTA DARVOZASI. Rozilik berilmaguncha /start va "Roziman" tugmasidan

@@ -18,6 +18,8 @@ export type LedgerReason =
   | "tg_profile"
   | "rent"
   | "rent_extend"
+  // Reklama bo'limi olib tashlandi, lekin bazada o'sha davrdagi haqiqiy
+  // yozuvlar QOLDI. Sababni ro'yxatdan chiqarsak, eski tarix o'qilmasdi.
   | "ads"
   | "refund";
 

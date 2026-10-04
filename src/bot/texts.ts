@@ -699,8 +699,6 @@ export const BTN = {
   ADMIN_SERVICE_FEE: "🧾 Xizmat haqi",
   ADMIN_EXTEND_MIN_DAYS: "📆 Uzaytirish: eng kam kun",
   ADMIN_EXTEND_FEE: "🧾 Uzaytirish: xizmat haqi",
-  ADMIN_ADS_MARKUP: "📣 Reklama: ustama",
-  ADMIN_ADS_MIN_TOPUP: "💳 Reklama: eng kam summa",
   ADMIN_RENT_STATS: "📊 Arenda statistikasi",
 } as const;
 
@@ -780,17 +778,6 @@ Shu sabab eng kam muddat past bo'lsa, har bir qisqa uzaytirish zarar
 keltiradi.
 
 Yangi qiymatni raqam bilan yuboring (masalan <code>7</code>):`;
-
-export const ADMIN_SET_ADS_MARKUP = `📣 <b>Reklama: ustama</b>
-
-Hozirgi qiymat: <b>{pct}%</b>
-
-Foydalanuvchi so'mda to'laydi, biz TON ga o'girib Telegram byudjetiga
-qo'yamiz. Ustama shu summaning ICHIDAN olinadi — ustidan emas.
-
-Masalan 15% da: 50 000 so'mdan 6 522 so'm bizga, 43 478 so'm byudjetga.
-
-Yangi qiymatni raqam bilan yuboring (masalan <code>15</code>):`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  KONKURS VA MAJBURIY OBUNA
@@ -898,17 +885,6 @@ Kanal username'ini yuboring (masalan <code>@HozirOL</code>).
 a'zolikni tekshira olmaydi.
 
 O'chirish uchun <code>-</code> yuboring.`;
-
-export const ADMIN_SET_ADS_MIN_TOPUP = `💳 <b>Reklama: eng kam summa</b>
-
-Hozirgi qiymat: <b>{uzs} so'm</b>
-
-Reklama yaratish va byudjetni oshirish uchun eng kam summa.
-
-Eng kam CPM (1000 ko'rsatish narxi) shu summadan ALOHIDA hisoblanadi
-va rasm, video hamda premium emoji qo'shilganda avtomatik oshadi.
-
-Yangi qiymatni raqam bilan yuboring (masalan <code>5000</code>):`;
 
 export const ADMIN_SET_EXTEND_FEE = `🧾 <b>Uzaytirish: xizmat haqi</b>
 

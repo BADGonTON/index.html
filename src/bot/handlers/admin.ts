@@ -26,8 +26,6 @@ import {
   ADMIN_SET_SERVICE_FEE,
   ADMIN_SET_EXTEND_MIN_DAYS,
   ADMIN_SET_EXTEND_FEE,
-  ADMIN_SET_ADS_MARKUP,
-  ADMIN_SET_ADS_MIN_TOPUP,
   ADMIN_RENT_STATS,
 } from "../texts";
 import { adminKb, adminBackKb, broadcastConfirmKb, giftAdminListKb } from "../keyboards";
@@ -51,10 +49,6 @@ import {
   setExtendMinDays,
   getExtendFeeUzs,
   setExtendFeeUzs,
-  getAdsMarkupPct,
-  setAdsMarkupPct,
-  setAdsMinTon,
-  getAdsMinTopupUzs,
 } from "../../services/pricing";
 import { catalogStats } from "../../services/catalog";
 import { sendLog, notifyUser } from "../../services/logger";
@@ -276,32 +270,6 @@ export function registerAdminHandlers(bot: Bot<MyContext>): void {
         adminBackKb()
       );
       ctx.session.step = STEP.ADMIN_SET_EXTEND_FEE;
-      await ctx.answerCallbackQuery();
-    })
-  );
-
-  bot.callbackQuery(
-    "admin_ads_markup",
-    adminOnly(async (ctx) => {
-      await sendTracked(
-        ctx,
-        fmt(ADMIN_SET_ADS_MARKUP, { pct: getAdsMarkupPct() }),
-        adminBackKb()
-      );
-      ctx.session.step = STEP.ADMIN_SET_ADS_MARKUP;
-      await ctx.answerCallbackQuery();
-    })
-  );
-
-  bot.callbackQuery(
-    "admin_ads_min_topup",
-    adminOnly(async (ctx) => {
-      await sendTracked(
-        ctx,
-        fmt(ADMIN_SET_ADS_MIN_TOPUP, { uzs: getAdsMinTopupUzs().toLocaleString("ru-RU") }),
-        adminBackKb()
-      );
-      ctx.session.step = STEP.ADMIN_SET_ADS_MIN_TOPUP;
       await ctx.answerCallbackQuery();
     })
   );
@@ -569,40 +537,6 @@ export async function handleAdminSetExtendFeeText(ctx: MyContext): Promise<void>
         ? "✅ Uzaytirish endi <b>xizmat haqisiz</b>"
         : `✅ Uzaytirish xizmat haqi: <b>${v.toLocaleString("ru-RU")} so'm</b>`,
     0
-  );
-}
-
-export async function handleAdminSetAdsMarkupText(ctx: MyContext): Promise<void> {
-  await handleNumericSetting(
-    ctx,
-    setAdsMarkupPct,
-    (v) => `✅ Reklama ustamasi: <b>${v}%</b>`,
-    0
-  );
-}
-
-/**
- * Eng kam summa SO'MDA kiritiladi.
- *
- * Ichkarida esa TON da saqlanadi: kurs o'zgarganda chegara Telegramning
- * o'z talabidan pastga tushib qolmasligi kerak. Foydalanuvchi ham, admin
- * ham TON ni ko'rmaydi — u faqat Telegram API si uchun.
- */
-export async function handleAdminSetAdsMinTopupText(ctx: MyContext): Promise<void> {
-  const raw = (ctx.message?.text ?? "").replace(/[\s,]/g, "");
-  const value = parseInt(raw, 10);
-
-  if (!Number.isFinite(value) || value <= 0) {
-    await sendTracked(ctx, ADMIN_INVALID_FORMAT, adminBackKb());
-    return;
-  }
-
-  await setAdsMinTon(value / getTonRateUzs());
-  ctx.session.step = undefined;
-  await sendTracked(
-    ctx,
-    `✅ Reklamaga eng kam summa: <b>${getAdsMinTopupUzs().toLocaleString("ru-RU")} so'm</b>`,
-    adminBackKb()
   );
 }
 
